@@ -22,6 +22,7 @@ define('DB_PASS', getenv('DB_PASS') ?: 'postgres');
 
 /**
  * Mendapatkan instance koneksi PDO PostgreSQL (Singleton Pattern)
+ * Mendukung deteksi otomatis host lokal & host Docker (172.17.0.1 / host.docker.internal)
  *
  * @return PDO
  */
@@ -29,24 +30,40 @@ function get_db(): PDO {
     static $pdo = null;
 
     if ($pdo === null) {
-        $dsn = sprintf(
-            "pgsql:host=%s;port=%s;dbname=%s;options='--client_encoding=UTF8'",
-            DB_HOST,
-            DB_PORT,
-            DB_NAME
-        );
-
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
-        try {
-            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-        } catch (PDOException $e) {
-            // Tampilkan pesan kesalahan yang aman untuk lingkungan produksi/pengembangan
-            die("Koneksi database PostgreSQL gagal: " . htmlspecialchars($e->getMessage()));
+        // Daftar kandidat host (Docker bridge, Docker internal, dan localhost)
+        $hostsToTry = array_unique([
+            DB_HOST,
+            'host.docker.internal',
+            '172.17.0.1',
+            '127.0.0.1',
+            'localhost'
+        ]);
+
+        $lastException = null;
+
+        foreach ($hostsToTry as $host) {
+            try {
+                $dsn = sprintf(
+                    "pgsql:host=%s;port=%s;dbname=%s;options='--client_encoding=UTF8'",
+                    $host,
+                    DB_PORT,
+                    DB_NAME
+                );
+                $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+                break; // Berhasil terhubung
+            } catch (PDOException $e) {
+                $lastException = $e;
+            }
+        }
+
+        if ($pdo === null && $lastException !== null) {
+            die("Koneksi database PostgreSQL gagal: " . htmlspecialchars($lastException->getMessage()) . "<br><small>Pastikan service PostgreSQL aktif dan database '" . htmlspecialchars(DB_NAME) . "' dapat diakses.</small>");
         }
     }
 
