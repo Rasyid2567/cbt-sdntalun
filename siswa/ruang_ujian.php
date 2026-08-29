@@ -60,7 +60,7 @@ if (empty($urutanIds)) {
 $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
 
 $stmtSoal = $db->prepare("
-    SELECT b.id_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e,
+    SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e,
            COALESCE(j.jawaban_terpilih, '') as jawaban_terpilih,
            COALESCE(j.status_ragu, false) as status_ragu
     FROM bank_soal b
@@ -84,7 +84,7 @@ foreach ($urutanIds as $index => $sid) {
     if (!isset($soalMap[$sid])) continue;
     $item = $soalMap[$sid];
 
-    // Persiapkan Opsi
+    // Persiapkan Opsi jika pilihan ganda
     $opsiArray = [
         ['code' => 'A', 'text' => $item['opsi_a']],
         ['code' => 'B', 'text' => $item['opsi_b']],
@@ -95,11 +95,10 @@ foreach ($urutanIds as $index => $sid) {
         $opsiArray[] = ['code' => 'E', 'text' => $item['opsi_e']];
     }
 
-    // Opsi pilihan ganda selalu berurutan alfabetis A, B, C, D, E
-
     $soalClean[] = [
         'index'            => $index,
         'id_soal'          => (int)$item['id_soal'],
+        'jenis_soal'       => $item['jenis_soal'] ?? 'pilihan_ganda',
         'pertanyaan'       => nl2br(sanitize($item['pertanyaan'])),
         'gambar'           => !empty($item['gambar']) ? base_url(ltrim($item['gambar'], '/')) : null,
         'opsi'             => $opsiArray,
@@ -210,6 +209,10 @@ foreach ($urutanIds as $index => $sid) {
             <div class="legend-item">
                 <span class="legend-color doubt"></span>
                 <span>Ragu-ragu (Kuning)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color essai"></span>
+                <span>Soal Essai di Kertas (Ungu)</span>
             </div>
         </div>
     </aside>

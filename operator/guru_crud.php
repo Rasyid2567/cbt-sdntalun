@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $del = $db->prepare("DELETE FROM users WHERE id_user = :id AND role = 'guru'");
             $del->execute([':id' => $id]);
-            flash_set('success', 'Data guru berhasil dihapus.');
+            flash_set('danger', 'Data guru berhasil dihapus.');
         }
         redirect(base_url('operator/guru_crud.php?tab=guru'));
     }
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $del = $db->prepare("DELETE FROM mapel WHERE id_mapel = :id");
             $del->execute([':id' => $id]);
-            flash_set('success', 'Mata pelajaran berhasil dihapus.');
+            flash_set('danger', 'Mata pelajaran berhasil dihapus.');
         }
         redirect(base_url('operator/guru_crud.php?tab=mapel'));
     }
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $del = $db->prepare("DELETE FROM kelas WHERE id_kelas = :id");
             $del->execute([':id' => $id]);
-            flash_set('success', 'Kelas berhasil dihapus.');
+            flash_set('danger', 'Kelas berhasil dihapus.');
         }
         redirect(base_url('operator/guru_crud.php?tab=kelas'));
     }
@@ -203,7 +203,6 @@ $flash = flash_get();
     <div class="card-header">
         <div>
             <h1 class="card-title">Master Data Guru, Mapel & Kelas</h1>
-            <p class="text-sm text-muted">Kelola akun guru penguji, mata pelajaran, serta rombel kelas SD.</p>
         </div>
         <div class="card-header-actions">
             <a href="?tab=guru" class="btn <?= ($activeTab === 'guru') ? 'btn-primary' : 'btn-outline' ?>">Data Guru</a>
@@ -375,12 +374,11 @@ $flash = flash_get();
             <div class="form-group">
                 <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
                 <select name="id_kelas" class="form-control">
-                    <option value="">-- Guru Mata Pelajaran Umum (Semua Kelas) --</option>
+                    <option value="">Guru Mata Pelajaran Umum (Semua Kelas)</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <p class="text-xs text-muted mt-1">Pilih tingkatan kelas SD jika guru bertindak sebagai Guru Kelas (Wali Kelas).</p>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-tambah-guru')">Batal</button>
@@ -414,7 +412,7 @@ $flash = flash_get();
             <div class="form-group">
                 <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
                 <select id="edit-guru-kelas" name="id_kelas" class="form-control">
-                    <option value="">-- Guru Mata Pelajaran Umum (Semua Kelas) --</option>
+                    <option value="">Guru Mata Pelajaran Umum (Semua Kelas)</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
@@ -471,9 +469,6 @@ $flash = flash_get();
 </div>
 
 <script>
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-
 function openEditGuruModal(data) {
     document.getElementById('edit-guru-id').value = data.id_user;
     document.getElementById('edit-guru-username').value = data.username;

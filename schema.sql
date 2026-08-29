@@ -55,14 +55,15 @@ CREATE TABLE bank_soal (
     id_guru INT NOT NULL REFERENCES users(id_user) ON DELETE CASCADE,
     id_mapel INT NOT NULL REFERENCES mapel(id_mapel) ON DELETE CASCADE,
     judul_soal VARCHAR(150) NOT NULL DEFAULT 'Latihan Soal',
+    jenis_soal VARCHAR(20) DEFAULT 'pilihan_ganda', -- 'pilihan_ganda' atau 'essai'
     pertanyaan TEXT NOT NULL,
     gambar VARCHAR(255) NULL,
-    opsi_a TEXT NOT NULL,
-    opsi_b TEXT NOT NULL,
-    opsi_c TEXT NOT NULL,
-    opsi_d TEXT NOT NULL,
+    opsi_a TEXT NULL,
+    opsi_b TEXT NULL,
+    opsi_c TEXT NULL,
+    opsi_d TEXT NULL,
     opsi_e TEXT NULL,
-    kunci_jawaban CHAR(1) NOT NULL,
+    kunci_jawaban VARCHAR(255) NULL, -- Menyimpan 'A', 'A,B', atau pedoman essai
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -102,7 +103,7 @@ CREATE TABLE jawaban_siswa (
     id_jawaban SERIAL PRIMARY KEY,
     id_ujian_siswa INT NOT NULL REFERENCES ujian_siswa(id_ujian_siswa) ON DELETE CASCADE,
     id_soal INT NOT NULL REFERENCES bank_soal(id_soal) ON DELETE CASCADE,
-    jawaban_terpilih CHAR(1) NULL,
+    jawaban_terpilih TEXT NULL, -- Menyimpan 'A', 'A,B' (checklist), atau teks jawaban essai
     status_ragu BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_ujian_soal UNIQUE (id_ujian_siswa, id_soal)

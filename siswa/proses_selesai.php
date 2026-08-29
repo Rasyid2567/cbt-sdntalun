@@ -61,28 +61,49 @@ if ($totalSoal > 0) {
     $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
     
     // Ambil kunci jawaban bank soal
-    $stmtKunci = $db->prepare("SELECT id_soal, kunci_jawaban FROM bank_soal WHERE id_soal IN ($placeholders)");
+    $stmtKunci = $db->prepare("SELECT id_soal, jenis_soal, kunci_jawaban FROM bank_soal WHERE id_soal IN ($placeholders)");
     $stmtKunci->execute($urutanIds);
-    $kunciMap = $stmtKunci->fetchAll(PDO::FETCH_KEY_PAIR);
+    $soalRows = $stmtKunci->fetchAll();
+
+    $kunciMap = [];
+    $jenisMap = [];
+    foreach ($soalRows as $sr) {
+        $kunciMap[$sr['id_soal']] = $sr['kunci_jawaban'];
+        $jenisMap[$sr['id_soal']] = $sr['jenis_soal'] ?? 'pilihan_ganda';
+    }
 
     // Ambil jawaban terpilih siswa
     $stmtJwb = $db->prepare("SELECT id_soal, jawaban_terpilih FROM jawaban_siswa WHERE id_ujian_siswa = ?");
     $stmtJwb->execute([$idUjianSiswa]);
     $jwbMap = $stmtJwb->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    // Hitung jumlah jawaban benar
-    foreach ($urutanIds as $sid) {
-        $kunci = strtoupper(trim($kunciMap[$sid] ?? ''));
-        $jwb   = strtoupper(trim($jwbMap[$sid] ?? ''));
+    $totalPG = 0;
 
-        if ($kunci !== '' && $jwb !== '' && $kunci === $jwb) {
-            $jumlahBenar++;
+    // Hitung jumlah jawaban benar untuk pilihan ganda
+    foreach ($urutanIds as $sid) {
+        $jenis = $jenisMap[$sid] ?? 'pilihan_ganda';
+
+        if ($jenis === 'pilihan_ganda') {
+            $totalPG++;
+            $kunciStr = strtoupper(trim($kunciMap[$sid] ?? ''));
+            $jwbStr   = strtoupper(trim($jwbMap[$sid] ?? ''));
+
+            if ($kunciStr !== '' && $jwbStr !== '') {
+                $kunciArr = array_filter(array_map('trim', explode(',', $kunciStr)));
+                $jwbArr   = array_filter(array_map('trim', explode(',', $jwbStr)));
+                sort($kunciArr);
+                sort($jwbArr);
+                if ($kunciArr === $jwbArr || in_array($jwbStr, $kunciArr, true)) {
+                    $jumlahBenar++;
+                }
+            }
         }
     }
 }
 
-// 3. Hitung Nilai Akhir (Skala 0 - 100)
-$nilaiAkhir = ($totalSoal > 0) ? round(($jumlahBenar / $totalSoal) * 100, 2) : 0.00;
+// 3. Hitung Nilai Akhir Otomatis dari Pilihan Ganda (Skala 0 - 100)
+// Soal Uraian / Essai dikerjakan di kertas dan dinilai secara manual oleh Guru
+$nilaiAkhir = ($totalPG > 0) ? round(($jumlahBenar / $totalPG) * 100, 2) : 0.00;
 
 // 4. Update Log Ujian Siswa Menjadi 'selesai'
 $stmtUpdate = $db->prepare("

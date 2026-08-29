@@ -177,7 +177,7 @@ $flash = flash_get();
 
     <!-- Jika ada sesi yang sedang berjalan -->
     <?php if ($ujianBerjalan): ?>
-        <div class="card" style="border-left: 5px solid var(--primary); background: #eff6ff;">
+        <div class="card" style="background: #f8fafc; border: 1px solid #bfdbfe;">
             <div class="flex-between" style="flex-wrap: wrap; gap: 1rem;">
                 <div>
                     <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--primary);">UJIAN ANDA SEDANG BERLANGSUNG</h2>
@@ -226,7 +226,6 @@ $flash = flash_get();
         <div class="card-header" style="margin-bottom: 1rem;">
             <div>
                 <h2 class="card-title">Daftar Sesi Ujian Aktif</h2>
-                <p class="text-sm text-muted" style="margin: 0;">Pilih ujian dan masukkan Token Ujian dari Pengawas kelas.</p>
             </div>
         </div>
 
@@ -247,19 +246,19 @@ $flash = flash_get();
                             <h3 class="cbt-exam-title"><?= sanitize($s['nama_ujian']) ?></h3>
                             <div class="cbt-exam-meta-pills">
                                 <?php if ($s['sisa_detik_sesi'] > 0): ?>
-                                    <span class="cbt-meta-pill" style="background: #eff6ff; color: #1d4ed8;">⏱️ Sisa Waktu: <strong class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</strong></span>
+                                    <span class="cbt-meta-pill" style="background: #eff6ff; color: #1d4ed8;">Sisa Waktu: <strong class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</strong></span>
                                 <?php else: ?>
-                                    <span class="cbt-meta-pill" style="background: #fee2e2; color: #dc2626;">⏱️ <strong>Waktu Sesi Berakhir</strong></span>
+                                    <span class="cbt-meta-pill" style="background: #fee2e2; color: #dc2626;"><strong>Waktu Sesi Berakhir</strong></span>
                                 <?php endif; ?>
-                                <span class="cbt-meta-pill">📝 Jumlah: <strong><?= $s['total_soal'] ?> Butir Soal</strong></span>
+                                <span class="cbt-meta-pill">Jumlah: <strong><?= $s['total_soal'] ?> Soal</strong></span>
                             </div>
                         </div>
                         <div class="cbt-exam-card-footer">
                             <?php if ($s['status_ujian_siswa'] === 'selesai'): ?>
-                                <span class="text-success" style="font-weight: 700; font-size: 0.88rem;">✓ Telah Diselesaikan</span>
-                                <a href="<?= base_url('siswa/hasil.php?id_ujian_siswa=' . $s['id_ujian_siswa']) ?>" class="btn btn-sm btn-outline">Lihat Nilai</a>
+                                <span class="text-success" style="font-weight: 700; font-size: 0.88rem;">Telah Diselesaikan</span>
+                                <a href="<?= base_url('siswa/hasil.php?id_ujian_siswa=' . $s['id_ujian_siswa']) ?>" class="btn btn-sm btn-outline">Bukti Selesai</a>
                             <?php elseif ($s['status_ujian_siswa'] === 'sedang'): ?>
-                                <span class="text-primary" style="font-weight: 700; font-size: 0.88rem;">⏱️ Ujian Sedang Berlangsung</span>
+                                <span class="text-primary" style="font-weight: 700; font-size: 0.88rem;">Sedang Dikerjakan</span>
                                 <a href="<?= base_url('siswa/ruang_ujian.php') ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
                             <?php elseif ($s['sisa_detik_sesi'] <= 0): ?>
                                 <span class="text-danger" style="font-size: 0.85rem; font-weight: 700;">Waktu Sesi Berakhir</span>
@@ -326,7 +325,6 @@ $flash = flash_get();
                     Masukkan 6 Digit Token Ujian: <span class="text-danger">*</span>
                 </label>
                 <input type="text" name="token_ujian" id="modal_token" class="form-control" maxlength="10" autocomplete="off" style="text-transform: uppercase; font-family: monospace; font-size: 1.25rem; font-weight: 800; letter-spacing: 3px; text-align: center; height: 48px; border: 2px solid var(--primary-light); background: #f0f7ff;" required>
-                <span class="text-xs text-muted mt-1 block" style="text-align: center;">Minta token ujian kepada Pengawas / Proktor di ruang kelas.</span>
             </div>
 
             <div class="flex gap-2" style="justify-content: flex-end;">

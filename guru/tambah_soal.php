@@ -1,6 +1,6 @@
 <?php
 /**
- * Modul Tambah & Edit Butir Soal (Dukungan Multi-Pertanyaan Dinamis)
+ * Modul Tambah & Edit Paket Soal (Dukungan Semua Butir Soal, Pilihan Ganda & Essai)
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -9,139 +9,131 @@ $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 
-$editId = !empty($_GET['edit']) ? (int)$_GET['edit'] : 0;
-$soalData = null;
+// Tangani parameter inisialisasi
+$initMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : 0;
+$initJudul = trim($_GET['judul_soal'] ?? '');
+$editSingleId = !empty($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
-if ($editId > 0) {
-    $stmt = $db->prepare("SELECT * FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
-    $stmt->execute([':id' => $editId, ':g' => $idGuru]);
-    $soalData = $stmt->fetch();
-    if (!$soalData) {
-        flash_set('danger', 'Soal tidak ditemukan atau bukan milik Anda.');
-        redirect(base_url('guru/bank_soal.php'));
+// Jika datang dari tombol edit butir soal tunggal, ambil mapel & judul soalnya
+if ($editSingleId > 0 && ($initMapel === 0 || $initJudul === '')) {
+    $stmtSingle = $db->prepare("SELECT id_mapel, judul_soal FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
+    $stmtSingle->execute([':id' => $editSingleId, ':g' => $idGuru]);
+    $singleData = $stmtSingle->fetch();
+    if ($singleData) {
+        $initMapel = (int)$singleData['id_mapel'];
+        $initJudul = $singleData['judul_soal'];
     }
 }
 
-// Proses Form POST
+// Ambil seluruh butir pertanyaan dalam paket ini jika mapel & judul ditentukan
+$existingQuestions = [];
+if ($initMapel > 0 && $initJudul !== '') {
+    $stmtPaket = $db->prepare("
+        SELECT * FROM bank_soal 
+        WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j 
+        ORDER BY id_soal ASC
+    ");
+    $stmtPaket->execute([':g' => $idGuru, ':m' => $initMapel, ':j' => $initJudul]);
+    $existingQuestions = $stmtPaket->fetchAll();
+}
+
+$isEditMode = !empty($existingQuestions);
+
+// PROSES FORM POST (SIMPAN / PERBARUI SELURUH PAKET SOAL)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
-        flash_set('danger', 'Validasi CSRF Token gagal.');
-        redirect(base_url('guru/tambah_soal.php' . ($editId ? '?edit=' . $editId : '')));
+        flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
+        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
     }
 
     $idMapel   = (int)($_POST['id_mapel'] ?? 0);
     $judulSoal = trim($_POST['judul_soal'] ?? '');
+    $oldMapel  = (int)($_POST['old_mapel'] ?? 0);
+    $oldJudul  = trim($_POST['old_judul'] ?? '');
+    $soalItems = $_POST['soal'] ?? [];
+
     if ($judulSoal === '') {
         $judulSoal = 'Asesmen Harian';
     }
 
     if ($idMapel <= 0) {
         flash_set('danger', 'Silakan pilih Mata Pelajaran terlebih dahulu.');
-        redirect(base_url('guru/tambah_soal.php' . ($editId ? '?edit=' . $editId : '')));
+        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
     }
 
-    // MODE 1: EDIT BUTIR SOAL TUNGGAL
-    if ($editId > 0) {
-        $pertanyaan   = trim($_POST['pertanyaan'] ?? '');
-        $opsiA        = trim($_POST['opsi_a'] ?? '');
-        $opsiB        = trim($_POST['opsi_b'] ?? '');
-        $opsiC        = trim($_POST['opsi_c'] ?? '');
-        $opsiD        = trim($_POST['opsi_d'] ?? '');
-        $opsiE        = trim($_POST['opsi_e'] ?? '');
-        $kunci        = strtoupper(trim($_POST['kunci_jawaban'] ?? ''));
+    if (empty($soalItems) || !is_array($soalItems)) {
+        flash_set('danger', 'Minimal harus ada 1 butir pertanyaan.');
+        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
+    }
 
-        if ($pertanyaan === '' || $opsiA === '' || $opsiB === '' || $opsiC === '' || $opsiD === '' || $kunci === '') {
-            flash_set('danger', 'Mohon lengkapi teks pertanyaan, opsi A-D, dan kunci jawaban.');
-            redirect(base_url('guru/tambah_soal.php?edit=' . $editId));
+    $db->beginTransaction();
+    try {
+        // Kumpulkan ID butir soal yang masih dipertahankan pada form ini
+        $submittedIds = [];
+        foreach ($soalItems as $item) {
+            $sId = (int)($item['id_soal'] ?? 0);
+            if ($sId > 0) {
+                $submittedIds[] = $sId;
+            }
         }
 
-        $gambarPath = $soalData['gambar'] ?? null;
+        // Hapus butir soal lama yang dihapus oleh guru dari paket ini
+        if ($oldMapel > 0 && $oldJudul !== '') {
+            $stmtOld = $db->prepare("
+                SELECT id_soal, gambar FROM bank_soal 
+                WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j
+            ");
+            $stmtOld->execute([':g' => $idGuru, ':m' => $oldMapel, ':j' => $oldJudul]);
+            $oldRows = $stmtOld->fetchAll();
 
-        // Upload Gambar
-        if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] === UPLOAD_ERR_OK) {
-            $fileTmp  = $_FILES['gambar']['tmp_name'];
-            $fileName = $_FILES['gambar']['name'];
-            $fileSize = $_FILES['gambar']['size'];
-            $ext      = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-
-            $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            if (in_array($ext, $allowedExts, true) && $fileSize <= 2 * 1024 * 1024) {
-                $uploadDir = __DIR__ . '/../assets/uploads/';
-                if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-                $newFileName = 'soal_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                if (move_uploaded_file($fileTmp, $uploadDir . $newFileName)) {
-                    if (!empty($soalData['gambar']) && file_exists(__DIR__ . '/../' . ltrim($soalData['gambar'], '/'))) {
-                        unlink(__DIR__ . '/../' . ltrim($soalData['gambar'], '/'));
+            foreach ($oldRows as $oldR) {
+                if (!in_array((int)$oldR['id_soal'], $submittedIds, true)) {
+                    // Hapus gambar jika ada
+                    if (!empty($oldR['gambar']) && file_exists(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'))) {
+                        unlink(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'));
                     }
-                    $gambarPath = 'assets/uploads/' . $newFileName;
+                    $delStmt = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
+                    $delStmt->execute([':id' => $oldR['id_soal'], ':g' => $idGuru]);
                 }
             }
         }
 
-        if (isset($_POST['hapus_gambar']) && $_POST['hapus_gambar'] == '1') {
-            if (!empty($soalData['gambar']) && file_exists(__DIR__ . '/../' . ltrim($soalData['gambar'], '/'))) {
-                unlink(__DIR__ . '/../' . ltrim($soalData['gambar'], '/'));
-            }
-            $gambarPath = null;
-        }
+        // Siapkan statement INSERT & UPDATE
+        $stmtInsert = $db->prepare("
+            INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, jenis_soal, pertanyaan, gambar, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
+            VALUES (:g, :m, :j, :jenis, :p, :gbr, :oa, :ob, :oc, :od, :oe, :k)
+        ");
 
-        $upd = $db->prepare("
+        $stmtUpdate = $db->prepare("
             UPDATE bank_soal 
-            SET id_mapel = :m, judul_soal = :j, pertanyaan = :p, gambar = :g, 
-                opsi_a = :oa, opsi_b = :ob, opsi_c = :oc, opsi_d = :od, opsi_e = :oe, 
-                kunci_jawaban = :k
-            WHERE id_soal = :id AND id_guru = :guru
+            SET id_mapel = :m, judul_soal = :j, jenis_soal = :jenis, pertanyaan = :p, gambar = :gbr, 
+                opsi_a = :oa, opsi_b = :ob, opsi_c = :oc, opsi_d = :od, opsi_e = :oe, kunci_jawaban = :k
+            WHERE id_soal = :id AND id_guru = :g
         ");
-        $upd->execute([
-            ':m'    => $idMapel,
-            ':j'    => $judulSoal,
-            ':p'    => $pertanyaan,
-            ':g'    => $gambarPath,
-            ':oa'   => $opsiA,
-            ':ob'   => $opsiB,
-            ':oc'   => $opsiC,
-            ':od'   => $opsiD,
-            ':oe'   => $opsiE !== '' ? $opsiE : null,
-            ':k'    => $kunci,
-            ':id'   => $editId,
-            ':guru' => $idGuru
-        ]);
-        flash_set('success', 'Butir soal berhasil diperbarui.');
-        redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
-    }
 
-    // MODE 2: TAMBAH SATU ATAU BANYAK PERTANYAAN (MULTI-QUESTION INPUT)
-    $soalItems = $_POST['soal'] ?? [];
-    if (empty($soalItems) || !is_array($soalItems)) {
-        flash_set('danger', 'Tidak ada butir pertanyaan yang diinput.');
-        redirect(base_url('guru/tambah_soal.php'));
-    }
-
-    $insertedCount = 0;
-    $db->beginTransaction();
-
-    try {
-        $ins = $db->prepare("
-            INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, pertanyaan, gambar, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
-            VALUES (:guru, :m, :j, :p, :g, :oa, :ob, :oc, :od, :oe, :k)
-        ");
+        $savedCount = 0;
 
         foreach ($soalItems as $idx => $item) {
-            $pertanyaan   = trim($item['pertanyaan'] ?? '');
-            $opsiA        = trim($item['opsi_a'] ?? '');
-            $opsiB        = trim($item['opsi_b'] ?? '');
-            $opsiC        = trim($item['opsi_c'] ?? '');
-            $opsiD        = trim($item['opsi_d'] ?? '');
-            $opsiE        = trim($item['opsi_e'] ?? '');
-            $kunci        = strtoupper(trim($item['kunci_jawaban'] ?? ''));
+            $itemSoalId = (int)($item['id_soal'] ?? 0);
+            $jenis      = $item['jenis_soal'] ?? 'pilihan_ganda';
+            $pertanyaan = trim($item['pertanyaan'] ?? '');
 
-            // Lewati jika pertanyaan kosong
-            if ($pertanyaan === '' || $opsiA === '' || $opsiB === '' || $opsiC === '' || $opsiD === '' || $kunci === '') {
-                continue;
+            if ($pertanyaan === '') {
+                continue; // Lewati pertanyaan kosong
             }
 
-            // Upload gambar jika diunggah untuk pertanyaan ini
-            $gambarPath = null;
+            // Kelola file gambar
+            $gambarPath = !empty($item['existing_gambar']) ? $item['existing_gambar'] : null;
+
+            // Jika ada request hapus gambar lama
+            if (!empty($item['hapus_gambar']) && $gambarPath) {
+                if (file_exists(__DIR__ . '/../' . ltrim($gambarPath, '/'))) {
+                    unlink(__DIR__ . '/../' . ltrim($gambarPath, '/'));
+                }
+                $gambarPath = null;
+            }
+
+            // Upload gambar baru jika ada
             $fileKey = 'gambar_' . $idx;
             if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
                 $fileTmp  = $_FILES[$fileKey]['tmp_name'];
@@ -153,57 +145,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (in_array($ext, $allowedExts, true) && $fileSize <= 2 * 1024 * 1024) {
                     $uploadDir = __DIR__ . '/../assets/uploads/';
                     if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-                    $newFileName = 'soal_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $newFileName = 'soal_' . time() . '_' . $idx . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
                     if (move_uploaded_file($fileTmp, $uploadDir . $newFileName)) {
+                        // Hapus file lama jika ditimpa
+                        if ($gambarPath && file_exists(__DIR__ . '/../' . ltrim($gambarPath, '/'))) {
+                            unlink(__DIR__ . '/../' . ltrim($gambarPath, '/'));
+                        }
                         $gambarPath = 'assets/uploads/' . $newFileName;
                     }
                 }
             }
 
-            $ins->execute([
-                ':guru' => $idGuru,
-                ':m'    => $idMapel,
-                ':j'    => $judulSoal,
-                ':p'    => $pertanyaan,
-                ':g'    => $gambarPath,
-                ':oa'   => $opsiA,
-                ':ob'   => $opsiB,
-                ':oc'   => $opsiC,
-                ':od'   => $opsiD,
-                ':oe'   => $opsiE !== '' ? $opsiE : null,
-                ':k'    => $kunci
-            ]);
-            $insertedCount++;
+            if ($jenis === 'essai') {
+                $kunci = trim($item['kunci_jawaban'] ?? '');
+                $params = [
+                    ':m'     => $idMapel,
+                    ':j'     => $judulSoal,
+                    ':jenis' => 'essai',
+                    ':p'     => $pertanyaan,
+                    ':gbr'   => $gambarPath,
+                    ':oa'    => null,
+                    ':ob'    => null,
+                    ':oc'    => null,
+                    ':od'    => null,
+                    ':oe'    => null,
+                    ':k'     => $kunci !== '' ? $kunci : null,
+                    ':g'     => $idGuru
+                ];
+
+                if ($itemSoalId > 0) {
+                    $params[':id'] = $itemSoalId;
+                    $stmtUpdate->execute($params);
+                } else {
+                    $stmtInsert->execute($params);
+                }
+                $savedCount++;
+            } else {
+                // Pilihan Ganda
+                $opsiA    = trim($item['opsi_a'] ?? '');
+                $opsiB    = trim($item['opsi_b'] ?? '');
+                $opsiC    = trim($item['opsi_c'] ?? '');
+                $opsiD    = trim($item['opsi_d'] ?? '');
+                $opsiE    = trim($item['opsi_e'] ?? '');
+                $kunciArr = $item['kunci'] ?? [];
+                $kunci    = is_array($kunciArr) ? strtoupper(implode(',', array_filter($kunciArr))) : strtoupper(trim($kunciArr));
+
+                if ($opsiA === '' || $opsiB === '' || $opsiC === '' || $opsiD === '' || $kunci === '') {
+                    continue; // Lewati jika opsi belum lengkap
+                }
+
+                $params = [
+                    ':m'     => $idMapel,
+                    ':j'     => $judulSoal,
+                    ':jenis' => 'pilihan_ganda',
+                    ':p'     => $pertanyaan,
+                    ':gbr'   => $gambarPath,
+                    ':oa'    => $opsiA,
+                    ':ob'    => $opsiB,
+                    ':oc'    => $opsiC,
+                    ':od'    => $opsiD,
+                    ':oe'    => $opsiE !== '' ? $opsiE : null,
+                    ':k'     => $kunci,
+                    ':g'     => $idGuru
+                ];
+
+                if ($itemSoalId > 0) {
+                    $params[':id'] = $itemSoalId;
+                    $stmtUpdate->execute($params);
+                } else {
+                    $stmtInsert->execute($params);
+                }
+                $savedCount++;
+            }
         }
 
         $db->commit();
 
-        if ($insertedCount > 0) {
-            flash_set('success', "Berhasil menyimpan {$insertedCount} butir pertanyaan ke dalam paket '{$judulSoal}'.");
+        if ($savedCount > 0) {
+            flash_set('success', "Paket soal '{$judulSoal}' berhasil disimpan ({$savedCount} butir pertanyaan).");
         } else {
-            flash_set('warning', 'Tidak ada pertanyaan valid yang disimpan. Pastikan narasi dan opsi terisi lengkap.');
+            flash_set('warning', 'Tidak ada butir soal yang disimpan. Mohon pastikan teks pertanyaan, opsi, dan checklist kunci terisi lengkap.');
         }
     } catch (Exception $e) {
         $db->rollBack();
-        flash_set('danger', 'Gagal menyimpan pertanyaan: ' . $e->getMessage());
+        flash_set('danger', 'Gagal menyimpan paket soal: ' . $e->getMessage());
     }
 
     redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
 }
 
-// Data Mapel & Daftar Judul
-$mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY nama_mapel ASC")->fetchAll();
+// Ambil Daftar Mapel
+$stmtMapel = $db->query("SELECT * FROM mapel ORDER BY nama_mapel ASC");
+$mapelList = $stmtMapel->fetchAll();
+
+// Ambil Daftar Judul Soal yang pernah dibuat untuk auto-suggest
 $stmtJudul = $db->prepare("SELECT DISTINCT judul_soal FROM bank_soal WHERE id_guru = :g ORDER BY judul_soal ASC");
 $stmtJudul->execute([':g' => $idGuru]);
 $existingJudul = $stmtJudul->fetchAll(PDO::FETCH_COLUMN);
-$flash = flash_get();
+
+// Susun list pertanyaan yang akan dirender (jika kosong, buat 1 butir pilihan ganda kosong)
+$cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
+    [
+        'id_soal' => 0,
+        'jenis_soal' => 'pilihan_ganda',
+        'pertanyaan' => '',
+        'gambar' => null,
+        'opsi_a' => '',
+        'opsi_b' => '',
+        'opsi_c' => '',
+        'opsi_d' => '',
+        'opsi_e' => '',
+        'kunci_jawaban' => ''
+    ]
+];
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title><?= $editId ? 'Edit Soal' : 'Tambah Pertanyaan' ?> - CBT Guru</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru' ?> - CBT SDN Talun 01</title>
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body>
@@ -233,38 +294,43 @@ $flash = flash_get();
     </nav>
 </header>
 
-<main class="container" style="max-width: 920px;">
-    <?php if ($flash): ?>
+<main class="container" style="max-width: 960px;">
+    <?php $flash = flash_get(); if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <div class="card-header">
+    <div class="card-header mb-4">
         <div>
-            <h1 class="card-title"><?= $editId ? 'Edit Butir Soal' : 'Form Input Butir Soal' ?></h1>
-            <p class="text-sm text-muted">Urutan pengisian: Tentukan <strong>Mapel</strong>, beri nama kelompok <strong>Soal</strong>, lalu tuliskan butir <strong>Pertanyaan</strong>.</p>
+            <h1 class="card-title"><?= $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru' ?></h1>
         </div>
-        <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline">Kembali</a>
+        <div>
+            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Kembali</a>
+        </div>
     </div>
 
-    <form action="" method="POST" enctype="multipart/form-data">
+    <form action="<?= base_url('guru/tambah_soal.php') ?>" method="POST" enctype="multipart/form-data" id="form-soal">
         <?= csrf_field() ?>
+        <input type="hidden" name="old_mapel" value="<?= (int)$initMapel ?>">
+        <input type="hidden" name="old_judul" value="<?= sanitize($initJudul) ?>">
 
-        <!-- BAGIAN 1: MAPEL & SOAL (JUDUL PAKET) -->
-        <div class="card mb-4" style="border-top: 4px solid var(--primary); background: #ffffff;">
-            <h3 class="card-title text-sm uppercase text-muted mb-3" style="color: var(--primary); font-weight: 800;">
-                1. Informasi Paket Soal
-            </h3>
+        <!-- INFORMASI PAKET SOAL (Mata Pelajaran & Judul Paket) -->
+        <div class="card mb-4">
+            <div class="mb-3 pb-2" style="border-bottom: 1px solid var(--gray-200);">
+                <h3 class="font-bold" style="font-size: 1.15rem; color: var(--primary); margin: 0;">
+                    Informasi Paket Soal
+                </h3>
+            </div>
 
-            <!-- 1. Mapel -->
+            <!-- 1. Mata Pelajaran (Mapel) -->
             <div class="form-group">
                 <label for="id_mapel">Mata Pelajaran (Mapel) <span class="text-danger">*</span></label>
                 <select name="id_mapel" id="id_mapel" class="form-control" required>
-                    <option value="">-- Pilih Mata Pelajaran --</option>
+                    <option value="">Pilih Mata Pelajaran</option>
                     <?php foreach ($mapelList as $m): ?>
-                        <option value="<?= $m['id_mapel'] ?>" <?= (($soalData['id_mapel'] ?? ($_GET['id_mapel'] ?? '')) == $m['id_mapel']) ? 'selected' : '' ?>>
-                            <?= sanitize($m['nama_mapel']) ?>
+                        <option value="<?= $m['id_mapel'] ?>" <?= ($initMapel == $m['id_mapel']) ? 'selected' : '' ?>>
+                            <?= sanitize($m['nama_mapel']) ?> (<?= sanitize($m['kode_mapel']) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -273,7 +339,7 @@ $flash = flash_get();
             <!-- 2. Soal (Judul / Nama Ujian) -->
             <div class="form-group mt-3">
                 <label for="judul_soal">Soal (Judul / Nama Ujian) <span class="text-danger">*</span></label>
-                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Contoh: Asesmen Nasional, Penilaian Harian Bab 1, Ujian Akhir..." value="<?= sanitize($soalData['judul_soal'] ?? ($_GET['judul_soal'] ?? '')) ?>" required>
+                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Nama / Judul Paket Soal..." value="<?= sanitize($initJudul) ?>" required>
                 <datalist id="list_judul">
                     <?php foreach ($existingJudul as $ej): ?>
                         <option value="<?= sanitize($ej) ?>"></option>
@@ -283,165 +349,127 @@ $flash = flash_get();
                     <option value="Penilaian Tengah Semester"></option>
                     <option value="Penilaian Akhir Semester"></option>
                 </datalist>
-                <p class="text-xs text-muted mt-1">Nama kelompok soal (misal: <em>Asesmen Nasional</em>). Semua pertanyaan di bawah akan dihimpun ke dalam nama ini.</p>
             </div>
         </div>
 
-        <?php if ($editId > 0): ?>
-            <!-- FORM EDIT TUNGGAL -->
-            <div class="card mb-4" style="border-left: 4px solid var(--primary);">
-                <h3 class="font-bold mb-3" style="font-size: 1.1rem; color: var(--primary);">
-                    3. Pertanyaan
-                </h3>
-
-                <div class="form-group">
-                    <label for="pertanyaan">Teks Pertanyaan <span class="text-danger">*</span></label>
-                    <textarea name="pertanyaan" id="pertanyaan" class="form-control" rows="5" required placeholder="Tuliskan butir soal pertanyaan di sini..."><?= sanitize($soalData['pertanyaan'] ?? '') ?></textarea>
-                </div>
-
-                <div class="form-group mt-3">
-                    <label for="gambar">Lampiran Gambar (Opsional, Max 2MB: JPG, PNG, WebP)</label>
-                    <input type="file" name="gambar" id="gambar" class="form-control" accept="image/*">
-                    <?php if (!empty($soalData['gambar'])): ?>
-                        <div class="mt-2 flex gap-3" style="align-items: center;">
-                            <img src="<?= base_url(ltrim($soalData['gambar'], '/')) ?>" alt="Preview" style="max-height: 80px; border-radius: 4px; border: 1px solid #ccc;">
-                            <label style="cursor: pointer; font-size: 0.85rem;" class="text-danger">
-                                <input type="checkbox" name="hapus_gambar" value="1"> Hapus gambar lampiran ini
-                            </label>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.5rem 0;">
-
-                <h4 class="card-title text-sm uppercase text-muted mb-3">Pilihan Ganda & Kunci Jawaban</h4>
-
-                <div class="form-group">
-                    <label>Opsi A <span class="text-danger">*</span></label>
-                    <input type="text" name="opsi_a" class="form-control" required value="<?= sanitize($soalData['opsi_a'] ?? '') ?>" placeholder="Teks opsi pilihan A">
-                </div>
-
-                <div class="form-group">
-                    <label>Opsi B <span class="text-danger">*</span></label>
-                    <input type="text" name="opsi_b" class="form-control" required value="<?= sanitize($soalData['opsi_b'] ?? '') ?>" placeholder="Teks opsi pilihan B">
-                </div>
-
-                <div class="form-group">
-                    <label>Opsi C <span class="text-danger">*</span></label>
-                    <input type="text" name="opsi_c" class="form-control" required value="<?= sanitize($soalData['opsi_c'] ?? '') ?>" placeholder="Teks opsi pilihan C">
-                </div>
-
-                <div class="form-group">
-                    <label>Opsi D <span class="text-danger">*</span></label>
-                    <input type="text" name="opsi_d" class="form-control" required value="<?= sanitize($soalData['opsi_d'] ?? '') ?>" placeholder="Teks opsi pilihan D">
-                </div>
-
-                <div class="form-group">
-                    <label>Opsi E (Opsional)</label>
-                    <input type="text" name="opsi_e" class="form-control" value="<?= sanitize($soalData['opsi_e'] ?? '') ?>" placeholder="Teks opsi pilihan E (kosongkan jika SD hanya 4 opsi)">
-                </div>
-
-                <div class="form-group mt-3" style="background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid var(--gray-300);">
-                    <label for="kunci_jawaban" class="font-bold" style="color: #1e40af;">Kunci Jawaban Benar <span class="text-danger">*</span></label>
-                    <select name="kunci_jawaban" id="kunci_jawaban" class="form-control" required style="max-width: 200px;">
-                        <option value="">-- Pilih Kunci --</option>
-                        <option value="A" <?= (($soalData['kunci_jawaban'] ?? '') === 'A') ? 'selected' : '' ?>>Opsi A</option>
-                        <option value="B" <?= (($soalData['kunci_jawaban'] ?? '') === 'B') ? 'selected' : '' ?>>Opsi B</option>
-                        <option value="C" <?= (($soalData['kunci_jawaban'] ?? '') === 'C') ? 'selected' : '' ?>>Opsi C</option>
-                        <option value="D" <?= (($soalData['kunci_jawaban'] ?? '') === 'D') ? 'selected' : '' ?>>Opsi D</option>
-                        <option value="E" <?= (($soalData['kunci_jawaban'] ?? '') === 'E') ? 'selected' : '' ?>>Opsi E</option>
-                    </select>
-                </div>
-            </div>
-
-        <?php else: ?>
-            <!-- FORM MULTI-PERTANYAAN DINAMIS -->
-            <div id="container-pertanyaan">
-                <!-- KARTU PERTANYAAN #1 -->
-                <div class="card pertanyaan-card mb-4" data-index="0" style="border-left: 4px solid var(--primary); background: #ffffff;">
+        <!-- CONTAINER DAFTAR BUTIR PERTANYAAN -->
+        <div id="container-pertanyaan">
+            <?php foreach ($cardsToRender as $idx => $q): ?>
+                <?php 
+                $isEssai = (($q['jenis_soal'] ?? 'pilihan_ganda') === 'essai');
+                $kunciSelected = explode(',', $q['kunci_jawaban'] ?? '');
+                $qId = (int)($q['id_soal'] ?? 0);
+                ?>
+                <div class="card pertanyaan-card mb-4" data-type="<?= $isEssai ? 'essai' : 'pilihan_ganda' ?>" data-index="<?= $idx ?>">
+                    <input type="hidden" name="soal[<?= $idx ?>][id_soal]" value="<?= $qId ?>" class="field-id-soal">
+                    <input type="hidden" name="soal[<?= $idx ?>][jenis_soal]" value="<?= $isEssai ? 'essai' : 'pilihan_ganda' ?>" class="field-jenis-soal">
+                    
                     <div class="flex-between mb-3 pb-2" style="border-bottom: 1px solid var(--gray-200);">
-                        <h3 class="font-bold" style="font-size: 1.15rem; color: var(--primary); margin: 0;">
-                            3. Pertanyaan #<span class="nomor-pertanyaan">1</span>
-                        </h3>
-                        <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)" style="display: none;">
+                        <div class="flex gap-2" style="align-items: center;">
+                            <h3 class="font-bold" style="font-size: 1.25rem; color: <?= $isEssai ? '#7c3aed' : 'var(--primary)' ?>; margin: 0; min-width: 28px;">
+                                <span class="nomor-pertanyaan"><?= $idx + 1 ?></span>.
+                            </h3>
+                            <span class="badge badge-jenis" style="<?= $isEssai ? 'background: #ede9fe; color: #6d28d9;' : 'background: #e0f2fe; color: #0369a1;' ?> font-weight: 700;">
+                                <?= $isEssai ? 'Soal Essai' : 'Pilihan Ganda' ?>
+                            </span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)" style="<?= count($cardsToRender) > 1 ? '' : 'display: none;' ?>">
                             ✕ Hapus Pertanyaan
                         </button>
                     </div>
 
-                    <!-- 3. Teks Pertanyaan -->
+                    <!-- Teks Pertanyaan -->
                     <div class="form-group">
                         <label>Teks Pertanyaan <span class="text-danger">*</span></label>
-                        <textarea name="soal[0][pertanyaan]" class="form-control" rows="4" required placeholder="Tuliskan teks butir pertanyaan di sini..."></textarea>
+                        <textarea name="soal[<?= $idx ?>][pertanyaan]" class="form-control field-pertanyaan" rows="4" required placeholder="Tuliskan teks butir pertanyaan di sini..."><?= sanitize($q['pertanyaan'] ?? '') ?></textarea>
                     </div>
 
                     <!-- Lampiran Gambar -->
-                    <div class="form-group mt-2">
-                        <label>Lampiran Gambar (Opsional, Max 2MB)</label>
-                        <input type="file" name="gambar_0" class="form-control" accept="image/*">
+                    <div class="form-group mt-3">
+                        <label>Lampiran Gambar (Opsional)</label>
+                        <input type="file" name="gambar_<?= $idx ?>" class="form-control" accept="image/*">
+                        <?php if (!empty($q['gambar'])): ?>
+                            <div class="mt-2 flex gap-3" style="align-items: center;">
+                                <img src="<?= base_url(ltrim($q['gambar'], '/')) ?>" alt="Preview" style="max-height: 80px; border-radius: 4px; border: 1px solid #ccc;">
+                                <label style="cursor: pointer; font-size: 0.85rem;" class="text-danger">
+                                    <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1"> Hapus gambar lampiran ini
+                                </label>
+                                <input type="hidden" name="soal[<?= $idx ?>][existing_gambar]" value="<?= sanitize($q['gambar']) ?>">
+                            </div>
+                        <?php endif; ?>
                     </div>
 
-                    <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                    <?php if (!$isEssai): ?>
+                        <!-- Area Pilihan Ganda -->
+                        <div class="area-pilihan-ganda">
+                            <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <!-- A -->
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan A adalah kunci jawaban benar">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][kunci][]" value="A" <?= in_array('A', $kunciSelected, true) ? 'checked' : '' ?> class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                        <span>A</span>
+                                    </label>
+                                    <input type="text" name="soal[<?= $idx ?>][opsi_a]" class="form-control field-opsi" required value="<?= sanitize($q['opsi_a'] ?? '') ?>" placeholder="Teks pilihan A..." style="flex: 1;">
+                                </div>
 
-                    <!-- Opsi Pilihan Ganda -->
-                    <h4 class="card-title text-sm uppercase text-muted mb-2" style="font-size: 0.8rem; font-weight: 700;">
-                        Pilihan Ganda & Kunci Jawaban
-                    </h4>
+                                <!-- B -->
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan B adalah kunci jawaban benar">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][kunci][]" value="B" <?= in_array('B', $kunciSelected, true) ? 'checked' : '' ?> class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                        <span>B</span>
+                                    </label>
+                                    <input type="text" name="soal[<?= $idx ?>][opsi_b]" class="form-control field-opsi" required value="<?= sanitize($q['opsi_b'] ?? '') ?>" placeholder="Teks pilihan B..." style="flex: 1;">
+                                </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Opsi A <span class="text-danger">*</span></label>
-                            <input type="text" name="soal[0][opsi_a]" class="form-control" required placeholder="Teks pilihan opsi A">
+                                <!-- C -->
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan C adalah kunci jawaban benar">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][kunci][]" value="C" <?= in_array('C', $kunciSelected, true) ? 'checked' : '' ?> class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                        <span>C</span>
+                                    </label>
+                                    <input type="text" name="soal[<?= $idx ?>][opsi_c]" class="form-control field-opsi" required value="<?= sanitize($q['opsi_c'] ?? '') ?>" placeholder="Teks pilihan C..." style="flex: 1;">
+                                </div>
+
+                                <!-- D -->
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan D adalah kunci jawaban benar">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][kunci][]" value="D" <?= in_array('D', $kunciSelected, true) ? 'checked' : '' ?> class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                        <span>D</span>
+                                    </label>
+                                    <input type="text" name="soal[<?= $idx ?>][opsi_d]" class="form-control field-opsi" required value="<?= sanitize($q['opsi_d'] ?? '') ?>" placeholder="Teks pilihan D..." style="flex: 1;">
+                                </div>
+
+                                <!-- E -->
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan E adalah kunci jawaban benar">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][kunci][]" value="E" <?= in_array('E', $kunciSelected, true) ? 'checked' : '' ?> class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                        <span>E</span>
+                                    </label>
+                                    <input type="text" name="soal[<?= $idx ?>][opsi_e]" class="form-control field-opsi" value="<?= sanitize($q['opsi_e'] ?? '') ?>" placeholder="Teks pilihan E (opsional)..." style="flex: 1;">
+                                </div>
+                            </div>
                         </div>
-
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Opsi B <span class="text-danger">*</span></label>
-                            <input type="text" name="soal[0][opsi_b]" class="form-control" required placeholder="Teks pilihan opsi B">
-                        </div>
-
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Opsi C <span class="text-danger">*</span></label>
-                            <input type="text" name="soal[0][opsi_c]" class="form-control" required placeholder="Teks pilihan opsi C">
-                        </div>
-
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Opsi D <span class="text-danger">*</span></label>
-                            <input type="text" name="soal[0][opsi_d]" class="form-control" required placeholder="Teks pilihan opsi D">
-                        </div>
-
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Opsi E (Opsional untuk SD/SMP)</label>
-                            <input type="text" name="soal[0][opsi_e]" class="form-control" placeholder="Teks pilihan opsi E (boleh kosong jika hanya 4 opsi)">
-                        </div>
-                    </div>
-
-                    <!-- Kunci Jawaban -->
-                    <div class="form-group mt-3" style="background: #f8fafc; padding: 0.85rem 1rem; border-radius: 6px; border: 1px solid var(--gray-300);">
-                        <label class="font-bold" style="color: #1e40af; font-size: 0.9rem;">Kunci Jawaban Benar <span class="text-danger">*</span></label>
-                        <select name="soal[0][kunci_jawaban]" class="form-control" required style="max-width: 180px; margin-top: 0.25rem;">
-                            <option value="">-- Pilih Kunci --</option>
-                            <option value="A">Opsi A</option>
-                            <option value="B">Opsi B</option>
-                            <option value="C">Opsi C</option>
-                            <option value="D">Opsi D</option>
-                            <option value="E">Opsi E</option>
-                        </select>
-                    </div>
+                    <?php endif; ?>
                 </div>
-            </div>
+            <?php endforeach; ?>
+        </div>
 
-            <!-- TOMBOL TAMBAH PERTANYAAN DI PALING BAWAH KOTAK INPUT -->
-            <div class="mb-4">
-                <button type="button" id="btn-tambah-pertanyaan" onclick="tambahPertanyaanBaru()" class="btn btn-outline" style="border: 2px dashed #2563eb; width: 100%; padding: 0.95rem; font-weight: 700; font-size: 1rem; color: #2563eb; background: #eff6ff; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease;">
-                    ➕ Tambah Pertanyaan Berikutnya
-                </button>
-            </div>
-        <?php endif; ?>
+        <!-- TOMBOL TAMBAH PERTANYAAN (DIBAGI 2: KIRI PILIHAN GANDA, KANAN ESSAI) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem;">
+            <button type="button" id="btn-tambah-pg" onclick="tambahPertanyaan('pilihan_ganda')" class="btn btn-outline" style="border: 2px dashed #2563eb; width: 100%; padding: 0.95rem; font-weight: 700; font-size: 0.95rem; color: #2563eb; background: #eff6ff; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; justify-content: center;">
+                ➕ Tambah Pilihan Ganda
+            </button>
+            <button type="button" id="btn-tambah-essai" onclick="tambahPertanyaan('essai')" class="btn btn-outline" style="border: 2px dashed #7c3aed; width: 100%; padding: 0.95rem; font-weight: 700; font-size: 0.95rem; color: #7c3aed; background: #faf5ff; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; justify-content: center;">
+                ✍️ Tambah Soal Essai
+            </button>
+        </div>
 
         <!-- TOMBOL SIMPAN -->
         <div class="flex gap-2" style="justify-content: flex-end; margin-bottom: 3rem;">
-            <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline">Batal</a>
-            <button type="submit" class="btn btn-primary btn-lg" style="min-width: 220px;">
-                <?= $editId ? 'Simpan Perubahan' : 'Simpan Semua Pertanyaan' ?>
+            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Batal</a>
+            <button type="submit" class="btn btn-primary btn-lg" style="min-width: 240px; font-weight: 800;">
+                <?= $isEditMode ? 'Simpan Perubahan Paket Soal' : 'Simpan Semua Pertanyaan' ?>
             </button>
         </div>
     </form>
@@ -459,22 +487,42 @@ function updateQuestionNumbers() {
         const numEl = card.querySelector('.nomor-pertanyaan');
         if (numEl) numEl.textContent = num;
 
+        // Update id_soal input
+        const idInput = card.querySelector('.field-id-soal');
+        if (idInput) idInput.name = `soal[${i}][id_soal]`;
+
+        // Update jenis soal input
+        const jenisInput = card.querySelector('.field-jenis-soal');
+        if (jenisInput) jenisInput.name = `soal[${i}][jenis_soal]`;
+
+        // Update existing gambar input jika ada
+        const existImg = card.querySelector('input[name*="[existing_gambar]"]');
+        if (existImg) existImg.name = `soal[${i}][existing_gambar]`;
+
+        const hapusImg = card.querySelector('input[name*="[hapus_gambar]"]');
+        if (hapusImg) hapusImg.name = `soal[${i}][hapus_gambar]`;
+
         // Update attribute name form elements
-        const ta = card.querySelector('textarea');
+        const ta = card.querySelector('.field-pertanyaan, textarea');
         if (ta) ta.name = `soal[${i}][pertanyaan]`;
 
         const fi = card.querySelector('input[type="file"]');
         if (fi) fi.name = `gambar_${i}`;
 
-        const inputs = card.querySelectorAll('input[type="text"]');
-        if (inputs[0]) inputs[0].name = `soal[${i}][opsi_a]`;
-        if (inputs[1]) inputs[1].name = `soal[${i}][opsi_b]`;
-        if (inputs[2]) inputs[2].name = `soal[${i}][opsi_c]`;
-        if (inputs[3]) inputs[3].name = `soal[${i}][opsi_d]`;
-        if (inputs[4]) inputs[4].name = `soal[${i}][opsi_e]`;
+        const isEssai = card.getAttribute('data-type') === 'essai';
+        if (!isEssai) {
+            const inputs = card.querySelectorAll('.field-opsi');
+            if (inputs[0]) inputs[0].name = `soal[${i}][opsi_a]`;
+            if (inputs[1]) inputs[1].name = `soal[${i}][opsi_b]`;
+            if (inputs[2]) inputs[2].name = `soal[${i}][opsi_c]`;
+            if (inputs[3]) inputs[3].name = `soal[${i}][opsi_d]`;
+            if (inputs[4]) inputs[4].name = `soal[${i}][opsi_e]`;
 
-        const sel = card.querySelector('select');
-        if (sel) sel.name = `soal[${i}][kunci_jawaban]`;
+            const checkboxes = card.querySelectorAll('.field-kunci-cb, input[type="checkbox"][value]');
+            checkboxes.forEach(cb => {
+                cb.name = `soal[${i}][kunci][]`;
+            });
+        }
 
         // Tampilkan tombol hapus jika jumlah kartu > 1
         const btnHapus = card.querySelector('.btn-hapus-pertanyaan');
@@ -484,28 +532,132 @@ function updateQuestionNumbers() {
     });
 }
 
-function tambahPertanyaanBaru() {
+function tambahPertanyaan(tipe) {
     const container = document.getElementById('container-pertanyaan');
-    const firstCard = container.querySelector('.pertanyaan-card');
-    if (!firstCard) return;
+    const newIndex = container.querySelectorAll('.pertanyaan-card').length;
+    const newNum = newIndex + 1;
 
-    const clone = firstCard.cloneNode(true);
+    const newCard = document.createElement('div');
+    newCard.className = 'card pertanyaan-card mb-4';
+    newCard.setAttribute('data-type', tipe);
+    newCard.setAttribute('data-index', newIndex);
 
-    // Kosongkan nilai input di kartu baru
-    clone.querySelectorAll('textarea, input[type="text"]').forEach(el => el.value = '');
-    clone.querySelectorAll('input[type="file"]').forEach(el => el.value = '');
-    clone.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+    if (tipe === 'essai') {
+        newCard.innerHTML = `
+            <input type="hidden" name="soal[${newIndex}][id_soal]" value="0" class="field-id-soal">
+            <input type="hidden" name="soal[${newIndex}][jenis_soal]" value="essai" class="field-jenis-soal">
+            
+            <div class="flex-between mb-3 pb-2" style="border-bottom: 1px solid var(--gray-200);">
+                <div class="flex gap-2" style="align-items: center;">
+                    <h3 class="font-bold" style="font-size: 1.25rem; color: #7c3aed; margin: 0; min-width: 28px;">
+                        <span class="nomor-pertanyaan">${newNum}</span>.
+                    </h3>
+                    <span class="badge" style="background: #ede9fe; color: #6d28d9; font-weight: 700;">Soal Essai</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)">
+                    ✕ Hapus Pertanyaan
+                </button>
+            </div>
 
-    container.appendChild(clone);
+            <div class="form-group">
+                <label>Teks Pertanyaan Essai <span class="text-danger">*</span></label>
+                <textarea name="soal[${newIndex}][pertanyaan]" class="form-control field-pertanyaan" rows="4" required placeholder="Tuliskan butir soal pertanyaan uraian / essai di sini..."></textarea>
+            </div>
+
+            <div class="form-group mt-3">
+                <label>Lampiran Gambar (Opsional)</label>
+                <input type="file" name="gambar_${newIndex}" class="form-control" accept="image/*">
+            </div>
+        `;
+    } else {
+        newCard.innerHTML = `
+            <input type="hidden" name="soal[${newIndex}][id_soal]" value="0" class="field-id-soal">
+            <input type="hidden" name="soal[${newIndex}][jenis_soal]" value="pilihan_ganda" class="field-jenis-soal">
+            
+            <div class="flex-between mb-3 pb-2" style="border-bottom: 1px solid var(--gray-200);">
+                <div class="flex gap-2" style="align-items: center;">
+                    <h3 class="font-bold" style="font-size: 1.25rem; color: var(--primary); margin: 0; min-width: 28px;">
+                        <span class="nomor-pertanyaan">${newNum}</span>.
+                    </h3>
+                    <span class="badge badge-jenis" style="background: #e0f2fe; color: #0369a1; font-weight: 700;">Pilihan Ganda</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)">
+                    ✕ Hapus Pertanyaan
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label>Teks Pertanyaan <span class="text-danger">*</span></label>
+                <textarea name="soal[${newIndex}][pertanyaan]" class="form-control field-pertanyaan" rows="4" required placeholder="Tuliskan teks butir pertanyaan di sini..."></textarea>
+            </div>
+
+            <div class="form-group mt-3">
+                <label>Lampiran Gambar (Opsional)</label>
+                <input type="file" name="gambar_${newIndex}" class="form-control" accept="image/*">
+            </div>
+
+            <div class="area-pilihan-ganda">
+                <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- A -->
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan A adalah kunci jawaban benar">
+                            <input type="checkbox" name="soal[${newIndex}][kunci][]" value="A" class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                            <span>A</span>
+                        </label>
+                        <input type="text" name="soal[${newIndex}][opsi_a]" class="form-control field-opsi" required placeholder="Teks pilihan A..." style="flex: 1;">
+                    </div>
+
+                    <!-- B -->
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan B adalah kunci jawaban benar">
+                            <input type="checkbox" name="soal[${newIndex}][kunci][]" value="B" class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                            <span>B</span>
+                        </label>
+                        <input type="text" name="soal[${newIndex}][opsi_b]" class="form-control field-opsi" required placeholder="Teks pilihan B..." style="flex: 1;">
+                    </div>
+
+                    <!-- C -->
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan C adalah kunci jawaban benar">
+                            <input type="checkbox" name="soal[${newIndex}][kunci][]" value="C" class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                            <span>C</span>
+                        </label>
+                        <input type="text" name="soal[${newIndex}][opsi_c]" class="form-control field-opsi" required placeholder="Teks pilihan C..." style="flex: 1;">
+                    </div>
+
+                    <!-- D -->
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan D adalah kunci jawaban benar">
+                            <input type="checkbox" name="soal[${newIndex}][kunci][]" value="D" class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                            <span>D</span>
+                        </label>
+                        <input type="text" name="soal[${newIndex}][opsi_d]" class="form-control field-opsi" required placeholder="Teks pilihan D..." style="flex: 1;">
+                    </div>
+
+                    <!-- E -->
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; font-size: 0.95rem; min-width: 58px; justify-content: center; user-select: none; background: #f8fafc; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--gray-300);" title="Centang jika pilihan E adalah kunci jawaban benar">
+                            <input type="checkbox" name="soal[${newIndex}][kunci][]" value="E" class="field-kunci-cb" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                            <span>E</span>
+                        </label>
+                        <input type="text" name="soal[${newIndex}][opsi_e]" class="form-control field-opsi" placeholder="Teks pilihan E (opsional)..." style="flex: 1;">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.appendChild(newCard);
     updateQuestionNumbers();
 
     // Scroll otomatis ke kartu pertanyaan baru
-    clone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
     // Auto focus ke textarea baru
-    const newTextarea = clone.querySelector('textarea');
+    const newTextarea = newCard.querySelector('textarea');
     if (newTextarea) {
-        setTimeout(() => newTextarea.focus(), 300);
+        setTimeout(() => newTextarea.focus(), 250);
     }
 }
 
@@ -515,7 +667,7 @@ function hapusPertanyaan(btn) {
     if (total > 1) {
         cbtConfirm({
             title: 'Hapus Pertanyaan',
-            message: 'Apakah Anda yakin ingin menghapus blok pertanyaan ini?',
+            message: 'Apakah Anda yakin ingin menghapus butir pertanyaan ini dari paket?',
             type: 'danger',
             confirmText: 'Ya, Hapus'
         }).then(ok => {

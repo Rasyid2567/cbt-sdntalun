@@ -33,11 +33,11 @@ if (!verify_csrf($csrfToken)) {
 
 $idUjianSiswa    = (int)($input['id_ujian_siswa'] ?? 0);
 $idSoal          = (int)($input['id_soal'] ?? 0);
-$jawabanTerpilih = strtoupper(trim($input['jawaban_terpilih'] ?? ''));
+$jawabanTerpilih = trim($input['jawaban_terpilih'] ?? '');
 $sisaDetik       = isset($input['sisa_detik']) ? (int)$input['sisa_detik'] : null;
 
-if ($idUjianSiswa <= 0 || $idSoal <= 0 || !in_array($jawabanTerpilih, ['A', 'B', 'C', 'D', 'E'], true)) {
-    json_response(['success' => false, 'message' => 'Data parameter tidak lengkap atau format tidak valid.'], 422);
+if ($idUjianSiswa <= 0 || $idSoal <= 0) {
+    json_response(['success' => false, 'message' => 'Data parameter tidak lengkap.'], 422);
 }
 
 $db = get_db();

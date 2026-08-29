@@ -9,7 +9,47 @@ $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 
-// Tangani Hapus Soal via POST
+// Tangani Export CSV per Paket
+if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
+    $expMapel = (int)($_GET['id_mapel'] ?? 0);
+    $expJudul = trim($_GET['judul_soal'] ?? '');
+
+    $stmtExp = $db->prepare("
+        SELECT b.*, m.nama_mapel 
+        FROM bank_soal b
+        JOIN mapel m ON b.id_mapel = m.id_mapel
+        WHERE b.id_guru = :g AND b.id_mapel = :m AND b.judul_soal = :j
+        ORDER BY b.id_soal ASC
+    ");
+    $stmtExp->execute([':g' => $idGuru, ':m' => $expMapel, ':j' => $expJudul]);
+    $rows = $stmtExp->fetchAll();
+
+    $filename = 'paket_soal_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $expJudul) . '.csv';
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=' . $filename);
+
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+    fwrite($out, "sep=,\n");
+    fputcsv($out, ['No', 'Jenis Soal', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban']);
+    foreach ($rows as $idx => $r) {
+        fputcsv($out, [
+            $idx + 1,
+            $r['jenis_soal'] ?? 'pilihan_ganda',
+            $r['pertanyaan'],
+            $r['opsi_a'] ?? '',
+            $r['opsi_b'] ?? '',
+            $r['opsi_c'] ?? '',
+            $r['opsi_d'] ?? '',
+            $r['opsi_e'] ?? '',
+            $r['kunci_jawaban'] ?? ''
+        ]);
+    }
+    fclose($out);
+    exit;
+}
+
+// Tangani Form POST (Hapus Soal, Rename Paket, Hapus Paket)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
@@ -31,17 +71,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $del = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
             $del->execute([':id' => $idSoal, ':g' => $idGuru]);
-            flash_set('success', 'Butir soal berhasil dihapus.');
+            flash_set('danger', 'Butir soal berhasil dihapus.');
         }
         redirect(base_url('guru/bank_soal.php' . (!empty($_POST['redirect_mapel']) ? '?id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
     }
+
+    if ($action === 'rename_paket') {
+        $idMapel  = (int)($_POST['id_mapel'] ?? 0);
+        $oldJudul = trim($_POST['old_judul'] ?? '');
+        $newJudul = trim($_POST['new_judul'] ?? '');
+
+        if ($idMapel > 0 && $oldJudul !== '' && $newJudul !== '') {
+            $upd = $db->prepare("
+                UPDATE bank_soal 
+                SET judul_soal = :new 
+                WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :old
+            ");
+            $upd->execute([':new' => $newJudul, ':g' => $idGuru, ':m' => $idMapel, ':old' => $oldJudul]);
+            flash_set('success', "Nama paket soal berhasil diubah menjadi '{$newJudul}'.");
+        }
+        redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+    }
+
+    if ($action === 'hapus_paket') {
+        $idMapel = (int)($_POST['id_mapel'] ?? 0);
+        $judul   = trim($_POST['judul_soal'] ?? '');
+
+        if ($idMapel > 0 && $judul !== '') {
+            $del = $db->prepare("DELETE FROM bank_soal WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j");
+            $del->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judul]);
+            flash_set('danger', "Seluruh butir soal dalam paket '{$judul}' berhasil dihapus.");
+        }
+        redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+    }
+}
+
+// Helper format nama mapel agar tidak double code seperti (IPAS) (IPAS)
+function format_mapel_name($nama, $kode) {
+    if (empty($kode)) return $nama;
+    if (stripos($nama, "({$kode})") !== false || strcasecmp($nama, $kode) === 0) {
+        return $nama;
+    }
+    return $nama . " ({$kode})";
 }
 
 // Filter Mapel & Pencarian
 $filterMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : null;
 $search      = trim($_GET['search'] ?? '');
 
-// Ambil Statistik Soal per Mapel untuk Guru ini
+// Ambil Statistik Paket per Mapel untuk Guru ini
 $stmtMapel = $db->prepare("
     SELECT m.id_mapel, m.nama_mapel, m.kode_mapel,
            COUNT(b.id_soal) AS total_soal,
@@ -54,14 +132,17 @@ $stmtMapel = $db->prepare("
 $stmtMapel->execute([':g' => $idGuru]);
 $mapelList = $stmtMapel->fetchAll();
 
-$totalSemuaSoal = 0;
+$totalSemuaPaket = 0;
 foreach ($mapelList as $m) {
-    $totalSemuaSoal += (int)$m['total_soal'];
+    $totalSemuaPaket += (int)$m['total_paket'];
 }
 
-// Query Ambil Data Soal
+// Query Ambil Seluruh Paket Soal Guru Ini
 $sql = "
-    SELECT b.*, m.nama_mapel, m.kode_mapel 
+    SELECT b.id_mapel, b.judul_soal, m.nama_mapel, m.kode_mapel,
+           COUNT(b.id_soal) AS total_butir,
+           COUNT(CASE WHEN b.jenis_soal = 'essai' THEN 1 END) AS total_essai,
+           COUNT(CASE WHEN b.jenis_soal != 'essai' OR b.jenis_soal IS NULL THEN 1 END) AS total_pg
     FROM bank_soal b
     JOIN mapel m ON b.id_mapel = m.id_mapel
     WHERE b.id_guru = :g
@@ -78,31 +159,10 @@ if ($search !== '') {
     $params[':s'] = "%{$search}%";
 }
 
-$sql .= " ORDER BY m.id_mapel ASC, b.judul_soal ASC, b.id_soal ASC";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$soalList = $stmt->fetchAll();
-
-// KELOMPOKKAN HIERARKIS: Mapel -> Judul / Paket Soal -> Butir Soal
-$grouped = [];
-foreach ($soalList as $s) {
-    $mId = $s['id_mapel'];
-    $jdl = $s['judul_soal'] !== '' ? $s['judul_soal'] : 'Umum';
-    if (!isset($grouped[$mId])) {
-        $grouped[$mId] = [
-            'id_mapel'   => $s['id_mapel'],
-            'nama_mapel' => $s['nama_mapel'],
-            'kode_mapel' => $s['kode_mapel'],
-            'total_soal' => 0,
-            'paket'      => []
-        ];
-    }
-    if (!isset($grouped[$mId]['paket'][$jdl])) {
-        $grouped[$mId]['paket'][$jdl] = [];
-    }
-    $grouped[$mId]['paket'][$jdl][] = $s;
-    $grouped[$mId]['total_soal']++;
-}
+$sql .= " GROUP BY b.id_mapel, b.judul_soal, m.nama_mapel, m.kode_mapel ORDER BY m.nama_mapel ASC, b.judul_soal ASC";
+$stmtPaket = $db->prepare($sql);
+$stmtPaket->execute($params);
+$paketList = $stmtPaket->fetchAll();
 
 $flash = flash_get();
 ?>
@@ -148,166 +208,103 @@ $flash = flash_get();
         </div>
     <?php endif; ?>
 
-    <div class="card-header">
+    <div class="card-header mb-4">
         <div>
             <h1 class="card-title">Bank Soal Ujian</h1>
-            <p class="text-sm text-muted">Koleksi butir soal pilihan ganda dikelompokkan berdasarkan Judul/Paket Soal di tiap Mata Pelajaran.</p>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">+ Buat Judul / Soal Baru</a>
-            <a href="<?= base_url('guru/import_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">Import Massal (CSV)</a>
+            <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">+ Buat Paket Soal Baru</a>
+            <a href="<?= base_url('guru/import_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">Import CSV</a>
         </div>
     </div>
 
-    <!-- Tab Navigasi Kategori Mapel -->
-    <div class="mapel-nav-pills">
-        <a href="<?= base_url('guru/bank_soal.php' . ($search !== '' ? '?search=' . urlencode($search) : '')) ?>" class="mapel-pill <?= empty($filterMapel) ? 'active' : '' ?>">
-            <span>Semua Mapel</span>
-            <span class="pill-badge"><?= $totalSemuaSoal ?> Soal</span>
-        </a>
-        <?php foreach ($mapelList as $m): ?>
-            <a href="<?= base_url('guru/bank_soal.php?id_mapel=' . $m['id_mapel'] . ($search !== '' ? '&search=' . urlencode($search) : '')) ?>" class="mapel-pill <?= ($filterMapel == $m['id_mapel']) ? 'active' : '' ?>">
-                <span><?= sanitize($m['nama_mapel']) ?> (<?= sanitize($m['kode_mapel']) ?>)</span>
-                <span class="pill-badge"><?= (int)$m['total_soal'] ?></span>
-            </a>
-        <?php endforeach; ?>
-    </div>
-
-    <!-- Pencarian Cepat -->
-    <div class="card" style="padding: 0.85rem 1.15rem; margin-bottom: 1.25rem;">
-        <form method="GET" action="<?= base_url('guru/bank_soal.php') ?>" class="filter-form-responsive">
-            <?php if ($filterMapel): ?>
-                <input type="hidden" name="id_mapel" value="<?= $filterMapel ?>">
-            <?php endif; ?>
-            <input type="text" name="search" class="form-control" placeholder="Cari judul soal atau kata kunci pertanyaan..." value="<?= sanitize($search) ?>">
-            <div class="filter-row">
+    <!-- Filter & Pencarian Cepat (Single Row) -->
+    <div class="card mb-4" style="padding: 1rem 1.25rem;">
+        <form method="GET" action="<?= base_url('guru/bank_soal.php') ?>" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 220px;">
+                <input type="text" name="search" class="form-control" placeholder="Cari nama paket soal..." value="<?= sanitize($search) ?>">
+            </div>
+            <div style="min-width: 220px;">
+                <select name="id_mapel" class="form-control" onchange="this.form.submit()">
+                    <option value="">Semua Mata Pelajaran</option>
+                    <?php foreach ($mapelList as $m): ?>
+                        <option value="<?= $m['id_mapel'] ?>" <?= ($filterMapel == $m['id_mapel']) ? 'selected' : '' ?>>
+                            <?= sanitize(format_mapel_name($m['nama_mapel'], $m['kode_mapel'])) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
                 <button type="submit" class="btn btn-primary">Cari</button>
-                <?php if ($search !== '' || $filterMapel): ?>
-                    <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline">Reset Filter</a>
-                <?php endif; ?>
             </div>
         </form>
     </div>
 
-    <!-- Tampilan Hierarki: Mapel -> Judul Soal -> Butir Soal -->
-    <?php if (empty($grouped)): ?>
+    <!-- DAFTAR PAKET SOAL -->
+    <?php if (empty($paketList)): ?>
         <div class="card text-center" style="padding: 3.5rem 1.5rem;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📚</div>
-            <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--gray-800); margin-bottom: 0.5rem;">
-                Belum Ada Butir Soal <?= $filterMapel ? 'pada Mapel Ini' : '' ?>
+            <div style="width: 56px; height: 56px; margin: 0 auto 1rem; border-radius: 50%; background: #f1f5f9; color: var(--gray-500); display: flex; align-items: center; justify-content: center;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--gray-800); margin-bottom: 0.5rem;">
+                Belum Ada Paket Soal <?= $filterMapel ? 'pada Mapel Ini' : '' ?>
             </h3>
-            <p class="text-sm text-muted mb-3" style="max-width: 480px; margin: 0 auto 1.5rem;">
-                <?= $search !== '' ? 'Tidak ditemukan soal yang cocok dengan kata kunci pencarian.' : 'Silakan klik tombol di bawah untuk membuat judul paket soal dan butir pertanyaan baru.' ?>
-            </p>
-            <div class="flex gap-2" style="justify-content: center;">
-                <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">+ Buat Judul / Soal Baru</a>
+            <div class="flex gap-2 mt-3" style="justify-content: center;">
+                <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">+ Buat Paket Soal Baru</a>
                 <a href="<?= base_url('guru/import_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">Import CSV</a>
             </div>
         </div>
     <?php else: ?>
-        <?php foreach ($grouped as $mId => $mapel): ?>
-            <!-- SEKSI MATA PELAJARAN -->
-            <div class="mb-5">
-                <div class="flex-between mb-3" style="border-bottom: 2px solid var(--primary); padding-bottom: 0.6rem;">
-                    <div style="display: flex; align-items: center; gap: 0.65rem;">
-                        <div class="stat-icon" style="width: 36px; height: 36px; min-width: 36px; background: var(--primary);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-                        </div>
-                        <div>
-                            <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--gray-900); margin: 0;">
-                                <?= sanitize($mapel['nama_mapel']) ?> <span class="text-muted" style="font-weight: 500; font-size: 0.95rem;">(<?= sanitize($mapel['kode_mapel']) ?>)</span>
-                            </h2>
-                            <span class="text-xs text-muted">Total Koleksi: <?= $mapel['total_soal'] ?> Butir Soal (<?= count($mapel['paket']) ?> Judul Paket)</span>
-                        </div>
-                    </div>
-                    <div>
-                        <a href="<?= base_url('guru/tambah_soal.php?id_mapel=' . $mapel['id_mapel']) ?>" class="btn btn-sm btn-primary">+ Buat Paket Baru</a>
-                    </div>
-                </div>
-
-                <!-- DAFTAR JUDUL / PAKET SOAL DI BAWAH MAPEL INI -->
-                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                    <?php foreach ($mapel['paket'] as $judul => $soals): ?>
-                        <div class="card" style="padding: 0; overflow: hidden; border: 1px solid var(--gray-300); box-shadow: var(--shadow-sm);">
-                            <!-- Header Judul / Paket Soal -->
-                            <div class="card-header" style="background: #f1f5f9; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--gray-200); margin: 0;">
-                                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                    <span style="font-size: 1.25rem;">📁</span>
-                                    <div>
-                                        <div class="flex items-center gap-2">
-                                            <h3 class="card-title" style="font-size: 1.1rem; margin: 0; color: var(--gray-900);">
-                                                <?= sanitize($judul) ?>
-                                            </h3>
-                                            <span class="badge badge-online"><?= count($soals) ?> Soal</span>
-                                        </div>
-                                        <span class="text-xs text-muted">Paket Soal Mapel <?= sanitize($mapel['nama_mapel']) ?></span>
-                                    </div>
+        <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+            <?php foreach ($paketList as $p): ?>
+                <div class="card" style="margin-bottom: 0; padding: 1.15rem 1.35rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+                    <div class="flex-between" style="flex-wrap: wrap; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.85rem;">
+                            <div style="width: 40px; height: 40px; border-radius: 6px; background: #f1f5f9; color: var(--primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            </div>
+                            <div>
+                                <div class="flex gap-2" style="align-items: center; flex-wrap: wrap;">
+                                    <h3 style="font-size: 1.08rem; font-weight: 700; color: var(--gray-900); margin: 0;">
+                                        <?= sanitize($p['judul_soal']) ?>
+                                    </h3>
+                                    <span class="badge badge-online" style="font-size: 0.75rem; font-weight: 700;">
+                                        <?= (int)$p['total_butir'] ?> Butir Soal
+                                    </span>
                                 </div>
-                                <div class="flex gap-2">
-                                    <a href="<?= base_url('guru/tambah_soal.php?id_mapel=' . $mapel['id_mapel'] . '&judul_soal=' . urlencode($judul)) ?>" class="btn btn-sm btn-primary">+ Tambah Butir Soal</a>
-                                    <a href="<?= base_url('guru/import_soal.php?id_mapel=' . $mapel['id_mapel'] . '&judul_soal=' . urlencode($judul)) ?>" class="btn btn-sm btn-outline">Import CSV</a>
+                                <div class="flex gap-2 mt-1" style="align-items: center; flex-wrap: wrap; font-size: 0.85rem;">
+                                    <span class="badge" style="background: #e2e8f0; color: #334155; font-weight: 600;">
+                                        <?= sanitize(format_mapel_name($p['nama_mapel'], $p['kode_mapel'])) ?>
+                                    </span>
+                                    <span style="color: var(--gray-500); font-size: 0.82rem;">
+                                        (<?= (int)$p['total_pg'] ?> Pilihan Ganda<?= (int)$p['total_essai'] > 0 ? ', ' . (int)$p['total_essai'] . ' Essai' : '' ?>)
+                                    </span>
                                 </div>
                             </div>
-
-                            <!-- Butir-Butir Soal di Bawah Judul Ini -->
-                            <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; background: var(--gray-50);">
-                                <?php foreach ($soals as $subIdx => $s): ?>
-                                    <div style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 1.15rem; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-                                        <div class="flex-between mb-2">
-                                            <div>
-                                                <span class="badge badge-role">Nomor <?= $subIdx + 1 ?></span>
-                                                <span class="badge badge-aktif" style="margin-left: 0.4rem;"><?= sanitize($judul) ?></span>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <a href="<?= base_url('guru/tambah_soal.php?edit=' . $s['id_soal']) ?>" class="btn btn-sm btn-outline">Edit</a>
-                                                <form action="<?= base_url('guru/bank_soal.php') ?>" method="POST" style="display:inline;" data-confirm="Yakin ingin menghapus butir soal nomor <?= $subIdx + 1 ?> pada paket <?= sanitize($judul) ?> ini?" data-confirm-title="Hapus Butir Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
-                                                    <?= csrf_field() ?>
-                                                    <input type="hidden" name="action" value="hapus">
-                                                    <input type="hidden" name="id_soal" value="<?= $s['id_soal'] ?>">
-                                                    <input type="hidden" name="redirect_mapel" value="<?= $filterMapel ?>">
-                                                    <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
-                                                </form>
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-3" style="font-size: 1rem; line-height: 1.6; color: var(--gray-900);">
-                                            <?= nl2br(sanitize($s['pertanyaan'])) ?>
-                                        </div>
-
-                                        <?php if (!empty($s['gambar'])): ?>
-                                            <div class="mb-3">
-                                                <img src="<?= base_url(ltrim($s['gambar'], '/')) ?>" alt="Lampiran Soal" style="max-height: 180px; border-radius: 6px; border: 1px solid var(--gray-300);">
-                                            </div>
-                                        <?php endif; ?>
-
-                                        <!-- Preview Pilihan Opsi A, B, C, D, E -->
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.5rem; font-size: 0.88rem; background: var(--gray-50); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--gray-200);">
-                                            <div style="<?= ($s['kunci_jawaban'] === 'A') ? 'font-weight:bold; color:#166534;' : '' ?>">
-                                                <strong>A.</strong> <?= sanitize($s['opsi_a']) ?> <?= ($s['kunci_jawaban'] === 'A') ? '✓ (Kunci)' : '' ?>
-                                            </div>
-                                            <div style="<?= ($s['kunci_jawaban'] === 'B') ? 'font-weight:bold; color:#166534;' : '' ?>">
-                                                <strong>B.</strong> <?= sanitize($s['opsi_b']) ?> <?= ($s['kunci_jawaban'] === 'B') ? '✓ (Kunci)' : '' ?>
-                                            </div>
-                                            <div style="<?= ($s['kunci_jawaban'] === 'C') ? 'font-weight:bold; color:#166534;' : '' ?>">
-                                                <strong>C.</strong> <?= sanitize($s['opsi_c']) ?> <?= ($s['kunci_jawaban'] === 'C') ? '✓ (Kunci)' : '' ?>
-                                            </div>
-                                            <div style="<?= ($s['kunci_jawaban'] === 'D') ? 'font-weight:bold; color:#166534;' : '' ?>">
-                                                <strong>D.</strong> <?= sanitize($s['opsi_d']) ?> <?= ($s['kunci_jawaban'] === 'D') ? '✓ (Kunci)' : '' ?>
-                                            </div>
-                                            <?php if (!empty($s['opsi_e'])): ?>
-                                                <div style="<?= ($s['kunci_jawaban'] === 'E') ? 'font-weight:bold; color:#166534;' : '' ?>">
-                                                    <strong>E.</strong> <?= sanitize($s['opsi_e']) ?> <?= ($s['kunci_jawaban'] === 'E') ? '✓ (Kunci)' : '' ?>
-                                                </div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
                         </div>
-                    <?php endforeach; ?>
+
+                        <!-- Tombol Aksi Paket -->
+                        <div class="flex gap-2" style="align-items: center;">
+                            <a href="<?= base_url('guru/tambah_soal.php?id_mapel=' . $p['id_mapel'] . '&judul_soal=' . urlencode($p['judul_soal'])) ?>" class="btn btn-primary btn-sm">
+                                Edit Paket
+                            </a>
+                            <a href="<?= base_url('guru/bank_soal.php?action=export_csv&id_mapel=' . $p['id_mapel'] . '&judul_soal=' . urlencode($p['judul_soal'])) ?>" class="btn btn-outline btn-sm">
+                                Export CSV
+                            </a>
+                            <form action="<?= base_url('guru/bank_soal.php') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['judul_soal']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="hapus_paket">
+                                <input type="hidden" name="id_mapel" value="<?= $p['id_mapel'] ?>">
+                                <input type="hidden" name="judul_soal" value="<?= sanitize($p['judul_soal']) ?>">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Hapus Paket Soal">
+                                    Hapus
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        </div>
     <?php endif; ?>
 </main>
 

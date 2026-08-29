@@ -76,7 +76,6 @@ $flash = flash_get();
     <div class="card-header mb-4">
         <div>
             <h1 class="card-title">Panel Kontrol Administrator</h1>
-            <p class="text-sm text-muted">Pantau data peserta, penguji, dan integritas sesi ujian secara terpusat.</p>
         </div>
         <div>
             <span class="badge badge-online">Server: Terhubung</span>

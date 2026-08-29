@@ -64,7 +64,7 @@ $flash = flash_get();
         </div>
     <?php endif; ?>
 
-    <div class="card shadow-lg" style="border-top: 4px solid var(--success); padding: 1.15rem 1.25rem; border-radius: 12px; margin: 0; background: var(--white);">
+    <div class="card" style="padding: 1.25rem 1.35rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin: 0; background: var(--white); box-shadow: var(--shadow-sm);">
         <div class="text-center mb-3">
             <div style="width: 46px; height: 46px; background: #dcfce7; color: #166534; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.4rem;">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -110,16 +110,15 @@ $flash = flash_get();
             </table>
         </div>
 
-        <!-- Ringkasan Perolehan Skor -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.85rem;">
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.5rem; text-align: center;">
-                <div style="font-size: 1.25rem; font-weight: 800; color: #16a34a; line-height: 1.2;"><?= $hasil['jumlah_benar'] ?> / <?= $hasil['total_soal'] ?></div>
-                <div style="font-size: 0.72rem; font-weight: 700; color: #166534;">Jawaban Benar</div>
+        <!-- Konfirmasi Penyerahan Ujian (Nilai hanya dapat dilihat Guru) -->
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; text-align: center; margin-bottom: 0.85rem;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: #166534; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                <span>Jawaban Berhasil Diserahkan</span>
             </div>
-            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.5rem; text-align: center;">
-                <div style="font-size: 1.25rem; font-weight: 800; color: #1e40af; line-height: 1.2;"><?= number_format((float)$hasil['nilai_akhir'], 2) ?></div>
-                <div style="font-size: 0.72rem; font-weight: 700; color: #1e3a8a;">Nilai Akhir</div>
-            </div>
+            <p style="font-size: 0.76rem; color: #15803d; margin: 0.35rem 0 0 0; line-height: 1.4;">
+                Seluruh jawaban telah tersimpan. Nilai dan hasil evaluasi ujian akan diperiksa dan direkapitulasi langsung oleh Bapak/Ibu Guru.
+            </p>
         </div>
 
         <div class="flex gap-2" style="justify-content: center;">
@@ -129,5 +128,6 @@ $flash = flash_get();
     </div>
 </div>
 
+<script src="<?= base_url('assets/js/app.js') ?>"></script>
 </body>
 </html>

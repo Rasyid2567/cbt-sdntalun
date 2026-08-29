@@ -135,31 +135,49 @@ class CBTExamManager {
             }
         }
 
-        // 4. Render Opsi Pilihan Ganda (A, B, C, D, E)
+        // 4. Render Opsi Pilihan Ganda atau Form Essai
         if (this.dom.opsiList) {
             this.dom.opsiList.innerHTML = '';
 
-            currentSoal.opsi.forEach(opt => {
-                if (!opt.text || opt.text.trim() === '') return; // Lewati jika opsi E kosong
+            if (currentSoal.jenis_soal === 'essai') {
+                const essaiWrapper = document.createElement('div');
+                essaiWrapper.style.cssText = 'background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem 1.5rem; margin-top: 1rem; text-align: center;';
 
-                const isSelected = (currentSoal.jawaban_terpilih === opt.code);
-
-                const itemDiv = document.createElement('div');
-                itemDiv.className = `opsi-item ${isSelected ? 'selected' : ''}`;
-                itemDiv.dataset.code = opt.code;
-
-                itemDiv.innerHTML = `
-                    <input type="radio" name="pilihan_jawaban" value="${opt.code}" class="opsi-radio" ${isSelected ? 'checked' : ''}>
-                    <div class="opsi-code">${opt.code}.</div>
-                    <div class="opsi-text">${opt.text}</div>
+                essaiWrapper.innerHTML = `
+                    <div style="width: 44px; height: 44px; margin: 0 auto 0.5rem; border-radius: 50%; background: #ede9fe; color: #6d28d9; display: flex; align-items: center; justify-content: center;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    </div>
+                    <h3 style="font-size: 1.05rem; font-weight: 700; color: #1e293b; margin: 0 0 0.4rem 0;">SOAL URAIAN / ESSAI</h3>
+                    <p style="font-size: 0.92rem; color: #475569; margin: 0; line-height: 1.5;">
+                        Tuliskan jawaban untuk butir pertanyaan ini pada <strong>Lembar Kertas Jawaban Ujian</strong> yang telah disediakan oleh Pengawas Ujian.
+                    </p>
                 `;
 
-                itemDiv.addEventListener('click', () => {
-                    this.handleSelectOpsi(opt.code);
-                });
+                this.dom.opsiList.appendChild(essaiWrapper);
+            } else {
+                // Pilihan Ganda (Single / Multi)
+                currentSoal.opsi.forEach(opt => {
+                    if (!opt.text || opt.text.trim() === '') return; // Lewati jika opsi E kosong
 
-                this.dom.opsiList.appendChild(itemDiv);
-            });
+                    const isSelected = (currentSoal.jawaban_terpilih === opt.code);
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = `opsi-item ${isSelected ? 'selected' : ''}`;
+                    itemDiv.dataset.code = opt.code;
+
+                    itemDiv.innerHTML = `
+                        <input type="radio" name="pilihan_jawaban" value="${opt.code}" class="opsi-radio" ${isSelected ? 'checked' : ''}>
+                        <div class="opsi-code">${opt.code}.</div>
+                        <div class="opsi-text">${opt.text}</div>
+                    `;
+
+                    itemDiv.addEventListener('click', () => {
+                        this.handleSelectOpsi(opt.code);
+                    });
+
+                    this.dom.opsiList.appendChild(itemDiv);
+                });
+            }
         }
 
         // 5. Update Status Checkbox Ragu-ragu
@@ -180,68 +198,67 @@ class CBTExamManager {
             }
         }
 
-        // 7. Update Highlight Grid
+        // 7. Update Warna Grid Nomor
         this.updateGridClasses();
     }
 
     /**
-     * Memilih Opsi Jawaban dan Menjalankan Auto-Save Realtime
-     * @param {string} opsiCode 
+     * Memilih Opsi Jawaban
+     * @param {string} code 
      */
-    handleSelectOpsi(opsiCode) {
+    handleSelectOpsi(code) {
         const currentSoal = this.soalData[this.currentIndex];
+        if (!currentSoal) return;
 
-        // Jika sudah dipilih opsi yang sama, tidak perlu kirim ulang
-        if (currentSoal.jawaban_terpilih === opsiCode) {
-            return;
-        }
+        currentSoal.jawaban_terpilih = code;
 
-        currentSoal.jawaban_terpilih = opsiCode;
-
-        // Perbarui tampilan item opsi
-        const items = this.dom.opsiList.querySelectorAll('.opsi-item');
-        items.forEach(item => {
-            const isMatch = (item.dataset.code === opsiCode);
-            item.classList.toggle('selected', isMatch);
-            const radio = item.querySelector('input[type="radio"]');
+        // Update UI Opsi
+        const allItems = this.dom.opsiList.querySelectorAll('.opsi-item');
+        allItems.forEach(el => {
+            const isMatch = (el.dataset.code === code);
+            el.classList.toggle('selected', isMatch);
+            const radio = el.querySelector('.opsi-radio');
             if (radio) radio.checked = isMatch;
         });
 
-        // Perbarui grid nomor
+        // Update Grid
         this.updateGridClasses();
 
-        // Kirim Auto-Save ke server via Fetch API
-        this.saveJawabanToServer(currentSoal.id_soal, opsiCode);
+        // Kirim ke server via AJAX
+        this.saveJawabanToServer(currentSoal.id_soal, code);
     }
 
     /**
-     * Mengubah Status Ragu-Ragu dan Menyimpan ke Server
+     * Menangani Status Ragu-Ragu
      * @param {boolean} isRagu 
      */
     handleRaguChange(isRagu) {
         const currentSoal = this.soalData[this.currentIndex];
-        currentSoal.status_ragu = isRagu;
+        if (!currentSoal) return;
 
+        currentSoal.status_ragu = isRagu ? 1 : 0;
+
+        // Update Grid
         this.updateGridClasses();
+
+        // Kirim status ragu ke server via AJAX
         this.saveRaguToServer(currentSoal.id_soal, isRagu);
     }
 
     /**
-     * Mengirimkan Jawaban ke ajax_save.php
+     * Mengirim Jawaban ke Server via Fetch API
      * @param {number} idSoal 
      * @param {string} jawaban 
      */
     saveJawabanToServer(idSoal, jawaban) {
-        const sisaDetik = this.timerInstance ? this.timerInstance.getRemainingSeconds() : 0;
-        const payload = {
-            csrf_token: this.csrfToken,
-            id_ujian_siswa: this.idUjianSiswa,
-            id_soal: idSoal,
-            jawaban_terpilih: jawaban,
-            sisa_detik: sisaDetik
-        };
+        this.setSyncStatus('saving', 'Menyimpan...');
 
-        this.setSyncStatus('saving', 'Menyimpan jawaban...');
+        const payload = {
+            id_ujian_siswa: this.idUjianSiswa,
+            id_soal:        idSoal,
+            jawaban:        jawaban,
+            csrf_token:     this.csrfToken
+        };
 
         fetch(this.saveUrl, {
             method: 'POST',
@@ -252,35 +269,36 @@ class CBTExamManager {
             body: JSON.stringify(payload)
         })
         .then(response => {
-            if (!response.ok) throw new Error('Network error');
+            if (!response.ok) throw new Error('HTTP Error: ' + response.status);
             return response.json();
         })
         .then(data => {
-            if (data.success) {
+            if (data.status === 'success') {
                 this.setSyncStatus('saved', 'Jawaban tersimpan');
             } else {
                 throw new Error(data.message || 'Gagal menyimpan');
             }
         })
         .catch(err => {
-            console.warn('Gagal koneksi auto-save, memasukkan ke antrian coba lagi:', err);
-            this.setSyncStatus('error', 'Koneksi terganggu (Akan dicoba ulang)');
+            console.warn('Gagal sync jawaban, masuk antrean retry:', err);
+            this.setSyncStatus('offline', 'Tersimpan lokal (offline)');
             this.retryQueue.push({ type: 'save', payload: payload });
-            setTimeout(() => this.processRetryQueue(), 4000);
         });
     }
 
     /**
-     * Mengirimkan Status Ragu-ragu ke ajax_ragu.php
+     * Mengirim Status Ragu ke Server via Fetch API
      * @param {number} idSoal 
      * @param {boolean} isRagu 
      */
     saveRaguToServer(idSoal, isRagu) {
+        this.setSyncStatus('saving', 'Menyimpan...');
+
         const payload = {
-            csrf_token: this.csrfToken,
             id_ujian_siswa: this.idUjianSiswa,
-            id_soal: idSoal,
-            status_ragu: isRagu ? 1 : 0
+            id_soal:        idSoal,
+            status_ragu:    isRagu ? 1 : 0,
+            csrf_token:     this.csrfToken
         };
 
         fetch(this.raguUrl, {
@@ -291,9 +309,18 @@ class CBTExamManager {
             },
             body: JSON.stringify(payload)
         })
-        .then(res => res.json())
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP Error');
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                this.setSyncStatus('saved', 'Status tersimpan');
+            }
+        })
         .catch(err => {
-            console.warn('Gagal simpan status ragu:', err);
+            console.warn('Gagal sync status ragu, masuk antrean retry:', err);
+            this.setSyncStatus('offline', 'Tersimpan lokal (offline)');
             this.retryQueue.push({ type: 'ragu', payload: payload });
         });
     }
@@ -384,9 +411,11 @@ class CBTExamManager {
                 btn.classList.add('active');
             }
 
-            // Status Ragu atau Dijawab
+            // Status Ragu, Essai Kertas, atau Pilihan Ganda Dijawab
             if (soal.status_ragu) {
                 btn.classList.add('ragu');
+            } else if (soal.jenis_soal === 'essai') {
+                btn.classList.add('essai');
             } else if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
                 btn.classList.add('dijawab');
             }
@@ -397,48 +426,62 @@ class CBTExamManager {
      * Menampilkan Modal Konfirmasi Selesai Ujian
      */
     showFinishModal() {
-        let dijawab = 0;
+        let pgTotal = 0;
+        let pgDijawab = 0;
+        let pgBelum = 0;
         let ragu = 0;
-        let belum = 0;
+        let essaiCount = 0;
 
         this.soalData.forEach(soal => {
             if (soal.status_ragu) {
                 ragu++;
             }
-            if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
-                dijawab++;
+            if (soal.jenis_soal === 'essai') {
+                essaiCount++;
             } else {
-                belum++;
+                pgTotal++;
+                if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
+                    pgDijawab++;
+                } else {
+                    pgBelum++;
+                }
             }
         });
 
         if (this.dom.modalRingkasan) {
             this.dom.modalRingkasan.innerHTML = `
-                <div style="background:#f8fafc; padding:1rem; border-radius:6px; margin:1rem 0; font-size:0.95rem;">
+                <div style="background:#f8fafc; padding:1rem; border-radius:6px; margin:1rem 0; font-size:0.92rem;">
                     <div class="flex-between mb-2">
                         <span>Total Butir Soal:</span>
-                        <strong>${this.soalData.length}</strong>
+                        <strong>${this.soalData.length} Soal</strong>
                     </div>
                     <div class="flex-between mb-2 text-success">
-                        <span>Sudah Dijawab:</span>
-                        <strong>${dijawab}</strong>
+                        <span>Pilihan Ganda Terjawab:</span>
+                        <strong>${pgDijawab} / ${pgTotal}</strong>
                     </div>
+                    ${pgBelum > 0 ? `
                     <div class="flex-between mb-2 text-danger">
-                        <span>Belum Dijawab:</span>
-                        <strong>${belum}</strong>
-                    </div>
-                    <div class="flex-between text-warning">
+                        <span>Pilihan Ganda Belum Dijawab:</span>
+                        <strong>${pgBelum}</strong>
+                    </div>` : ''}
+                    ${ragu > 0 ? `
+                    <div class="flex-between mb-2 text-warning">
                         <span>Masih Ragu-ragu:</span>
                         <strong>${ragu}</strong>
-                    </div>
+                    </div>` : ''}
+                    ${essaiCount > 0 ? `
+                    <div class="flex-between" style="color: #6d28d9; border-top: 1px dashed var(--gray-300); padding-top: 0.5rem; margin-top: 0.5rem;">
+                        <span>Soal Uraian / Essai (Di Kertas):</span>
+                        <strong>${essaiCount} Butir</strong>
+                    </div>` : ''}
                 </div>
-                ${(belum > 0 || ragu > 0) ? `
+                ${(pgBelum > 0 || ragu > 0) ? `
                     <div class="alert alert-warning text-sm">
-                        <strong>Perhatian:</strong> Masih ada soal yang belum dijawab atau bertanda ragu-ragu. Anda yakin ingin mengakhiri sesi sekarang?
+                        <strong>Perhatian:</strong> Masih ada soal pilihan ganda yang belum dijawab atau bertanda ragu-ragu. Pastikan juga jawaban soal uraian telah Anda tulis di kertas sebelum mengakhiri sesi.
                     </div>
                 ` : `
                     <div class="alert alert-success text-sm">
-                        Seluruh soal telah Anda jawab. Klik <strong>SELESAIKAN UJIAN</strong> untuk mengirimkan lembar jawaban akhir.
+                        Seluruh soal pilihan ganda telah dijawab. Pastikan lembar kertas jawaban uraian juga sudah terisi, lalu klik <strong>SELESAIKAN UJIAN</strong>.
                     </div>
                 `}
             `;

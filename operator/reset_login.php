@@ -117,7 +117,6 @@ $flash = flash_get();
     <div class="card-header">
         <div>
             <h1 class="card-title">Monitoring & Reset Sesi Login</h1>
-            <p class="text-sm text-muted">Buka kunci sesi siswa yang terputus koneksi atau mengalami crash browser agar dapat login kembali.</p>
         </div>
         <div class="card-header-actions">
             <form action="<?= base_url('operator/reset_login.php') ?>" method="POST" data-confirm="Apakah Anda yakin ingin me-reset SEMUA sesi siswa yang sedang aktif menjadi offline?" data-confirm-title="Reset Semua Sesi Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Reset Semua" style="width: 100%;">
@@ -134,12 +133,12 @@ $flash = flash_get();
             <input type="text" name="search" class="form-control" placeholder="Cari NIS, username, atau nama..." value="<?= sanitize($search) ?>">
             <div class="filter-row">
                 <select name="role" class="form-control">
-                    <option value="all" <?= ($filterRole === 'all') ? 'selected' : '' ?>>-- Semua Role --</option>
+                    <option value="all" <?= ($filterRole === 'all') ? 'selected' : '' ?>>Semua Role</option>
                     <option value="siswa" <?= ($filterRole === 'siswa') ? 'selected' : '' ?>>Siswa</option>
                     <option value="guru" <?= ($filterRole === 'guru') ? 'selected' : '' ?>>Guru</option>
                 </select>
                 <select name="id_kelas" class="form-control">
-                    <option value="">-- Semua Kelas --</option>
+                    <option value="">Semua Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>" <?= ($filterKelas == $k['id_kelas']) ? 'selected' : '' ?>>
                             <?= sanitize($k['nama_kelas']) ?>

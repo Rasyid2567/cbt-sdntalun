@@ -11,9 +11,9 @@ $db = get_db();
 // Hitung Statistik Guru Ini
 $idGuru = $currentUser['id_user'];
 
-$stmtSoal = $db->prepare("SELECT COUNT(*) FROM bank_soal WHERE id_guru = :g");
+$stmtSoal = $db->prepare("SELECT COUNT(DISTINCT (id_mapel, judul_soal)) FROM bank_soal WHERE id_guru = :g");
 $stmtSoal->execute([':g' => $idGuru]);
-$totalSoal = $stmtSoal->fetchColumn();
+$totalPaket = (int)$stmtSoal->fetchColumn();
 
 $stmtSesi = $db->prepare("SELECT COUNT(*) FROM sesi_ujian WHERE id_guru = :g AND status = 'aktif'");
 $stmtSesi->execute([':g' => $idGuru]);
@@ -93,13 +93,14 @@ $flash = flash_get();
 
     <div class="card-header mb-4">
         <div>
-            <h1 class="card-title">Selamat Datang, <?= sanitize($currentUser['nama_lengkap']) ?></h1>
-            <p class="text-sm text-muted">
-                Kelola butir soal dan terbitkan token ujian secara mandiri untuk siswa.
-                <span style="display: inline-block; margin-left: 0.5rem; background: #e2e8f0; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 700; color: #1e293b;">
-                    🕒 Jam Server: <span id="server_clock" style="font-family: monospace;"><?= date('H:i:s') ?></span> WIB
+            <h1 class="card-title" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <span>Selamat Datang, <?= sanitize($currentUser['nama_lengkap']) ?></span>
+                <span style="font-size: 0.8rem; background: #e2e8f0; padding: 0.25rem 0.6rem; border-radius: 4px; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>Waktu Server:</span>
+                    <span id="server_clock" style="font-family: monospace;"><?= date('H:i:s') ?></span> WIB
                 </span>
-            </p>
+            </h1>
         </div>
         <div class="card-header-actions">
             <a href="<?= base_url('guru/sesi_ujian.php') ?>" class="btn btn-primary">+ Rilis Sesi Ujian</a>
@@ -110,18 +111,18 @@ $flash = flash_get();
     <!-- Quick Stats -->
     <div class="stats-grid stats-grid-3">
         <div class="stat-card">
-            <div class="stat-icon" style="background:#2563eb;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <div class="stat-icon" style="background:#1e40af;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
             </div>
             <div>
-                <div class="stat-val"><?= $totalSoal ?></div>
-                <div class="stat-label">Soal Milik Anda</div>
+                <div class="stat-val"><?= $totalPaket ?></div>
+                <div class="stat-label">Paket Soal Anda</div>
             </div>
         </div>
 
         <div class="stat-card">
             <div class="stat-icon" style="background:#059669;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             </div>
             <div>
                 <div class="stat-val"><?= $sesiAktif ?></div>
@@ -130,8 +131,8 @@ $flash = flash_get();
         </div>
 
         <div class="stat-card">
-            <div class="stat-icon" style="background:#7c3aed;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <div class="stat-icon" style="background:#4f46e5;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             </div>
             <div>
                 <div class="stat-val"><?= $totalSelesai ?></div>
@@ -174,8 +175,8 @@ $flash = flash_get();
                                 <td data-label="Sisa Waktu">
                                     <?php if ($s['status'] === 'aktif'): ?>
                                         <?php if ($s['sisa_detik_sesi'] > 0): ?>
-                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                                ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
+                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                                <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
                                             </span>
                                         <?php else: ?>
                                             <span class="badge badge-offline">Waktu Habis</span>

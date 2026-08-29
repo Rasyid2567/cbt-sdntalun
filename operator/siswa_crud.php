@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id_user > 0) {
             $del = $db->prepare("DELETE FROM users WHERE id_user = :id AND role = 'siswa'");
             $del->execute([':id' => $id_user]);
-            flash_set('success', 'Data siswa berhasil dihapus.');
+            flash_set('danger', 'Data siswa berhasil dihapus.');
         }
         redirect(base_url('operator/siswa_crud.php'));
     }
@@ -299,7 +299,6 @@ $flash = flash_get();
     <div class="card-header">
         <div>
             <h1 class="card-title">Manajemen Data Siswa (Peserta CBT)</h1>
-            <p class="text-sm text-muted">Kelola akun peserta ujian dengan NIS dan Username yang terpisah.</p>
         </div>
         <div class="card-header-actions">
             <button type="button" class="btn btn-primary" onclick="openModal('modal-tambah')">+ Tambah Siswa</button>
@@ -314,7 +313,7 @@ $flash = flash_get();
             <input type="text" name="search" class="form-control" placeholder="Cari NIS, Username, atau Nama Siswa..." value="<?= sanitize($search) ?>">
             <div class="filter-row">
                 <select name="filter_kelas" class="form-control">
-                    <option value="">-- Semua Kelas --</option>
+                    <option value="">Semua Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>" <?= ($filterKelas == $k['id_kelas']) ? 'selected' : '' ?>>
                             <?= sanitize($k['nama_kelas']) ?>
@@ -413,7 +412,7 @@ $flash = flash_get();
             <div class="form-group">
                 <label>Kelas</label>
                 <select name="id_kelas" class="form-control" required>
-                    <option value="">-- Pilih Kelas --</option>
+                    <option value="">Pilih Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>"><?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
@@ -456,7 +455,7 @@ $flash = flash_get();
             <div class="form-group">
                 <label>Kelas</label>
                 <select id="edit-kelas" name="id_kelas" class="form-control" required>
-                    <option value="">-- Pilih Kelas --</option>
+                    <option value="">Pilih Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>"><?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
@@ -495,12 +494,6 @@ $flash = flash_get();
 </div>
 
 <script>
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
 function openEditModal(data) {
     document.getElementById('edit-id-user').value = data.id_user;
     document.getElementById('edit-nis').value = data.nis || '';

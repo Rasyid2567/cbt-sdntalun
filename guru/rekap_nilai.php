@@ -149,7 +149,6 @@ $flash = flash_get();
     <div class="card-header no-print">
         <div>
             <h1 class="card-title">Laporan & Rekapitulasi Nilai Ujian</h1>
-            <p class="text-sm text-muted">Perolehan skor otomatis peserta, durasi pengerjaan, dan ekspor data.</p>
         </div>
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">

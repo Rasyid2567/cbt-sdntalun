@@ -12,10 +12,109 @@ window.toggleNavMenu = function(e) {
     }
 };
 
+window.initCustomSelects = function(root = document) {
+    const selects = root.querySelectorAll('select:not([data-customized])');
+    selects.forEach(select => {
+        if (select.dataset.customized || select.classList.contains('no-custom-select')) return;
+        select.dataset.customized = 'true';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'cbt-select-container';
+        if (select.classList.contains('form-control-sm')) wrapper.classList.add('cbt-select-sm');
+
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+
+        const trigger = document.createElement('div');
+        trigger.className = 'cbt-select-trigger';
+        trigger.tabIndex = 0;
+
+        const label = document.createElement('span');
+        label.className = 'cbt-select-label';
+
+        const arrow = document.createElement('span');
+        arrow.className = 'cbt-select-arrow';
+        arrow.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>`;
+
+        trigger.appendChild(label);
+        trigger.appendChild(arrow);
+        wrapper.appendChild(trigger);
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'cbt-select-dropdown';
+        wrapper.appendChild(dropdown);
+
+        const renderOptions = () => {
+            dropdown.innerHTML = '';
+            const selectedOpt = select.options[select.selectedIndex];
+            label.textContent = selectedOpt ? selectedOpt.textContent : 'Pilih...';
+
+            Array.from(select.options).forEach((opt, idx) => {
+                // Jangan tampilkan opsi placeholder kosong / teks "Pilih ..." di dalam list item
+                if (opt.disabled || opt.hidden) return;
+                if (opt.value === '' && (select.required || opt.textContent.trim().toLowerCase().startsWith('pilih'))) {
+                    return;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'cbt-select-option' + (idx === select.selectedIndex ? ' selected' : '');
+                item.textContent = opt.textContent;
+                item.dataset.value = opt.value;
+
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (select.selectedIndex !== idx) {
+                        select.selectedIndex = idx;
+                        select.value = opt.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    renderOptions();
+                    document.querySelectorAll('.cbt-select-container.open').forEach(el => el.classList.remove('open'));
+                });
+
+                dropdown.appendChild(item);
+            });
+        };
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = wrapper.classList.contains('open');
+            document.querySelectorAll('.cbt-select-container.open').forEach(el => {
+                if (el !== wrapper) el.classList.remove('open');
+            });
+            if (!isOpen) {
+                renderOptions();
+                wrapper.classList.add('open');
+            } else {
+                wrapper.classList.remove('open');
+            }
+        });
+
+        trigger.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                renderOptions();
+                wrapper.classList.add('open');
+            } else if (e.key === 'Escape') {
+                wrapper.classList.remove('open');
+            }
+        });
+
+        select.addEventListener('change', () => {
+            const opt = select.options[select.selectedIndex];
+            if (opt) label.textContent = opt.textContent;
+            renderOptions();
+        });
+
+        renderOptions();
+    });
+};
+
 window.openModal = function(id) {
     const m = document.getElementById(id);
     if (m) {
         m.classList.add('active');
+        window.initCustomSelects(m);
         const input = m.querySelector('input[type="text"]:not([readonly]), input[type="password"]');
         if (input) setTimeout(() => input.focus(), 100);
     }
@@ -23,7 +122,10 @@ window.openModal = function(id) {
 
 window.closeModal = function(id) {
     const m = document.getElementById(id);
-    if (m) m.classList.remove('active');
+    if (m) {
+        m.classList.remove('active');
+        document.querySelectorAll('.cbt-select-container.open').forEach(el => el.classList.remove('open'));
+    }
 };
 
 /**
@@ -109,6 +211,9 @@ window.cbtConfirm = function(options = {}) {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize modern custom select dropdowns across the page
+    window.initCustomSelects();
+
     // Intercept form submissions with data-confirm
     document.addEventListener('submit', function(e) {
         const form = e.target;
@@ -133,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Click outside to close nav menu & modal
+    // Click outside to close nav menu, modal & custom select dropdowns
     document.addEventListener('click', function(e) {
         const navMenu = document.getElementById('cbt-nav-menu');
         const toggleBtn = document.querySelector('.cbt-menu-toggle');
@@ -141,6 +246,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!navMenu.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
                 navMenu.classList.remove('open');
             }
+        }
+
+        // Close custom select dropdowns when clicking outside
+        if (!e.target.closest('.cbt-select-container')) {
+            document.querySelectorAll('.cbt-select-container.open').forEach(el => el.classList.remove('open'));
         }
 
         // Close modal when clicking backdrop (except if global confirm)
@@ -156,6 +266,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (navMenu && navMenu.classList.contains('open')) {
                 navMenu.classList.remove('open');
             }
+            document.querySelectorAll('.cbt-select-container.open').forEach(el => el.classList.remove('open'));
             const activeModal = document.querySelector('.modal-overlay.active');
             if (activeModal) {
                 activeModal.classList.remove('active');
@@ -191,4 +302,70 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
         });
     }
+});
+
+// Global Stacking Toast Notification Function
+window.cbtToast = function(message, type = 'success', duration = 4000) {
+    let container = document.getElementById('cbt-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'cbt-toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `cbt-toast cbt-toast-${type}`;
+
+    let iconSvg = '';
+    if (type === 'success') {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    } else if (type === 'danger' || type === 'error') {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
+    } else if (type === 'warning') {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+    } else {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
+    }
+
+    toast.innerHTML = `
+        <div class="cbt-toast-body">
+            ${iconSvg}
+            <span class="cbt-toast-msg">${message}</span>
+        </div>
+        <button type="button" class="cbt-toast-close" aria-label="Tutup Notifikasi">&times;</button>
+    `;
+
+    const closeToast = () => {
+        if (toast.classList.contains('toast-hiding')) return;
+        toast.classList.add('toast-hiding');
+        setTimeout(() => {
+            if (toast.parentElement) toast.remove();
+        }, 320);
+    };
+
+    toast.querySelector('.cbt-toast-close').addEventListener('click', closeToast);
+
+    container.appendChild(toast);
+
+    if (duration > 0) {
+        setTimeout(closeToast, duration);
+    }
+};
+
+// Automatic conversion of server-side PHP flash messages into floating stacked toasts
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.alert:not(.alert-inline)').forEach(alert => {
+        if (!alert.closest('.modal-box') && !alert.closest('.soal-box')) {
+            let type = 'info';
+            if (alert.classList.contains('alert-success')) type = 'success';
+            else if (alert.classList.contains('alert-danger')) type = 'danger';
+            else if (alert.classList.contains('alert-warning')) type = 'warning';
+
+            const msg = alert.innerHTML.trim();
+            // Remove the static DOM alert
+            alert.remove();
+            // Trigger floating stacked toast
+            window.cbtToast(msg, type);
+        }
+    });
 });

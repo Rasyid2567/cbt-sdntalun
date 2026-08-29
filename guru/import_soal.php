@@ -195,7 +195,6 @@ $flash = flash_get();
     <div class="card-header">
         <div>
             <h1 class="card-title">Import Soal Massal via CSV</h1>
-            <p class="text-sm text-muted">Unggah kumpulan butir soal pilihan ganda sekaligus menggunakan berkas template CSV.</p>
         </div>
         <div class="flex gap-2">
             <a href="<?= base_url('guru/import_soal.php?action=download_template') ?>" class="btn btn-secondary">Unduh Template CSV</a>
@@ -211,7 +210,7 @@ $flash = flash_get();
             <div class="form-group">
                 <label for="id_mapel">Mata Pelajaran (Mapel) <span class="text-danger">*</span></label>
                 <select name="id_mapel" id="id_mapel" class="form-control" required>
-                    <option value="">-- Pilih Mata Pelajaran --</option>
+                    <option value="">Pilih Mata Pelajaran</option>
                     <?php foreach ($mapelList as $m): ?>
                         <option value="<?= $m['id_mapel'] ?>" <?= (($_GET['id_mapel'] ?? '') == $m['id_mapel']) ? 'selected' : '' ?>><?= sanitize($m['nama_mapel']) ?></option>
                     <?php endforeach; ?>
@@ -221,7 +220,7 @@ $flash = flash_get();
             <!-- 2. Soal (Judul / Nama Ujian) -->
             <div class="form-group mt-3">
                 <label for="judul_soal">Soal (Judul / Nama Ujian) <span class="text-danger">*</span></label>
-                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Contoh: Asesmen Nasional, Penilaian Harian Bab 1, Ujian Akhir..." value="<?= sanitize($_GET['judul_soal'] ?? '') ?>" required>
+                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Nama / Judul Paket Soal..." value="<?= sanitize($_GET['judul_soal'] ?? '') ?>" required>
                 <datalist id="list_judul">
                     <?php foreach ($existingJudul as $ej): ?>
                         <option value="<?= sanitize($ej) ?>"></option>
@@ -231,7 +230,6 @@ $flash = flash_get();
                     <option value="Penilaian Tengah Semester"></option>
                     <option value="Penilaian Akhir Semester"></option>
                 </datalist>
-                <p class="text-xs text-muted mt-1">Nama kelompok soal (misal: <em>Asesmen Nasional</em>). Seluruh pertanyaan dalam CSV ini akan dimasukkan ke paket ini.</p>
             </div>
 
             <!-- 3. Berkas CSV (Pertanyaan) -->
@@ -239,7 +237,6 @@ $flash = flash_get();
             <div class="form-group mt-3">
                 <label for="csv_file">Berkas CSV Soal <span class="text-danger">*</span></label>
                 <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv" required>
-                <p class="text-xs text-muted mt-1">Pastikan susunan kolom: <em>pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban</em>.</p>
             </div>
 
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">

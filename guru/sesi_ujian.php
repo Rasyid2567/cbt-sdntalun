@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idSesi = (int)($_POST['id_sesi'] ?? 0);
         $del = $db->prepare("DELETE FROM sesi_ujian WHERE id_sesi = :id AND id_guru = :g");
         $del->execute([':id' => $idSesi, ':g' => $idGuru]);
-        flash_set('success', 'Sesi ujian berhasil dihapus.');
+        flash_set('danger', 'Sesi ujian berhasil dihapus.');
         redirect(base_url('guru/sesi_ujian.php'));
     }
 }
@@ -200,7 +200,6 @@ $flash = flash_get();
     <div class="card-header">
         <div>
             <h1 class="card-title">Konfigurasi Sesi Ujian & Token</h1>
-            <p class="text-sm text-muted">Jadwalkan ujian, aktifkan acak soal/opsi, dan generate token ujian peserta.</p>
         </div>
         <div class="card-header-actions">
             <button type="button" class="btn btn-primary" onclick="openModal('modal-tambah-sesi')">+ Buat Sesi Ujian</button>
@@ -249,8 +248,8 @@ $flash = flash_get();
                                 <td data-label="Sisa Waktu">
                                     <?php if ($s['status'] === 'aktif'): ?>
                                         <?php if ($s['sisa_detik_sesi'] > 0): ?>
-                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                                ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
+                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                                <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
                                             </span>
                                         <?php else: ?>
                                             <span class="badge badge-offline">Waktu Habis</span>
@@ -317,8 +316,7 @@ $flash = flash_get();
 <!-- Modal Tambah Sesi Ujian (Otomatis Mapel & Kelas dari Paket Soal) -->
 <div id="modal-tambah-sesi" class="modal-overlay">
     <div class="modal-box" style="max-width: 520px;">
-        <h2 class="card-title mb-1">Rilis Sesi Ujian Baru</h2>
-        <p class="text-xs text-muted mb-3">Cukup pilih judul soal. Mata pelajaran dan kelas peserta otomatis terdeteksi.</p>
+        <h2 class="card-title mb-3">Rilis Sesi Ujian Baru</h2>
 
         <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST">
             <?= csrf_field() ?>
@@ -336,7 +334,7 @@ $flash = flash_get();
                     </div>
                 <?php else: ?>
                     <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)">
-                        <option value="">-- Pilih Judul Soal yang Diujikan --</option>
+                        <option value="">Pilih Judul Soal yang Diujikan</option>
                         <?php foreach ($paketList as $p): ?>
                             <option value="<?= htmlspecialchars(json_encode([
                                 'judul'      => $p['judul_soal'],
@@ -345,7 +343,7 @@ $flash = flash_get();
                                 'kode_mapel' => $p['kode_mapel'],
                                 'total_soal' => (int)$p['total_soal']
                             ])) ?>">
-                                <?= sanitize($p['judul_soal']) ?> — Mapel: <?= sanitize($p['nama_mapel']) ?> (<?= $p['total_soal'] ?> Soal)
+                                <?= sanitize($p['judul_soal']) ?> — <?= sanitize($p['kode_mapel'] ?: $p['nama_mapel']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -365,7 +363,7 @@ $flash = flash_get();
                     </div>
                     <div>
                         <span class="text-muted" style="display:block; font-size: 0.72rem; text-transform: uppercase; font-weight: 700;">Kelas Peserta:</span>
-                        <strong style="color: #059669; font-size: 0.95rem;"><?= sanitize($namaKelasGuru) ?> (Kelas Anda)</strong>
+                        <strong style="color: #059669; font-size: 0.95rem;"><?= sanitize($namaKelasGuru) ?></strong>
                     </div>
                 </div>
             </div>
@@ -394,9 +392,6 @@ $flash = flash_get();
 </div>
 
 <script>
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-
 function onPilihPaket(sel) {
     const infoBox = document.getElementById('info_otomatis');
     const hidMapel = document.getElementById('hidden_id_mapel');
@@ -416,7 +411,11 @@ function onPilihPaket(sel) {
         hidMapel.value = data.id_mapel;
         hidJudul.value = data.judul;
         prevJudul.textContent = data.judul;
-        prevMapel.textContent = data.nama_mapel + ' (' + data.kode_mapel + ')';
+        let mapelName = data.nama_mapel;
+        if (data.kode_mapel && !mapelName.includes('(' + data.kode_mapel + ')')) {
+            mapelName += ' (' + data.kode_mapel + ')';
+        }
+        prevMapel.textContent = mapelName;
         infoBox.style.display = 'block';
     } catch (e) {
         console.error(e);
