@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                 if (in_array($ext, $allowedExts, true) && $fileSize <= 2 * 1024 * 1024) {
                     $uploadDir = __DIR__ . '/../assets/uploads/';
-                    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+                    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0777, true);
                     $newFileName = 'soal_' . time() . '_' . $idx . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
                     if (move_uploaded_file($fileTmp, $uploadDir . $newFileName)) {
                         // Hapus file lama jika ditimpa
