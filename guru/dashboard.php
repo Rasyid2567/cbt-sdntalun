@@ -11,6 +11,45 @@ $db = get_db();
 // Hitung Statistik Guru Ini
 $idGuru = $currentUser['id_user'];
 
+// Tangani POST Token Refresh / Custom Edit dari Dashboard
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf()) {
+        flash_set('danger', 'Validasi token keamanan gagal.');
+        redirect(base_url('guru/dashboard.php'));
+    }
+    $action = $_POST['action'] ?? '';
+    
+    if ($action === 'refresh_token') {
+        $idSesi = (int)($_POST['id_sesi'] ?? 0);
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $newToken = '';
+        for ($i = 0; $i < 6; $i++) $newToken .= $chars[random_int(0, strlen($chars) - 1)];
+        $upd = $db->prepare("UPDATE sesi_ujian SET token_ujian = :t WHERE id_sesi = :id AND id_guru = :g");
+        $upd->execute([':t' => $newToken, ':id' => $idSesi, ':g' => $idGuru]);
+        flash_set('info', "Token ujian berhasil diperbarui menjadi: {$newToken}");
+        redirect(base_url('guru/dashboard.php'));
+    }
+
+    if ($action === 'edit_token') {
+        $idSesi = (int)($_POST['id_sesi'] ?? 0);
+        $customToken = strtoupper(trim($_POST['token_ujian'] ?? ''));
+        $token = preg_replace('/[^A-Z0-9]/', '', $customToken);
+        if ($token === '') {
+            $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            for ($i = 0; $i < 6; $i++) $token .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+
+        if (strlen($token) >= 3 && strlen($token) <= 15) {
+            $upd = $db->prepare("UPDATE sesi_ujian SET token_ujian = :t WHERE id_sesi = :id AND id_guru = :g");
+            $upd->execute([':t' => $token, ':id' => $idSesi, ':g' => $idGuru]);
+            flash_set('info', "Token ujian berhasil diubah menjadi: {$token}");
+        } else {
+            flash_set('danger', "Token harus berupa 3-15 karakter huruf/angka.");
+        }
+        redirect(base_url('guru/dashboard.php'));
+    }
+}
+
 $stmtSoal = $db->prepare("SELECT COUNT(DISTINCT (id_mapel, judul_soal)) FROM bank_soal WHERE id_guru = :g");
 $stmtSoal->execute([':g' => $idGuru]);
 $totalPaket = (int)$stmtSoal->fetchColumn();
@@ -171,7 +210,24 @@ $flash = flash_get();
                                 <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_ujian']) ?></strong></td>
                                 <td data-label="Mapel"><?= sanitize($s['nama_mapel']) ?></td>
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas']) ?></td>
-                                <td data-label="Token"><span style="font-family:monospace; font-size:1.1rem; font-weight:800; color:#1e40af; letter-spacing:1px;"><?= sanitize($s['token_ujian']) ?></span></td>
+                                <td data-label="Token" style="text-align: center;">
+                                    <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: #e0e7ff; padding: 0.35rem 0.65rem; border-radius: 6px;">
+                                        <span style="font-family: monospace; font-size: 1.15rem; font-weight: 800; color: #1e40af; letter-spacing: 1.5px;">
+                                            <?= sanitize($s['token_ujian']) ?>
+                                        </span>
+                                        <!-- Tombol Edit Token Custom -->
+                                        <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_ujian'])) ?>')">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        </button>
+                                        <!-- Tombol Acak Ulang Cepat -->
+                                        <form action="<?= base_url('guru/dashboard.php') ?>" method="POST" style="display:inline;" data-confirm="Generate ulang token ujian ini secara acak?" data-confirm-title="Perbarui Token Ujian" data-confirm-type="warning" data-confirm-btn="Generate Acak">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="refresh_token">
+                                            <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline" title="Generate Acak Baru" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;">↻</button>
+                                        </form>
+                                    </div>
+                                </td>
                                 <td data-label="Sisa Waktu">
                                     <?php if ($s['status'] === 'aktif'): ?>
                                         <?php if ($s['sisa_detik_sesi'] > 0): ?>
@@ -209,8 +265,62 @@ $flash = flash_get();
     </div>
 </main>
 
+<!-- Modal Ubah / Custom Token -->
+<div id="modal-edit-token" class="modal-overlay">
+    <div class="modal-box" style="max-width: 440px;">
+        <h2 class="card-title mb-2">Ubah Token Ujian</h2>
+        <p class="text-sm text-muted mb-3" id="edit_token_subtitle">Ubah token untuk sesi ujian</p>
+
+        <form action="<?= base_url('guru/dashboard.php') ?>" method="POST">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="edit_token">
+            <input type="hidden" name="id_sesi" id="edit_token_id_sesi" value="">
+
+            <div class="form-group">
+                <label for="edit_input_token">Token Ujian Baru <span class="text-danger">*</span></label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="token_ujian" id="edit_input_token" class="form-control" placeholder="Contoh: PAS2024..." maxlength="15" required style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 1.5px;">
+                    <button type="button" class="btn btn-outline" onclick="generateTokenInput('edit_input_token')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
+                        🎲 Acak
+                    </button>
+                </div>
+                <small class="text-muted" style="display: block; margin-top: 0.35rem;">Bisa berupa huruf & angka bebas (3-15 karakter).</small>
+            </div>
+
+            <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-token')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan Token</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script src="<?= base_url('assets/js/app.js') ?>"></script>
 <script>
+function generateTokenInput(targetId) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let token = '';
+    for (let i = 0; i < 6; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const input = document.getElementById(targetId);
+    if (input) {
+        input.value = token;
+        input.focus();
+    }
+}
+
+function openModalEditToken(idSesi, currentToken, namaUjian) {
+    document.getElementById('edit_token_id_sesi').value = idSesi;
+    document.getElementById('edit_input_token').value = currentToken;
+    document.getElementById('edit_token_subtitle').textContent = 'Sesi: ' + namaUjian;
+    openModal('modal-edit-token');
+    setTimeout(() => {
+        const inp = document.getElementById('edit_input_token');
+        if (inp) inp.select();
+    }, 150);
+}
+
 function updateDashboardCountdowns() {
     const timers = document.querySelectorAll('.countdown-timer');
     timers.forEach(el => {

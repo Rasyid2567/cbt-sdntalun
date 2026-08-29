@@ -72,6 +72,7 @@ function get_db(): PDO {
                 ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS jenis_soal VARCHAR(20) DEFAULT 'pilihan_ganda';
                 ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) DEFAULT 'Latihan Soal';
                 ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) NULL;
+                ALTER TABLE sesi_ujian ALTER COLUMN token_ujian TYPE VARCHAR(20);
             ");
         } catch (Throwable $e) {
             // Abaikan jika tabel belum diinisialisasi
