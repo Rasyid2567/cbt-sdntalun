@@ -16,7 +16,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // Konfigurasi Kredensial Database PostgreSQL
 define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
 define('DB_PORT', getenv('DB_PORT') ?: '5432');
-define('DB_NAME', getenv('DB_NAME') ?: 'cbt_db');
+define('DB_NAME', getenv('DB_NAME') ?: 'cbt_sdntalun');
 define('DB_USER', getenv('DB_USER') ?: 'postgres');
 define('DB_PASS', getenv('DB_PASS') ?: 'postgres');
 
@@ -45,20 +45,28 @@ function get_db(): PDO {
             'localhost'
         ]);
 
+        $dbNamesToTry = array_unique([
+            DB_NAME,
+            'cbt_sdntalun',
+            'cbt_db'
+        ]);
+
         $lastException = null;
 
         foreach ($hostsToTry as $host) {
-            try {
-                $dsn = sprintf(
-                    "pgsql:host=%s;port=%s;dbname=%s;options='--client_encoding=UTF8'",
-                    $host,
-                    DB_PORT,
-                    DB_NAME
-                );
-                $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-                break; // Berhasil terhubung
-            } catch (PDOException $e) {
-                $lastException = $e;
+            foreach ($dbNamesToTry as $dbName) {
+                try {
+                    $dsn = sprintf(
+                        "pgsql:host=%s;port=%s;dbname=%s;options='--client_encoding=UTF8'",
+                        $host,
+                        DB_PORT,
+                        $dbName
+                    );
+                    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+                    break 2; // Berhasil terhubung
+                } catch (PDOException $e) {
+                    $lastException = $e;
+                }
             }
         }
 

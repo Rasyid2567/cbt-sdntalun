@@ -4,6 +4,7 @@ services:
   # Web Application (PHP 8.2 + Apache)
   web:
     build: .
+    image: cbt-sdntalun
     container_name: cbt_web
     restart: unless-stopped
     ports:
@@ -13,7 +14,7 @@ services:
     environment:
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME=cbt_db
+      - DB_NAME=cbt_sdntalun
       - DB_USER=postgres
       - DB_PASS=postgres
     depends_on:
@@ -22,17 +23,17 @@ services:
   # Database PostgreSQL
   db:
     image: postgres:15-alpine
-    container_name: cbt_db
+    container_name: cbt_sdntalun_db
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=cbt_db
+      - POSTGRES_DB=cbt_sdntalun
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
-      - cbt_db_data:/var/lib/postgresql/data
+      - cbt_sdntalun_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
 
 volumes:
-  cbt_db_data:
+  cbt_sdntalun_data:
