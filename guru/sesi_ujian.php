@@ -94,8 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newStatus = $_POST['status'] ?? '';
 
         if (in_array($newStatus, ['aktif', 'nonaktif', 'selesai'], true)) {
-            $upd = $db->prepare("UPDATE sesi_ujian SET status = :s::session_status WHERE id_sesi = :id AND id_guru = :g");
-            $upd->execute([':s' => $newStatus, ':id' => $idSesi, ':g' => $idGuru]);
+            if ($newStatus === 'aktif') {
+                $upd = $db->prepare("UPDATE sesi_ujian SET status = 'aktif', created_at = CURRENT_TIMESTAMP WHERE id_sesi = :id AND id_guru = :g");
+                $upd->execute([':id' => $idSesi, ':g' => $idGuru]);
+            } else {
+                $upd = $db->prepare("UPDATE sesi_ujian SET status = :s::session_status WHERE id_sesi = :id AND id_guru = :g");
+                $upd->execute([':s' => $newStatus, ':id' => $idSesi, ':g' => $idGuru]);
+            }
             flash_set('success', "Status sesi ujian berhasil diubah menjadi: {$newStatus}");
         }
         redirect(base_url('guru/sesi_ujian.php'));
@@ -111,15 +116,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Ambil Data Sesi Ujian Guru (beserta sisa waktu live)
+// Ambil Data Sesi Ujian Guru (beserta sisa waktu sesi global live)
 $stmt = $db->prepare("
     SELECT s.*, m.nama_mapel, k.nama_kelas,
            COUNT(us.id_ujian_siswa) as total_peserta,
            COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
            COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
-           MIN(CASE WHEN us.status = 'sedang' THEN 
-               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (COALESCE(us.waktu_mulai, CURRENT_TIMESTAMP) + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int 
-           END) as min_sisa_detik
+           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian s
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
@@ -244,14 +247,18 @@ $flash = flash_get();
                                     </div>
                                 </td>
                                 <td data-label="Sisa Waktu">
-                                    <?php if ($s['peserta_sedang'] > 0 && $s['min_sisa_detik'] !== null): ?>
-                                        <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                            ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['min_sisa_detik'] ?>">--:--:--</span>
-                                        </span>
-                                    <?php elseif ($s['peserta_selesai'] > 0): ?>
-                                        <span class="badge badge-online">Selesai</span>
+                                    <?php if ($s['status'] === 'aktif'): ?>
+                                        <?php if ($s['sisa_detik_sesi'] > 0): ?>
+                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                                ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge badge-offline">Waktu Habis</span>
+                                        <?php endif; ?>
+                                    <?php elseif ($s['status'] === 'selesai'): ?>
+                                        <span class="badge badge-selesai">Selesai</span>
                                     <?php else: ?>
-                                        <span class="text-sm text-muted font-bold"><?= $s['durasi_menit'] ?> Menit</span>
+                                        <span class="text-sm text-muted font-bold"><?= $s['durasi_menit'] ?> Menit (Jeda)</span>
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Acak">

@@ -162,4 +162,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // Global Live Countdown Timers (.countdown-timer)
+    const timers = document.querySelectorAll('.countdown-timer');
+    if (timers.length > 0) {
+        timers.forEach(t => {
+            let sec = parseInt(t.getAttribute('data-seconds'), 10) || 0;
+            const updateDisplay = () => {
+                if (sec <= 0) {
+                    t.textContent = '00:00:00';
+                    return;
+                }
+                const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+                const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+                const s = String(sec % 60).padStart(2, '0');
+                t.textContent = `${h}:${m}:${s}`;
+            };
+            updateDisplay();
+            const interval = setInterval(() => {
+                sec--;
+                if (sec <= 0) {
+                    sec = 0;
+                    updateDisplay();
+                    clearInterval(interval);
+                } else {
+                    updateDisplay();
+                }
+            }, 1000);
+        });
+    }
 });

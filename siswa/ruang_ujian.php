@@ -10,11 +10,10 @@ $currentUser = auth_check(['siswa']);
 $db = get_db();
 $idSiswa = $currentUser['id_user'];
 
-// 1. Ambil Data Ujian Siswa yang Sedang Berjalan
-// 1. Ambil Data Ujian Siswa yang Sedang Berjalan (Waktu Server Nyata)
+// 1. Ambil Data Ujian Siswa yang Sedang Berjalan (Waktu Sesi Global)
 $stmtUs = $db->prepare("
     SELECT us.*, s.nama_ujian, s.durasi_menit, s.acak_opsi, m.nama_mapel,
-           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (COALESCE(us.waktu_mulai, CURRENT_TIMESTAMP) + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real
+           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real
     FROM ujian_siswa us
     JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
     JOIN mapel m ON s.id_mapel = m.id_mapel

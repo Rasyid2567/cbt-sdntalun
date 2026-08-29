@@ -28,15 +28,13 @@ $stmtPeserta = $db->prepare("
 $stmtPeserta->execute([':g' => $idGuru]);
 $totalSelesai = $stmtPeserta->fetchColumn();
 
-// Ambil Daftar Sesi Ujian Terbaru Milik Guru (beserta sisa waktu pengerjaan live)
+// Ambil Daftar Sesi Ujian Terbaru Milik Guru (beserta sisa waktu sesi global live)
 $stmtSesiList = $db->prepare("
     SELECT su.*, m.nama_mapel, k.nama_kelas,
            COUNT(us.id_ujian_siswa) as total_peserta,
            COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
            COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
-           MIN(CASE WHEN us.status = 'sedang' THEN 
-               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (COALESCE(us.waktu_mulai, CURRENT_TIMESTAMP) + (su.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int 
-           END) as min_sisa_detik
+           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (su.created_at + (su.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian su
     JOIN mapel m ON su.id_mapel = m.id_mapel
     JOIN kelas k ON su.id_kelas = k.id_kelas
@@ -174,14 +172,18 @@ $flash = flash_get();
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas']) ?></td>
                                 <td data-label="Token"><span style="font-family:monospace; font-size:1.1rem; font-weight:800; color:#1e40af; letter-spacing:1px;"><?= sanitize($s['token_ujian']) ?></span></td>
                                 <td data-label="Sisa Waktu">
-                                    <?php if ($s['peserta_sedang'] > 0 && $s['min_sisa_detik'] !== null): ?>
-                                        <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                            ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['min_sisa_detik'] ?>">--:--:--</span>
-                                        </span>
-                                    <?php elseif ($s['peserta_selesai'] > 0): ?>
-                                        <span class="badge badge-online">Selesai</span>
+                                    <?php if ($s['status'] === 'aktif'): ?>
+                                        <?php if ($s['sisa_detik_sesi'] > 0): ?>
+                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                                ⏱️ <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge badge-offline">Waktu Habis</span>
+                                        <?php endif; ?>
+                                    <?php elseif ($s['status'] === 'selesai'): ?>
+                                        <span class="badge badge-selesai">Selesai</span>
                                     <?php else: ?>
-                                        <span class="text-sm text-muted font-bold"><?= $s['durasi_menit'] ?> Menit</span>
+                                        <span class="text-sm text-muted font-bold"><?= $s['durasi_menit'] ?> Menit (Jeda)</span>
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Status">

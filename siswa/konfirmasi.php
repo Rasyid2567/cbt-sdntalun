@@ -26,7 +26,8 @@ $ujianBerjalan = $stmtAktif->fetch();
 $stmtSesiTersedia = $db->prepare("
     SELECT s.*, m.nama_mapel, k.nama_kelas,
            (SELECT COUNT(*) FROM bank_soal WHERE id_mapel = s.id_mapel AND (s.judul_soal IS NULL OR judul_soal = s.judul_soal)) as total_soal,
-           us.status as status_ujian_siswa, us.id_ujian_siswa
+           us.status as status_ujian_siswa, us.id_ujian_siswa,
+           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian s
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
@@ -52,9 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('siswa/konfirmasi.php'));
     }
 
-    // Validasi token dan sesi
+    // Validasi token dan sesi beserta sisa waktu global
     $stmtCek = $db->prepare("
-        SELECT * FROM sesi_ujian 
+        SELECT *, 
+               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (created_at + (durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
+        FROM sesi_ujian 
         WHERE id_sesi = :id AND id_kelas = :k AND status = 'aktif'
     ");
     $stmtCek->execute([':id' => $idSesiInput, ':k' => $idKelas]);
@@ -67,6 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($sesi['token_ujian'] !== $tokenInput) {
         flash_set('danger', 'Token ujian yang Anda masukkan SALAH.');
+        redirect(base_url('siswa/konfirmasi.php'));
+    }
+
+    if ((int)$sesi['sisa_detik_sesi'] <= 0) {
+        flash_set('danger', 'Waktu pengerjaan sesi ujian ini telah berakhir.');
         redirect(base_url('siswa/konfirmasi.php'));
     }
 
@@ -106,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $urutanSoalJson = json_encode($soalRows);
-    $durasiDetik    = $sesi['durasi_menit'] * 60;
+    $durasiDetik    = (int)$sesi['sisa_detik_sesi'];
 
     // Buat Rekaman Log Pengerjaan Ujian Siswa
     $insUs = $db->prepare("
@@ -144,7 +152,7 @@ $flash = flash_get();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Konfirmasi Tes Peserta - CBT System</title>
+    <title>Konfirmasi Tes - CBT Siswa</title>
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body class="app-webview-body">
@@ -238,7 +246,11 @@ $flash = flash_get();
                         <div class="cbt-exam-card-body">
                             <h3 class="cbt-exam-title"><?= sanitize($s['nama_ujian']) ?></h3>
                             <div class="cbt-exam-meta-pills">
-                                <span class="cbt-meta-pill">⏱️ Durasi: <strong><?= $s['durasi_menit'] ?> Menit</strong></span>
+                                <?php if ($s['sisa_detik_sesi'] > 0): ?>
+                                    <span class="cbt-meta-pill" style="background: #eff6ff; color: #1d4ed8;">⏱️ Sisa Waktu: <strong class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</strong></span>
+                                <?php else: ?>
+                                    <span class="cbt-meta-pill" style="background: #fee2e2; color: #dc2626;">⏱️ <strong>Waktu Sesi Berakhir</strong></span>
+                                <?php endif; ?>
                                 <span class="cbt-meta-pill">📝 Jumlah: <strong><?= $s['total_soal'] ?> Butir Soal</strong></span>
                             </div>
                         </div>
@@ -249,6 +261,11 @@ $flash = flash_get();
                             <?php elseif ($s['status_ujian_siswa'] === 'sedang'): ?>
                                 <span class="text-primary" style="font-weight: 700; font-size: 0.88rem;">⏱️ Ujian Sedang Berlangsung</span>
                                 <a href="<?= base_url('siswa/ruang_ujian.php') ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
+                            <?php elseif ($s['sisa_detik_sesi'] <= 0): ?>
+                                <span class="text-danger" style="font-size: 0.85rem; font-weight: 700;">Waktu Sesi Berakhir</span>
+                                <button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.6; cursor: not-allowed;">
+                                    Sesi Selesai
+                                </button>
                             <?php else: ?>
                                 <span class="text-muted" style="font-size: 0.85rem; font-weight: 600;">Status: Siap Dikerjakan</span>
                                 <button type="button" class="btn btn-primary" onclick="bukaKonfirmasi(<?= htmlspecialchars(json_encode([
@@ -256,7 +273,7 @@ $flash = flash_get();
                                     'nama_ujian'   => $s['nama_ujian'],
                                     'nama_mapel'   => $s['nama_mapel'],
                                     'nama_kelas'   => $s['nama_kelas'],
-                                    'durasi_menit' => (int)$s['durasi_menit'],
+                                    'durasi_menit' => ceil($s['sisa_detik_sesi'] / 60),
                                     'total_soal'   => (int)$s['total_soal']
                                 ])) ?>)" style="min-height: 40px; font-weight: 700; padding: 0.5rem 1.25rem;">
                                     Kerjakan Ujian
@@ -308,7 +325,7 @@ $flash = flash_get();
                 <label for="modal_token" class="font-bold block mb-1" style="font-size: 0.9rem; color: var(--gray-900);">
                     Masukkan 6 Digit Token Ujian: <span class="text-danger">*</span>
                 </label>
-                <input type="text" name="token_ujian" id="modal_token" class="form-control" placeholder="Contoh: 3CSDQG" maxlength="10" autocomplete="off" style="text-transform: uppercase; font-family: monospace; font-size: 1.25rem; font-weight: 800; letter-spacing: 3px; text-align: center; height: 48px; border: 2px solid var(--primary-light); background: #f0f7ff;" required>
+                <input type="text" name="token_ujian" id="modal_token" class="form-control" maxlength="10" autocomplete="off" style="text-transform: uppercase; font-family: monospace; font-size: 1.25rem; font-weight: 800; letter-spacing: 3px; text-align: center; height: 48px; border: 2px solid var(--primary-light); background: #f0f7ff;" required>
                 <span class="text-xs text-muted mt-1 block" style="text-align: center;">Minta token ujian kepada Pengawas / Proktor di ruang kelas.</span>
             </div>
 
