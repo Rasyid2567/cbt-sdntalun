@@ -65,6 +65,17 @@ function get_db(): PDO {
         if ($pdo === null && $lastException !== null) {
             die("Koneksi database PostgreSQL gagal: " . htmlspecialchars($lastException->getMessage()) . "<br><small>Pastikan service PostgreSQL aktif dan database '" . htmlspecialchars(DB_NAME) . "' dapat diakses.</small>");
         }
+
+        // Auto-migration & Self-Healing: Pastikan kolom baru otomatis dibuat jika menggunakan DB versi lama
+        try {
+            $pdo->exec("
+                ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS jenis_soal VARCHAR(20) DEFAULT 'pilihan_ganda';
+                ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) DEFAULT 'Latihan Soal';
+                ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) NULL;
+            ");
+        } catch (Throwable $e) {
+            // Abaikan jika tabel belum diinisialisasi
+        }
     }
 
     return $pdo;
