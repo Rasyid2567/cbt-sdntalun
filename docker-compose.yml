@@ -20,13 +20,13 @@ services:
     depends_on:
       - db
 
-  # Database PostgreSQL
+  # Database PostgreSQL (Internal Docker Network)
   db:
     image: postgres:15-alpine
     container_name: cbt_sdntalun_db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5433:5432" # Dipetakan ke port 5433 host agar tidak bentrok dengan PostgreSQL lokal (5432)
     environment:
       - POSTGRES_DB=cbt_sdntalun
       - POSTGRES_USER=postgres
