@@ -12,8 +12,6 @@ $db = get_db();
 // 1. Statistik Master Data
 $countSiswa = $db->query("SELECT COUNT(*) FROM users WHERE role = 'siswa'")->fetchColumn();
 $countGuru  = $db->query("SELECT COUNT(*) FROM users WHERE role = 'guru'")->fetchColumn();
-$countKelas = $db->query("SELECT COUNT(*) FROM kelas")->fetchColumn();
-$countMapel = $db->query("SELECT COUNT(*) FROM mapel")->fetchColumn();
 $countOnline = $db->query("SELECT COUNT(*) FROM users WHERE status_login = 'online'")->fetchColumn();
 $countSesiAktif = $db->query("SELECT COUNT(*) FROM sesi_ujian WHERE status = 'aktif'")->fetchColumn();
 
@@ -86,7 +84,7 @@ $flash = flash_get();
     </div>
 
     <!-- Metric Cards -->
-    <div class="stats-grid stats-grid-5">
+    <div class="stats-grid stats-grid-4">
         <div class="stat-card">
             <div class="stat-icon" style="background:#2563eb;">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -104,16 +102,6 @@ $flash = flash_get();
             <div>
                 <div class="stat-val"><?= $countGuru ?></div>
                 <div class="stat-label">Total Guru</div>
-            </div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-icon" style="background:#7c3aed;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-            </div>
-            <div>
-                <div class="stat-val"><?= $countKelas ?> / <?= $countMapel ?></div>
-                <div class="stat-label">Kelas / Mapel</div>
             </div>
         </div>
 

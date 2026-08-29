@@ -481,6 +481,23 @@ textarea.form-control {
     }
 }
 
+/* 4 Cards (Operator): 1 Single Row on Desktop, 2x2 on Tablet */
+.stats-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+@media (max-width: 1024px) {
+    .stats-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 600px) {
+    .stats-grid-4 {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* 3 Cards (Guru): 1 Single Row on Desktop */
 .stats-grid-3 {
     display: grid;
