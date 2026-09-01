@@ -1,0 +1,7 @@
+# Uploaded media (keep directory)
+assets/uploads/*
+!assets/uploads/.gitkeep
+
+# Environment & logs
+*.log
+.env

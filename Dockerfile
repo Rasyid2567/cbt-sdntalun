@@ -8,3 +8,8 @@ RUN apt-get update && apt-get install -y libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
+
+# Pastikan folder assets/uploads dibuat dan memiliki izin tulis untuk Apache www-data
+RUN mkdir -p /var/www/html/assets/uploads \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 777 /var/www/html/assets/uploads

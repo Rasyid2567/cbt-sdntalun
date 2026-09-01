@@ -88,6 +88,13 @@ function get_db(): PDO {
         } catch (Throwable $e) {
             // Abaikan jika tabel belum diinisialisasi
         }
+
+        // Pastikan folder uploads selalu ada dan memiliki izin akses
+        $uploadsDir = dirname(__DIR__) . '/assets/uploads';
+        if (!is_dir($uploadsDir)) {
+            @mkdir($uploadsDir, 0777, true);
+            @chmod($uploadsDir, 0777);
+        }
     }
 
     return $pdo;
