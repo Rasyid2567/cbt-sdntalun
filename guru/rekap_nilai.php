@@ -42,21 +42,35 @@ if ($selectedSesiId > 0) {
     $sesiDetail = $stmtDet->fetch();
 
     if ($sesiDetail) {
-        // Hitung total butir soal untuk mapel ini (dan judul_soal jika ada)
+        // Hitung total butir soal, PG, dan Essai untuk paket ujian ini
+        $whereSql = "id_mapel = :m";
+        $paramsSoal = [':m' => $sesiDetail['id_mapel']];
         if (!empty($sesiDetail['judul_soal'])) {
-            $stmtTotalSoal = $db->prepare("SELECT COUNT(*) FROM bank_soal WHERE id_mapel = :m AND judul_soal = :j");
-            $stmtTotalSoal->execute([':m' => $sesiDetail['id_mapel'], ':j' => $sesiDetail['judul_soal']]);
-        } else {
-            $stmtTotalSoal = $db->prepare("SELECT COUNT(*) FROM bank_soal WHERE id_mapel = :m");
-            $stmtTotalSoal->execute([':m' => $sesiDetail['id_mapel']]);
+            $whereSql .= " AND judul_soal = :j";
+            $paramsSoal[':j'] = $sesiDetail['judul_soal'];
         }
-        $totalSoalUjian = (int)$stmtTotalSoal->fetchColumn();
+
+        $stmtStat = $db->prepare("
+            SELECT COUNT(*) as total_soal,
+                   COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
+                   COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
+            FROM bank_soal 
+            WHERE $whereSql
+        ");
+        $stmtStat->execute($paramsSoal);
+        $statRow = $stmtStat->fetch();
+
+        $totalSoalUjian = (int)($statRow['total_soal'] ?? 0);
+        $totalPG        = (int)($statRow['total_pg'] ?? 0);
+        $totalEssai     = (int)($statRow['total_essai'] ?? 0);
 
         // Ambil Siswa yang terdaftar di kelas ini dan status pengerjaannya
         $stmtRekap = $db->prepare("
             SELECT u.id_user, u.nis, u.username, u.nama_lengkap, k.nama_kelas,
                    us.id_ujian_siswa, us.waktu_mulai, us.waktu_selesai, us.status as status_ujian,
                    COALESCE(us.jumlah_benar, 0) as jumlah_benar,
+                   COALESCE(us.nilai_pg, us.nilai_akhir, 0.00) as nilai_pg,
+                   us.nilai_essai,
                    COALESCE(us.nilai_akhir, 0.00) as nilai_akhir
             FROM users u
             JOIN kelas k ON u.id_kelas = k.id_kelas
@@ -80,7 +94,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv' && $sesiDetail) {
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
     // Beritahu Excel untuk memecah kolom dengan koma secara otomatis
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Mulai', 'Waktu Selesai', 'Status Ujian', 'Jumlah Benar', 'Total Soal', 'Nilai Akhir']);
+    fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Mulai', 'Waktu Selesai', 'Status Ujian', 'Jumlah Benar (PG)', 'Total Soal PG', 'Nilai PG', 'Total Soal Essai', 'Nilai Essai', 'Nilai Akhir']);
 
     foreach ($rekapList as $idx => $r) {
         fputcsv($output, [
@@ -93,7 +107,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv' && $sesiDetail) {
             $r['waktu_selesai'] ?? '-',
             strtoupper($r['status_ujian'] ?? 'BELUM'),
             $r['jumlah_benar'],
-            $totalSoalUjian,
+            $totalPG,
+            $r['nilai_pg'],
+            $totalEssai,
+            $r['nilai_essai'] !== null ? $r['nilai_essai'] : '-',
             $r['nilai_akhir']
         ]);
     }
@@ -187,7 +204,7 @@ $flash = flash_get();
                     <div><strong>Mata Pelajaran:</strong> <?= sanitize($sesiDetail['nama_mapel']) ?></div>
                     <div><strong>Kelas:</strong> <?= sanitize($sesiDetail['nama_kelas']) ?></div>
                     <div><strong>Durasi:</strong> <?= $sesiDetail['durasi_menit'] ?> Menit</div>
-                    <div><strong>Total Soal:</strong> <?= $totalSoalUjian ?> Butir</div>
+                    <div><strong>Total Soal:</strong> <?= $totalSoalUjian ?> Butir (<?= $totalPG ?> PG<?= $totalEssai > 0 ? ', ' . $totalEssai . ' Essai' : '' ?>)</div>
                 </div>
             </div>
 
@@ -203,14 +220,18 @@ $flash = flash_get();
                             <th>Waktu Mulai</th>
                             <th>Waktu Selesai</th>
                             <th>Status</th>
-                            <th style="text-align: center;">Benar</th>
+                            <th style="text-align: center;">Benar (PG)</th>
+                            <th style="text-align: center;">Nilai PG</th>
+                            <?php if ($totalEssai > 0): ?>
+                                <th style="text-align: center;">Nilai Essai</th>
+                            <?php endif; ?>
                             <th style="text-align: center;">Nilai Akhir</th>
                             <th style="text-align: center;" class="no-print">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($rekapList)): ?>
-                            <tr><td colspan="10" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
+                            <tr><td colspan="<?= $totalEssai > 0 ? 11 : 10 ?>" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
                         <?php else: ?>
                             <?php foreach ($rekapList as $idx => $r): ?>
                                 <tr>
@@ -229,17 +250,31 @@ $flash = flash_get();
                                             <span class="badge badge-offline">BELUM MENGERJAKAN</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td data-label="Benar" style="text-align: center; font-weight: 600;">
-                                        <?= $r['jumlah_benar'] ?> / <?= $totalSoalUjian ?>
+                                    <td data-label="Benar (PG)" style="text-align: center; font-weight: 600;">
+                                        <?= $r['jumlah_benar'] ?> / <?= $totalPG ?>
                                     </td>
-                                    <td data-label="Nilai Akhir" style="text-align: center; font-size: 1.1rem; font-weight: 800; color: <?= ($r['nilai_akhir'] >= 75) ? '#166534' : '#991b1b' ?>;">
+                                    <td data-label="Nilai PG" style="text-align: center; font-size: 1rem; font-weight: 700; color: #1e40af;">
+                                        <?= number_format((float)$r['nilai_pg'], 2) ?>
+                                    </td>
+                                    <?php if ($totalEssai > 0): ?>
+                                        <td data-label="Nilai Essai" style="text-align: center;">
+                                            <?php if ($r['nilai_essai'] !== null): ?>
+                                                <strong style="color: #7e22ce; font-size: 1rem;"><?= number_format((float)$r['nilai_essai'], 2) ?></strong>
+                                            <?php elseif (!empty($r['id_ujian_siswa'])): ?>
+                                                <span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.75rem;">Belum Dinilai</span>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
+                                    <td data-label="Nilai Akhir" style="text-align: center; font-size: 1.15rem; font-weight: 800; color: <?= ($r['nilai_akhir'] >= 75) ? '#166534' : '#991b1b' ?>;">
                                         <?= number_format((float)$r['nilai_akhir'], 2) ?>
                                     </td>
                                     <td data-label="Aksi" class="no-print" style="text-align: center;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
                                             <a href="<?= base_url('guru/detail_jawaban.php?id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                                <span>Detail Jawaban</span>
+                                                <span>Detail & Nilai</span>
                                             </a>
                                         <?php else: ?>
                                             <span class="text-muted text-xs font-bold">-</span>
@@ -251,6 +286,13 @@ $flash = flash_get();
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($totalEssai > 0): ?>
+                <div class="alert alert-info mt-3 no-print" style="font-size: 0.85rem; padding: 0.65rem 0.95rem; margin-bottom: 0;">
+                    <strong>ℹ️ Keterangan:</strong> Terdapat <strong><?= $totalEssai ?> butir soal uraian/essai</strong> pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai essai siswa.
+                </div>
+            <?php endif; ?>
+        </div>
         </div>
     <?php else: ?>
         <div class="card text-center" style="padding: 3rem 0;">

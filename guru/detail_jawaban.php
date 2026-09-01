@@ -1,7 +1,7 @@
 <?php
 /**
  * Modul Detail & Pemeriksaan Lembar Jawaban Siswa (Guru & Operator)
- * Menampilkan rincian butir soal, pilihan jawaban siswa vs kunci jawaban, skor, dan status pengerjaan.
+ * Menampilkan rincian butir soal, pilihan jawaban siswa vs kunci jawaban, skor, dan input nilai soal essai.
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -9,8 +9,8 @@ require_once __DIR__ . '/../middleware/auth.php';
 $currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
 
-$idUjianSiswa = (int)($_GET['id_ujian_siswa'] ?? 0);
-$backSesiId   = (int)($_GET['id_sesi'] ?? 0);
+$idUjianSiswa = (int)($_GET['id_ujian_siswa'] ?? $_POST['id_ujian_siswa'] ?? 0);
+$backSesiId   = (int)($_GET['id_sesi'] ?? $_POST['id_sesi'] ?? 0);
 
 if ($idUjianSiswa <= 0) {
     flash_set('danger', 'Parameter data ujian siswa tidak valid.');
@@ -47,7 +47,110 @@ if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$cu
     redirect(base_url('guru/rekap_nilai.php'));
 }
 
-// 2. Ambil Urutan Soal Siswa
+// 2. Tangani Form POST: Simpan Nilai Soal Essai
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
+    if (!verify_csrf()) {
+        flash_set('danger', 'Validasi token keamanan gagal.');
+        redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    }
+
+    $inputNilai = $_POST['nilai_soal'] ?? [];
+
+    $stmtUpdSoal = $db->prepare("
+        UPDATE jawaban_siswa 
+        SET nilai_soal = :n, updated_at = CURRENT_TIMESTAMP 
+        WHERE id_ujian_siswa = :us AND id_soal = :soal
+    ");
+
+    foreach ($inputNilai as $sid => $scoreVal) {
+        $sid = (int)$sid;
+        $cleanScore = ($scoreVal !== '' && is_numeric($scoreVal)) ? max(0, min(100, (float)$scoreVal)) : null;
+        $stmtUpdSoal->execute([
+            ':n'    => $cleanScore,
+            ':us'   => $idUjianSiswa,
+            ':soal' => $sid
+        ]);
+    }
+
+    // Ambil seluruh nilai essai yang tersimpan
+    $stmtAvgEssai = $db->prepare("
+        SELECT js.nilai_soal 
+        FROM jawaban_siswa js
+        JOIN bank_soal bs ON js.id_soal = bs.id_soal
+        WHERE js.id_ujian_siswa = :us AND bs.jenis_soal = 'essai'
+    ");
+    $stmtAvgEssai->execute([':us' => $idUjianSiswa]);
+    $allEssaiScores = $stmtAvgEssai->fetchAll(PDO::FETCH_COLUMN);
+
+    $totalEssaiItems = count($allEssaiScores);
+    $filledEssaiScores = array_filter($allEssaiScores, function($v) { return $v !== null && $v !== ''; });
+
+    $avgEssai = null;
+    if (!empty($filledEssaiScores)) {
+        $avgEssai = round(array_sum($filledEssaiScores) / count($filledEssaiScores), 2);
+    }
+
+    // Hitung ulang nilai PG dari data jawaban PG
+    $stmtHitungPG = $db->prepare("
+        SELECT b.id_soal, b.kunci_jawaban, js.jawaban_terpilih
+        FROM bank_soal b
+        JOIN jawaban_siswa js ON js.id_soal = b.id_soal
+        WHERE js.id_ujian_siswa = :us AND (b.jenis_soal != 'essai' OR b.jenis_soal IS NULL)
+    ");
+    $stmtHitungPG->execute([':us' => $idUjianSiswa]);
+    $pgRows = $stmtHitungPG->fetchAll();
+
+    $totalPGCount = count($pgRows);
+    $pgBenarCount = 0;
+    foreach ($pgRows as $pgr) {
+        $kunciStr = strtoupper(trim($pgr['kunci_jawaban'] ?? ''));
+        $jwbStr   = strtoupper(trim($pgr['jawaban_terpilih'] ?? ''));
+        if ($kunciStr !== '' && $jwbStr !== '') {
+            $kunciArr = array_filter(array_map('trim', explode(',', $kunciStr)));
+            $jwbArr   = array_filter(array_map('trim', explode(',', $jwbStr)));
+            sort($kunciArr);
+            sort($jwbArr);
+            if ($kunciArr === $jwbArr || in_array($jwbStr, $kunciArr, true)) {
+                $pgBenarCount++;
+            }
+        }
+    }
+    $nilaiPG = ($totalPGCount > 0) ? round(($pgBenarCount / $totalPGCount) * 100, 2) : 0.00;
+
+    // Kalkulasi Nilai Akhir (Proporsional Rata-rata PG + Essai jika keduanya ada)
+    if ($totalPGCount > 0 && $totalEssaiItems > 0) {
+        if ($avgEssai !== null) {
+            $nilaiAkhirBaru = round(($nilaiPG + $avgEssai) / 2, 2);
+        } else {
+            $nilaiAkhirBaru = $nilaiPG;
+        }
+    } elseif ($totalEssaiItems > 0) {
+        $nilaiAkhirBaru = ($avgEssai !== null) ? $avgEssai : 0.00;
+    } else {
+        $nilaiAkhirBaru = $nilaiPG;
+    }
+
+    $stmtUpdUs = $db->prepare("
+        UPDATE ujian_siswa 
+        SET jumlah_benar = :benar,
+            nilai_pg = :npg,
+            nilai_essai = :nessai,
+            nilai_akhir = :nakhir
+        WHERE id_ujian_siswa = :us
+    ");
+    $stmtUpdUs->execute([
+        ':benar'  => $pgBenarCount,
+        ':npg'    => $nilaiPG,
+        ':nessai' => $avgEssai,
+        ':nakhir' => $nilaiAkhirBaru,
+        ':us'     => $idUjianSiswa
+    ]);
+
+    flash_set('success', "Nilai soal uraian/essai berhasil disimpan! Nilai Akhir siswa diperbarui menjadi: {$nilaiAkhirBaru}");
+    redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+}
+
+// 3. Ambil Urutan Soal Siswa
 $urutanIds = json_decode($detailUjian['urutan_soal'], true);
 if (empty($urutanIds) || !is_array($urutanIds)) {
     // Fallback ambil soal berdasarkan mapel & judul
@@ -61,7 +164,7 @@ if (empty($urutanIds) || !is_array($urutanIds)) {
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// 3. Ambil Butir Soal dan Jawaban Siswa
+// 4. Ambil Butir Soal, Jawaban Siswa, dan Nilai Essai
 $soalList = [];
 $statBenar = 0;
 $statSalah = 0;
@@ -76,6 +179,7 @@ if (!empty($urutanIds)) {
         SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, 
                b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban,
                j.jawaban_terpilih,
+               j.nilai_soal,
                COALESCE(j.status_ragu, false) as status_ragu,
                j.updated_at as waktu_jawab
         FROM bank_soal b
@@ -100,6 +204,7 @@ if (!empty($urutanIds)) {
         $jawabanSiswa    = strtoupper(trim($item['jawaban_terpilih'] ?? ''));
         $kunciJawaban    = strtoupper(trim($item['kunci_jawaban'] ?? ''));
         $isRagu          = (bool)$item['status_ragu'];
+        $nilaiSoal       = $item['nilai_soal'] !== null ? (float)$item['nilai_soal'] : null;
         
         $isCorrect = false;
         $isAnswered = ($jawabanSiswa !== '');
@@ -154,6 +259,7 @@ if (!empty($urutanIds)) {
             'opsi'             => $opsiList,
             'kunci_jawaban'    => $kunciJawaban,
             'jawaban_terpilih' => $jawabanSiswa,
+            'nilai_soal'       => $nilaiSoal,
             'status_ragu'      => $isRagu,
             'status_item'      => $statusItem,
             'is_correct'       => $isCorrect,
@@ -163,7 +269,9 @@ if (!empty($urutanIds)) {
 }
 
 $totalPG = count($soalList) - $statEssai;
-$calculatedNilai = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 0.00;
+$calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 0.00;
+$nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
+$nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
 
 // Durasi pengerjaan aktual
 $durasiPakaiStr = '-';
@@ -186,7 +294,6 @@ $flash = flash_get();
     <title>Detail Lembar Jawaban: <?= sanitize($detailUjian['nama_siswa']) ?> - CBT</title>
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
     <style>
-        /* Custom Styles for Answer Sheet Inspection */
         .detail-sheet-header {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -332,7 +439,7 @@ $flash = flash_get();
             color: #ffffff;
         }
         @media print {
-            .no-print, .cbt-navbar, .card-header-actions, .grid-inspect-box {
+            .no-print, .cbt-navbar, .card-header-actions, .grid-inspect-box, .btn-save-essai-box {
                 display: none !important;
             }
             body {
@@ -452,8 +559,8 @@ $flash = flash_get();
     </div>
 
     <!-- Ringkasan Statistik Skor & Jawaban -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-        <!-- Nilai Akhir -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+        <!-- Nilai Akhir (Gabungan) -->
         <div class="stat-badge-card" style="background: #f0fdf4; border-color: #bbf7d0;">
             <div class="num" style="color: <?= ($detailUjian['nilai_akhir'] >= 75) ? '#15803d' : '#b91c1c' ?>;">
                 <?= number_format((float)$detailUjian['nilai_akhir'], 2) ?>
@@ -461,19 +568,29 @@ $flash = flash_get();
             <div class="lbl" style="color: #166534;">Nilai Akhir (0-100)</div>
         </div>
 
+        <!-- Nilai Pilihan Ganda -->
+        <div class="stat-badge-card" style="background: #eff6ff; border-color: #bfdbfe;">
+            <div class="num" style="color: #1d4ed8;"><?= number_format($nilaiPGDisplay, 2) ?></div>
+            <div class="lbl" style="color: #1e40af;">Nilai PG (<?= $statBenar ?>/<?= $totalPG ?>)</div>
+        </div>
+
+        <!-- Nilai Soal Essai -->
+        <?php if ($statEssai > 0): ?>
+            <div class="stat-badge-card" style="background: #faf5ff; border-color: #d8b4fe;">
+                <div class="num" style="color: #7e22ce;">
+                    <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size: 0.95rem; color: #b45309;">Belum Dinilai</span>' ?>
+                </div>
+                <div class="lbl" style="color: #6b21a8;">Rata-rata Essai (<?= $statEssai ?> Butir)</div>
+            </div>
+        <?php endif; ?>
+
         <!-- Total Butir Soal -->
         <div class="stat-badge-card">
             <div class="num" style="color: var(--gray-900);"><?= count($soalList) ?></div>
             <div class="lbl">Total Butir Soal</div>
         </div>
 
-        <!-- Jawaban Benar -->
-        <div class="stat-badge-card" style="background: #f0fdf4; border-color: #86efac;">
-            <div class="num" style="color: #16a34a;"><?= $statBenar ?></div>
-            <div class="lbl" style="color: #15803d;">Benar (PG)</div>
-        </div>
-
-        <!-- Jawaban Salah -->
+        <!-- Jawaban Salah PG -->
         <div class="stat-badge-card" style="background: #fef2f2; border-color: #fca5a5;">
             <div class="num" style="color: #dc2626;"><?= $statSalah ?></div>
             <div class="lbl" style="color: #991b1b;">Salah (PG)</div>
@@ -484,14 +601,6 @@ $flash = flash_get();
             <div class="num" style="color: var(--gray-500);"><?= $statKosong ?></div>
             <div class="lbl">Kosong / Belum</div>
         </div>
-
-        <!-- Soal Essai -->
-        <?php if ($statEssai > 0): ?>
-            <div class="stat-badge-card" style="background: #faf5ff; border-color: #d8b4fe;">
-                <div class="num" style="color: #7e22ce;"><?= $statEssai ?></div>
-                <div class="lbl" style="color: #6b21a8;">Essai di Kertas</div>
-            </div>
-        <?php endif; ?>
 
         <!-- Ragu-ragu -->
         <?php if ($statRagu > 0): ?>
@@ -537,11 +646,23 @@ $flash = flash_get();
         </div>
     </div>
 
-    <!-- Rincian Lembar Soal & Jawaban Siswa -->
-    <div>
-        <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--gray-900); margin-bottom: 1rem;">
-            Rincian Jawaban Siswa per Butir Pertanyaan
-        </h2>
+    <!-- FORM PEMERIKSAAN & INPUT NILAI ESSAI -->
+    <form action="<?= base_url('guru/detail_jawaban.php') ?>" method="POST">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="simpan_nilai_essai">
+        <input type="hidden" name="id_ujian_siswa" value="<?= $idUjianSiswa ?>">
+        <input type="hidden" name="id_sesi" value="<?= (int)$detailUjian['id_sesi'] ?>">
+
+        <div class="flex-between mb-3" style="align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--gray-900); margin: 0;">
+                Rincian Jawaban Siswa per Butir Pertanyaan
+            </h2>
+            <?php if ($statEssai > 0): ?>
+                <button type="submit" class="btn btn-primary no-print" style="background: #7e22ce; border-color: #6b21a8; font-weight: 700;">
+                    💾 Simpan Nilai Essai
+                </button>
+            <?php endif; ?>
+        </div>
 
         <?php if (empty($soalList)): ?>
             <div class="card text-center" style="padding: 3rem 0;">
@@ -570,9 +691,15 @@ $flash = flash_get();
 
                         <div>
                             <?php if ($s['jenis_soal'] === 'essai'): ?>
-                                <span class="badge" style="background: #ede9fe; color: #6d28d9; font-weight: 700; padding: 0.35rem 0.65rem;">
-                                    📝 Dinilai Manual di Kertas
-                                </span>
+                                <?php if ($s['nilai_soal'] !== null): ?>
+                                    <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 800; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
+                                        ✓ Skor: <?= (float)$s['nilai_soal'] ?> / 100
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 700; padding: 0.35rem 0.65rem;">
+                                        📝 Perlu Dinilai Manual
+                                    </span>
+                                <?php endif; ?>
                             <?php elseif ($s['status_item'] === 'benar'): ?>
                                 <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 800; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
                                     ✓ JAWABAN BENAR (+1)
@@ -639,7 +766,7 @@ $flash = flash_get();
                             <?php endforeach; ?>
                         </div>
 
-                        <!-- Ringkasan Singkat Bawah Soal -->
+                        <!-- Ringkasan Singkat Bawah Soal PG -->
                         <div style="background: #f8fafc; border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.84rem; display: flex; gap: 1.5rem; flex-wrap: wrap; color: var(--gray-700); border: 1px solid var(--gray-200);">
                             <div>
                                 Jawaban Siswa: 
@@ -673,15 +800,54 @@ $flash = flash_get();
                             <div style="font-size: 0.92rem; color: var(--gray-900); background: #ffffff; padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--gray-200);">
                                 <?= !empty($s['kunci_jawaban']) ? nl2br(sanitize($s['kunci_jawaban'])) : '<em class="text-muted">Tidak ada catatan pedoman kunci jawaban dari guru.</em>' ?>
                             </div>
-                            <p class="text-xs text-muted" style="margin: 0.5rem 0 0 0;">
-                                Siswa mengerjakan butir soal ini langsung pada lembar kertas ujian. Nilai uraian dapat direkapitulasi secara manual oleh Guru.
+                            <p class="text-xs text-muted" style="margin: 0.5rem 0 0.85rem 0;">
+                                Siswa mengerjakan butir soal ini langsung pada lembar kertas ujian. Silakan masukkan nilai yang diperoleh siswa di bawah ini:
                             </p>
+
+                            <!-- Kotak Input Nilai Essai -->
+                            <div class="no-print" style="background: #faf5ff; border: 1.5px solid #d8b4fe; border-radius: 8px; padding: 0.85rem 1.15rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem;">
+                                    <label for="input_nilai_<?= $s['id_soal'] ?>" style="font-weight: 700; font-size: 0.92rem; color: #6b21a8;">
+                                        ✏️ Nilai untuk Soal No. <?= $s['nomor'] ?> (Skala 0 - 100):
+                                    </label>
+                                    <?php if ($s['nilai_soal'] !== null): ?>
+                                        <span class="badge badge-online" style="font-size: 0.78rem;">✓ Tersimpan: <?= (float)$s['nilai_soal'] ?> / 100</span>
+                                    <?php else: ?>
+                                        <span class="badge" style="background:#fef3c7; color:#b45309; font-size: 0.78rem;">Belum Dinilai</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="display: flex; gap: 0.65rem; align-items: center;">
+                                    <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="input_nilai_<?= $s['id_soal'] ?>" class="form-control font-bold" min="0" max="100" step="0.5" placeholder="0 - 100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="max-width: 140px; font-size: 1.15rem; text-align: center; border: 2px solid #a855f7; background: #ffffff;">
+                                    <span style="font-weight: 700; color: #6b21a8; font-size: 0.95rem;">/ 100</span>
+                                </div>
+                            </div>
                         </div>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>
-    </div>
+
+        <!-- Bottom Action Bar untuk Simpan Nilai Essai -->
+        <?php if ($statEssai > 0): ?>
+            <div class="card no-print btn-save-essai-box" style="background: #faf5ff; border: 1.5px solid #c084fc; padding: 1.25rem 1.5rem; margin-top: 1.5rem; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
+                <div class="flex-between" style="flex-wrap: wrap; gap: 1rem; align-items: center;">
+                    <div>
+                        <h3 style="font-size: 1.1rem; font-weight: 800; color: #581c87; margin: 0 0 0.25rem 0;">
+                            Simpan Penilaian Soal Uraian / Essai
+                        </h3>
+                        <p class="text-xs text-muted" style="margin: 0;">
+                            Klik tombol di samping untuk menyimpan nilai seluruh butir uraian di atas dan memperbarui <strong>Nilai Akhir</strong> siswa secara otomatis.
+                        </p>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary" style="background: #7e22ce; border-color: #6b21a8; font-weight: 800; padding: 0.65rem 1.5rem; font-size: 0.95rem; box-shadow: var(--shadow-sm);">
+                            💾 Simpan Nilai Essai & Hitung Nilai Akhir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+    </form>
 
     <!-- Tombol Navigasi Bawah -->
     <div class="flex-between mt-4 mb-4 no-print">

@@ -103,7 +103,8 @@ if ($totalSoal > 0) {
 
 // 3. Hitung Nilai Akhir Otomatis dari Pilihan Ganda (Skala 0 - 100)
 // Soal Uraian / Essai dikerjakan di kertas dan dinilai secara manual oleh Guru
-$nilaiAkhir = ($totalPG > 0) ? round(($jumlahBenar / $totalPG) * 100, 2) : 0.00;
+$nilaiPG = ($totalPG > 0) ? round(($jumlahBenar / $totalPG) * 100, 2) : 0.00;
+$nilaiAkhir = $nilaiPG;
 
 // 4. Update Log Ujian Siswa Menjadi 'selesai'
 $stmtUpdate = $db->prepare("
@@ -112,13 +113,15 @@ $stmtUpdate = $db->prepare("
         sisa_detik = 0,
         status = 'selesai',
         jumlah_benar = :benar,
+        nilai_pg = :nilai_pg,
         nilai_akhir = :nilai
     WHERE id_ujian_siswa = :us
 ");
 $stmtUpdate->execute([
-    ':benar' => $jumlahBenar,
-    ':nilai' => $nilaiAkhir,
-    ':us'    => $idUjianSiswa
+    ':benar'    => $jumlahBenar,
+    ':nilai_pg' => $nilaiPG,
+    ':nilai'    => $nilaiAkhir,
+    ':us'       => $idUjianSiswa
 ]);
 
 flash_set('success', 'Ujian Anda telah berhasil dikumpulkan dan diproses oleh sistem.');

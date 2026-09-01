@@ -94,6 +94,8 @@ CREATE TABLE ujian_siswa (
     sisa_detik INT NOT NULL,
     status exam_status DEFAULT 'belum',
     jumlah_benar INT DEFAULT 0,
+    nilai_pg NUMERIC(5,2) DEFAULT 0.00,
+    nilai_essai NUMERIC(5,2) DEFAULT NULL,
     nilai_akhir NUMERIC(5,2) DEFAULT 0.00,
     CONSTRAINT unique_siswa_sesi UNIQUE (id_sesi, id_siswa)
 );
@@ -105,6 +107,7 @@ CREATE TABLE jawaban_siswa (
     id_soal INT NOT NULL REFERENCES bank_soal(id_soal) ON DELETE CASCADE,
     jawaban_terpilih TEXT NULL, -- Menyimpan 'A', 'A,B' (checklist), atau teks jawaban essai
     status_ragu BOOLEAN DEFAULT FALSE,
+    nilai_soal NUMERIC(5,2) DEFAULT NULL, -- Nilai yang diberikan guru untuk soal essai (0 - 100)
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_ujian_soal UNIQUE (id_ujian_siswa, id_soal)
 );
