@@ -53,6 +53,7 @@ $flash = flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Bukti Penyelesaian Ujian - CBT System</title>
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body class="bg-gray-100 flex-center app-webview-body" style="height: 100vh; height: 100dvh; overflow: hidden; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0.75rem; box-sizing: border-box;">

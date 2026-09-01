@@ -31,11 +31,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
     fwrite($out, "sep=,\n");
-    fputcsv($out, ['No', 'Jenis Soal', 'Pertanyaan', 'Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban']);
-    foreach ($rows as $idx => $r) {
+    fputcsv($out, ['jenis_soal', 'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'kunci_jawaban']);
+    foreach ($rows as $r) {
+        $jenisExport = ($r['jenis_soal'] === 'essai') ? 'essai' : 'pg';
         fputcsv($out, [
-            $idx + 1,
-            $r['jenis_soal'] ?? 'pilihan_ganda',
+            $jenisExport,
             $r['pertanyaan'],
             $r['opsi_a'] ?? '',
             $r['opsi_b'] ?? '',
@@ -172,6 +172,7 @@ $flash = flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Bank Soal - CBT Guru</title>
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body>
@@ -179,7 +180,10 @@ $flash = flash_get();
 <header class="cbt-navbar">
     <div class="cbt-navbar-header">
         <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
             <span>CBT GURU</span>
         </a>
         <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">

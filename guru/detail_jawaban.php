@@ -1,7 +1,7 @@
 <?php
 /**
- * Modul Detail & Pemeriksaan Lembar Jawaban Siswa (Guru & Operator)
- * Menampilkan rincian butir soal, pilihan jawaban siswa vs kunci jawaban, skor, dan input nilai soal essai.
+ * Modul Detail Jawaban Siswa
+ * Menampilkan hasil pengerjaan siswa dan koreksi butir soal.
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -13,15 +13,15 @@ $idUjianSiswa = (int)($_GET['id_ujian_siswa'] ?? $_POST['id_ujian_siswa'] ?? 0);
 $backSesiId   = (int)($_GET['id_sesi'] ?? $_POST['id_sesi'] ?? 0);
 
 if ($idUjianSiswa <= 0) {
-    flash_set('danger', 'Parameter data ujian siswa tidak valid.');
+    flash_set('danger', 'Data ujian tidak valid.');
     redirect(base_url('guru/rekap_nilai.php' . ($backSesiId > 0 ? '?id_sesi=' . $backSesiId : '')));
 }
 
-// 1. Ambil Data Ujian Siswa, Identitas Siswa, dan Sesi Ujian
+// 1. Ambil Data Ujian Siswa
 $stmtUjian = $db->prepare("
     SELECT us.*, 
            u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
-           s.id_sesi, s.nama_ujian, s.judul_soal, s.id_guru, s.durasi_menit, s.acak_soal, s.acak_opsi, s.status as status_sesi,
+           s.id_sesi, s.nama_ujian, s.judul_soal, s.id_guru, s.durasi_menit,
            m.id_mapel, m.nama_mapel, m.kode_mapel,
            k.id_kelas, k.nama_kelas,
            g.nama_lengkap as nama_guru
@@ -41,16 +41,15 @@ if (!$detailUjian) {
     redirect(base_url('guru/rekap_nilai.php' . ($backSesiId > 0 ? '?id_sesi=' . $backSesiId : '')));
 }
 
-// Validasi Hak Akses Guru (hanya boleh melihat sesi miliknya sendiri, kecuali role operator)
 if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$currentUser['id_user']) {
-    flash_set('danger', 'Anda tidak memiliki hak akses untuk memeriksa ujian sesi ini.');
+    flash_set('danger', 'Anda tidak memiliki akses ke data ini.');
     redirect(base_url('guru/rekap_nilai.php'));
 }
 
-// 2. Tangani Form POST: Simpan Nilai Soal Essai
+// 2. Simpan Nilai Essai
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
     if (!verify_csrf()) {
-        flash_set('danger', 'Validasi token keamanan gagal.');
+        flash_set('danger', 'Validasi keamanan gagal.');
         redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
     }
 
@@ -72,7 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
         ]);
     }
 
-    // Ambil seluruh nilai essai yang tersimpan
     $stmtAvgEssai = $db->prepare("
         SELECT js.nilai_soal 
         FROM jawaban_siswa js
@@ -90,7 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
         $avgEssai = round(array_sum($filledEssaiScores) / count($filledEssaiScores), 2);
     }
 
-    // Hitung ulang nilai PG dari data jawaban PG
     $stmtHitungPG = $db->prepare("
         SELECT b.id_soal, b.kunci_jawaban, js.jawaban_terpilih
         FROM bank_soal b
@@ -117,13 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     }
     $nilaiPG = ($totalPGCount > 0) ? round(($pgBenarCount / $totalPGCount) * 100, 2) : 0.00;
 
-    // Kalkulasi Nilai Akhir (Proporsional Rata-rata PG + Essai jika keduanya ada)
     if ($totalPGCount > 0 && $totalEssaiItems > 0) {
-        if ($avgEssai !== null) {
-            $nilaiAkhirBaru = round(($nilaiPG + $avgEssai) / 2, 2);
-        } else {
-            $nilaiAkhirBaru = $nilaiPG;
-        }
+        $nilaiAkhirBaru = ($avgEssai !== null) ? round(($nilaiPG + $avgEssai) / 2, 2) : $nilaiPG;
     } elseif ($totalEssaiItems > 0) {
         $nilaiAkhirBaru = ($avgEssai !== null) ? $avgEssai : 0.00;
     } else {
@@ -146,14 +138,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
         ':us'     => $idUjianSiswa
     ]);
 
-    flash_set('success', "Nilai soal uraian/essai berhasil disimpan! Nilai Akhir siswa diperbarui menjadi: {$nilaiAkhirBaru}");
+    flash_set('success', "Nilai essai berhasil disimpan. Nilai Akhir: {$nilaiAkhirBaru}");
     redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
-// 3. Ambil Urutan Soal Siswa
+// 3. Urutan Soal
 $urutanIds = json_decode($detailUjian['urutan_soal'], true);
 if (empty($urutanIds) || !is_array($urutanIds)) {
-    // Fallback ambil soal berdasarkan mapel & judul
     if (!empty($detailUjian['judul_soal'])) {
         $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m AND judul_soal = :j ORDER BY id_soal ASC");
         $stmtFallback->execute([':m' => $detailUjian['id_mapel'], ':j' => $detailUjian['judul_soal']]);
@@ -164,13 +155,12 @@ if (empty($urutanIds) || !is_array($urutanIds)) {
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// 4. Ambil Butir Soal, Jawaban Siswa, dan Nilai Essai
+// 4. Data Butir Soal & Jawaban
 $soalList = [];
 $statBenar = 0;
 $statSalah = 0;
 $statKosong = 0;
 $statEssai = 0;
-$statRagu = 0;
 
 if (!empty($urutanIds)) {
     $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
@@ -178,10 +168,7 @@ if (!empty($urutanIds)) {
     $stmtSoal = $db->prepare("
         SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, 
                b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban,
-               j.jawaban_terpilih,
-               j.nilai_soal,
-               COALESCE(j.status_ragu, false) as status_ragu,
-               j.updated_at as waktu_jawab
+               j.jawaban_terpilih, j.nilai_soal, j.status_ragu
         FROM bank_soal b
         LEFT JOIN jawaban_siswa j ON (j.id_soal = b.id_soal AND j.id_ujian_siswa = ?)
         WHERE b.id_soal IN ($placeholders)
@@ -200,29 +187,22 @@ if (!empty($urutanIds)) {
         if (!isset($soalMap[$sid])) continue;
         $item = $soalMap[$sid];
         
-        $jenisSoal       = $item['jenis_soal'] ?? 'pilihan_ganda';
-        $jawabanSiswa    = strtoupper(trim($item['jawaban_terpilih'] ?? ''));
-        $kunciJawaban    = strtoupper(trim($item['kunci_jawaban'] ?? ''));
-        $isRagu          = (bool)$item['status_ragu'];
-        $nilaiSoal       = $item['nilai_soal'] !== null ? (float)$item['nilai_soal'] : null;
+        $jenisSoal    = $item['jenis_soal'] ?? 'pilihan_ganda';
+        $jawabanSiswa = strtoupper(trim($item['jawaban_terpilih'] ?? ''));
+        $kunciJawaban = strtoupper(trim($item['kunci_jawaban'] ?? ''));
+        $nilaiSoal    = $item['nilai_soal'] !== null ? (float)$item['nilai_soal'] : null;
         
         $isCorrect = false;
-        $isAnswered = ($jawabanSiswa !== '');
-
-        if ($isRagu) {
-            $statRagu++;
-        }
+        $statusItem = 'kosong';
 
         if ($jenisSoal === 'essai') {
             $statEssai++;
             $statusItem = 'essai';
         } else {
-            // Pilihan Ganda
-            if (!$isAnswered) {
+            if ($jawabanSiswa === '') {
                 $statKosong++;
                 $statusItem = 'kosong';
             } else {
-                // Periksa kunci
                 $kunciArr = array_filter(array_map('trim', explode(',', $kunciJawaban)));
                 $jwbArr   = array_filter(array_map('trim', explode(',', $jawabanSiswa)));
                 sort($kunciArr);
@@ -239,7 +219,6 @@ if (!empty($urutanIds)) {
             }
         }
 
-        // Susun Opsi A-E
         $opsiList = [
             ['code' => 'A', 'text' => $item['opsi_a']],
             ['code' => 'B', 'text' => $item['opsi_b']],
@@ -260,10 +239,8 @@ if (!empty($urutanIds)) {
             'kunci_jawaban'    => $kunciJawaban,
             'jawaban_terpilih' => $jawabanSiswa,
             'nilai_soal'       => $nilaiSoal,
-            'status_ragu'      => $isRagu,
             'status_item'      => $statusItem,
-            'is_correct'       => $isCorrect,
-            'waktu_jawab'      => $item['waktu_jawab']
+            'is_correct'       => $isCorrect
         ];
     }
 }
@@ -273,198 +250,159 @@ $calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 
 $nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
 $nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
 
-// Durasi pengerjaan aktual
-$durasiPakaiStr = '-';
-if (!empty($detailUjian['waktu_mulai']) && !empty($detailUjian['waktu_selesai'])) {
-    $tMulai = strtotime($detailUjian['waktu_mulai']);
-    $tSelesai = strtotime($detailUjian['waktu_selesai']);
-    $diffSec = max(0, $tSelesai - $tMulai);
-    $menitPakai = floor($diffSec / 60);
-    $detikPakai = $diffSec % 60;
-    $durasiPakaiStr = "{$menitPakai} Menit {$detikPakai} Detik";
-}
-
 $flash = flash_get();
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Detail Lembar Jawaban: <?= sanitize($detailUjian['nama_siswa']) ?> - CBT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Jawaban: <?= sanitize($detailUjian['nama_siswa']) ?></title>
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
     <style>
-        .detail-sheet-header {
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .info-panel {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1.25rem;
-            background: #ffffff;
-            border-radius: var(--radius-md);
-            padding: 1.25rem;
-            border: 1px solid var(--gray-200);
-            box-shadow: var(--shadow-sm);
+            gap: 1.5rem;
         }
         @media (max-width: 768px) {
-            .detail-sheet-header {
-                grid-template-columns: 1fr;
-            }
+            .info-panel { grid-template-columns: 1fr; gap: 0.75rem; }
         }
-        .stat-badge-card {
-            background: #f8fafc;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 0.85rem 1rem;
-            text-align: center;
-        }
-        .stat-badge-card .num {
-            font-size: 1.45rem;
-            font-weight: 800;
-            line-height: 1.2;
-        }
-        .stat-badge-card .lbl {
-            font-size: 0.76rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-500);
-            margin-top: 0.25rem;
-        }
-        .grid-inspect-container {
+        .info-row {
             display: flex;
-            flex-wrap: wrap;
-            gap: 0.45rem;
+            margin-bottom: 0.35rem;
+            font-size: 0.9rem;
         }
-        .grid-inspect-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.85rem;
-            font-weight: 700;
-            text-decoration: none;
-            border: 1px solid transparent;
-            transition: all 0.15s ease;
-            position: relative;
-        }
-        .grid-inspect-btn.btn-benar {
-            background: #dcfce7;
-            color: #166534;
-            border-color: #86efac;
-        }
-        .grid-inspect-btn.btn-salah {
-            background: #fee2e2;
-            color: #991b1b;
-            border-color: #fca5a5;
-        }
-        .grid-inspect-btn.btn-kosong {
-            background: #f1f5f9;
+        .info-label {
+            width: 130px;
             color: #64748b;
-            border-color: #cbd5e1;
+            font-weight: 500;
         }
-        .grid-inspect-btn.btn-essai {
-            background: #ede9fe;
-            color: #6d28d9;
-            border-color: #c4b5fd;
+        .info-val {
+            color: #0f172a;
+            font-weight: 600;
         }
-        .grid-inspect-btn .ragu-dot {
-            position: absolute;
-            top: -3px;
-            right: -3px;
-            width: 9px;
-            height: 9px;
-            background: #f59e0b;
-            border: 1.5px solid #ffffff;
-            border-radius: 50%;
+        .scores-panel {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
         }
-        .soal-inspect-card {
-            background: #ffffff;
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            padding: 1.25rem 1.4rem;
-            margin-bottom: 1.25rem;
-            box-shadow: var(--shadow-sm);
+        .score-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 0.75rem 1.25rem;
+            min-width: 140px;
+            flex: 1;
         }
-        .opsi-inspect-item {
-            border: 1.5px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            margin-bottom: 0.5rem;
+        .score-card .title {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .score-card .number {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 0.15rem;
+        }
+        .item-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .item-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.9rem;
+        }
+        .item-question {
+            font-size: 0.95rem;
+            line-height: 1.55;
+            color: #1e293b;
+            margin-bottom: 0.85rem;
+        }
+        .opt-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 0.75rem;
+        }
+        .opt-item {
             display: flex;
             align-items: flex-start;
-            gap: 0.75rem;
-            background: #ffffff;
-            font-size: 0.92rem;
-            transition: all 0.15s ease;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: #fff;
         }
-        .opsi-inspect-item.chosen-correct {
+        .opt-item.is-correct-choice {
             background: #f0fdf4;
-            border-color: #22c55e;
-            color: #15803d;
+            border-color: #86efac;
+            color: #166534;
+            font-weight: 600;
         }
-        .opsi-inspect-item.chosen-wrong {
+        .opt-item.is-wrong-choice {
             background: #fef2f2;
-            border-color: #ef4444;
-            color: #b91c1c;
+            border-color: #fca5a5;
+            color: #991b1b;
         }
-        .opsi-inspect-item.correct-key-only {
+        .opt-item.is-key-target {
             background: #f0fdf4;
-            border: 1.5px dashed #16a34a;
-            color: #15803d;
+            border: 1px dashed #22c55e;
+            color: #166534;
         }
-        .opsi-inspect-code {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: #f1f5f9;
-            color: var(--gray-700);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.85rem;
-            flex-shrink: 0;
+        .badge-status {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
         }
-        .opsi-inspect-item.chosen-correct .opsi-inspect-code {
-            background: #22c55e;
-            color: #ffffff;
-        }
-        .opsi-inspect-item.chosen-wrong .opsi-inspect-code {
-            background: #ef4444;
-            color: #ffffff;
-        }
-        .opsi-inspect-item.correct-key-only .opsi-inspect-code {
-            background: #16a34a;
-            color: #ffffff;
-        }
-        @media print {
-            .no-print, .cbt-navbar, .card-header-actions, .grid-inspect-box, .btn-save-essai-box {
-                display: none !important;
-            }
-            body {
-                background: #ffffff !important;
-                font-size: 13px !important;
-            }
-            .container {
-                max-width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            .card, .detail-sheet-header, .soal-inspect-card {
-                box-shadow: none !important;
-                border: 1px solid #cbd5e1 !important;
-                page-break-inside: avoid;
-            }
+        .badge-status.benar { background: #dcfce7; color: #166534; }
+        .badge-status.salah { background: #fee2e2; color: #991b1b; }
+        .badge-status.kosong { background: #f1f5f9; color: #64748b; }
+        .badge-status.essai { background: #f3e8ff; color: #6b21a8; }
+        .essay-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            margin-top: 0.5rem;
         }
     </style>
 </head>
 <body>
 
-<header class="cbt-navbar no-print">
+<header class="cbt-navbar">
     <div class="cbt-navbar-header">
         <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
             <span>CBT <?= strtoupper($currentUser['role']) ?></span>
         </a>
         <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
@@ -480,346 +418,197 @@ $flash = flash_get();
             <?php if ($currentUser['role'] === 'guru'): ?>
                 <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
                 <li><a href="<?= base_url('guru/bank_soal.php') ?>">Bank Soal</a></li>
-                <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian & Token</a></li>
+                <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian</a></li>
                 <li><a href="<?= base_url('guru/rekap_nilai.php') ?>" class="active">Rekap Nilai</a></li>
             <?php else: ?>
                 <li><a href="<?= base_url('operator/dashboard.php') ?>">Dashboard</a></li>
-                <li><a href="<?= base_url('operator/siswa_crud.php') ?>">Data Siswa</a></li>
-                <li><a href="<?= base_url('operator/guru_crud.php') ?>">Data Guru</a></li>
+                <li><a href="<?= base_url('operator/siswa_crud.php') ?>">Siswa</a></li>
+                <li><a href="<?= base_url('operator/guru_crud.php') ?>">Guru</a></li>
             <?php endif; ?>
             <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
         </ul>
     </nav>
 </header>
 
-<main class="container">
+<main class="container" style="max-width: 1100px;">
     <?php if ($flash): ?>
-        <div class="alert alert-<?= sanitize($flash['type']) ?> no-print">
+        <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <!-- Navigation & Action Bar -->
-    <div class="card-header no-print mb-3">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
-                ◄ Kembali ke Rekap Nilai
-            </a>
-            <span class="text-muted text-sm">/ Detail Lembar Jawaban Siswa</span>
-        </div>
-        <div class="card-header-actions">
-            <button type="button" class="btn btn-primary" onclick="window.print()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align: middle; margin-right: 4px;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                Cetak Lembar Jawaban
-            </button>
-        </div>
-    </div>
-
-    <!-- Identitas Siswa & Informasi Sesi Ujian -->
-    <div class="detail-sheet-header mb-4">
+    <div class="page-header">
         <div>
-            <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 700; color: var(--gray-500); margin-bottom: 0.25rem;">IDENTITAS PESERTA UJIAN</div>
-            <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--gray-900); margin: 0 0 0.4rem 0;">
-                <?= sanitize($detailUjian['nama_siswa']) ?>
-            </h2>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.88rem; color: var(--gray-700);">
-                <strong>NIS:</strong>
-                <div><span class="badge" style="background:#e0f2fe; color:#0369a1; font-family:monospace;"><?= sanitize($detailUjian['nis'] ?? '-') ?></span> (Username: <?= sanitize($detailUjian['username']) ?>)</div>
-                <strong>Kelas:</strong>
-                <div><?= sanitize($detailUjian['nama_kelas']) ?></div>
-                <strong>Status Ujian:</strong>
-                <div>
-                    <?php if ($detailUjian['status'] === 'selesai'): ?>
-                        <span class="badge badge-online">SELESAI DIKUMPULKAN</span>
-                    <?php elseif ($detailUjian['status'] === 'sedang'): ?>
-                        <span class="badge badge-aktif">SEDANG MENGERJAKAN</span>
-                    <?php else: ?>
-                        <span class="badge badge-offline">BELUM MENGERJAKAN</span>
-                    <?php endif; ?>
-                </div>
+            <h1 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 0.25rem 0; color: #0f172a;">
+                Lembar Jawaban Siswa
+            </h1>
+            <span style="font-size: 0.85rem; color: #64748b;">
+                Pemeriksaan detail jawaban dan penilaian ujian
+            </span>
+        </div>
+        <div>
+            <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+                Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Informasi Ujian & Siswa -->
+    <div class="info-panel">
+        <div>
+            <div class="info-row">
+                <span class="info-label">Nama Siswa</span>
+                <span class="info-val"><?= sanitize($detailUjian['nama_siswa']) ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">NIS</span>
+                <span class="info-val"><?= sanitize($detailUjian['nis'] ?: $detailUjian['username']) ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Kelas</span>
+                <span class="info-val"><?= sanitize($detailUjian['nama_kelas']) ?></span>
             </div>
         </div>
-
-        <div style="border-left: 1px solid var(--gray-200); padding-left: 1.25rem;">
-            <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 700; color: var(--gray-500); margin-bottom: 0.25rem;">INFORMASI SESI & WAKTU</div>
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary); margin: 0 0 0.4rem 0;">
-                <?= sanitize($detailUjian['nama_ujian']) ?>
-            </h3>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.88rem; color: var(--gray-700);">
-                <strong>Mata Pelajaran:</strong>
-                <div><?= sanitize($detailUjian['nama_mapel']) ?> <?= $detailUjian['kode_mapel'] ? '('.sanitize($detailUjian['kode_mapel']).')' : '' ?></div>
-                <strong>Waktu Mulai:</strong>
-                <div><?= $detailUjian['waktu_mulai'] ? date('d M Y, H:i:s', strtotime($detailUjian['waktu_mulai'])) . ' WIB' : '-' ?></div>
-                <strong>Waktu Selesai:</strong>
-                <div><?= $detailUjian['waktu_selesai'] ? date('d M Y, H:i:s', strtotime($detailUjian['waktu_selesai'])) . ' WIB' : '-' ?></div>
-                <strong>Durasi Terpakai:</strong>
-                <div><strong><?= $durasiPakaiStr ?></strong> (Alokasi: <?= (int)$detailUjian['durasi_menit'] ?> Menit)</div>
+        <div>
+            <div class="info-row">
+                <span class="info-label">Ujian</span>
+                <span class="info-val"><?= sanitize($detailUjian['nama_ujian']) ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Mata Pelajaran</span>
+                <span class="info-val"><?= sanitize($detailUjian['nama_mapel']) ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Waktu</span>
+                <span class="info-val">
+                    <?= $detailUjian['waktu_mulai'] ? date('d/m/Y H:i', strtotime($detailUjian['waktu_mulai'])) : '-' ?> 
+                    <?= $detailUjian['waktu_selesai'] ? 's/d ' . date('H:i', strtotime($detailUjian['waktu_selesai'])) : '' ?>
+                </span>
             </div>
         </div>
     </div>
 
-    <!-- Ringkasan Statistik Skor & Jawaban -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-        <!-- Nilai Akhir (Gabungan) -->
-        <div class="stat-badge-card" style="background: #f0fdf4; border-color: #bbf7d0;">
-            <div class="num" style="color: <?= ($detailUjian['nilai_akhir'] >= 75) ? '#15803d' : '#b91c1c' ?>;">
-                <?= number_format((float)$detailUjian['nilai_akhir'], 2) ?>
-            </div>
-            <div class="lbl" style="color: #166534;">Nilai Akhir (0-100)</div>
+    <!-- Ringkasan Nilai -->
+    <div class="scores-panel">
+        <div class="score-card">
+            <div class="title">Nilai Akhir</div>
+            <div class="number" style="color: #0f172a;"><?= number_format((float)$detailUjian['nilai_akhir'], 2) ?></div>
         </div>
-
-        <!-- Nilai Pilihan Ganda -->
-        <div class="stat-badge-card" style="background: #eff6ff; border-color: #bfdbfe;">
-            <div class="num" style="color: #1d4ed8;"><?= number_format($nilaiPGDisplay, 2) ?></div>
-            <div class="lbl" style="color: #1e40af;">Nilai PG (<?= $statBenar ?>/<?= $totalPG ?>)</div>
+        <div class="score-card">
+            <div class="title">Nilai PG (<?= $statBenar ?>/<?= $totalPG ?>)</div>
+            <div class="number" style="color: #0284c7;"><?= number_format($nilaiPGDisplay, 2) ?></div>
         </div>
-
-        <!-- Nilai Soal Essai -->
         <?php if ($statEssai > 0): ?>
-            <div class="stat-badge-card" style="background: #faf5ff; border-color: #d8b4fe;">
-                <div class="num" style="color: #7e22ce;">
-                    <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size: 0.95rem; color: #b45309;">Belum Dinilai</span>' ?>
+            <div class="score-card">
+                <div class="title">Rata-rata Essai</div>
+                <div class="number" style="color: #7c3aed;">
+                    <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size:0.9rem;color:#b45309;">Belum Diisi</span>' ?>
                 </div>
-                <div class="lbl" style="color: #6b21a8;">Rata-rata Essai (<?= $statEssai ?> Butir)</div>
             </div>
         <?php endif; ?>
-
-        <!-- Total Butir Soal -->
-        <div class="stat-badge-card">
-            <div class="num" style="color: var(--gray-900);"><?= count($soalList) ?></div>
-            <div class="lbl">Total Butir Soal</div>
+        <div class="score-card">
+            <div class="title">Salah PG</div>
+            <div class="number" style="color: #dc2626;"><?= $statSalah ?></div>
         </div>
-
-        <!-- Jawaban Salah PG -->
-        <div class="stat-badge-card" style="background: #fef2f2; border-color: #fca5a5;">
-            <div class="num" style="color: #dc2626;"><?= $statSalah ?></div>
-            <div class="lbl" style="color: #991b1b;">Salah (PG)</div>
-        </div>
-
-        <!-- Tidak Dijawab -->
-        <div class="stat-badge-card">
-            <div class="num" style="color: var(--gray-500);"><?= $statKosong ?></div>
-            <div class="lbl">Kosong / Belum</div>
-        </div>
-
-        <!-- Ragu-ragu -->
-        <?php if ($statRagu > 0): ?>
-            <div class="stat-badge-card" style="background: #fffbeb; border-color: #fde68a;">
-                <div class="num" style="color: #d97706;"><?= $statRagu ?></div>
-                <div class="lbl" style="color: #b45309;">Ditandai Ragu</div>
-            </div>
-        <?php endif; ?>
-    </div>
-
-    <!-- Quick Navigation Grid -->
-    <div class="card grid-inspect-box mb-4 no-print" style="padding: 1rem 1.25rem;">
-        <div class="flex-between mb-2" style="flex-wrap: wrap; gap: 0.5rem;">
-            <span class="font-bold text-sm" style="color: var(--gray-800);">Peta Lembar Jawaban Butir Soal:</span>
-            <div class="flex gap-3 text-xs" style="align-items: center; flex-wrap: wrap;">
-                <span class="flex gap-1" style="align-items: center;"><span style="width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:3px;"></span> Benar</span>
-                <span class="flex gap-1" style="align-items: center;"><span style="width:12px;height:12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;"></span> Salah</span>
-                <span class="flex gap-1" style="align-items: center;"><span style="width:12px;height:12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:3px;"></span> Kosong</span>
-                <?php if ($statEssai > 0): ?>
-                    <span class="flex gap-1" style="align-items: center;"><span style="width:12px;height:12px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:3px;"></span> Essai</span>
-                <?php endif; ?>
-                <?php if ($statRagu > 0): ?>
-                    <span class="flex gap-1" style="align-items: center;"><span style="width:8px;height:8px;background:#f59e0b;border-radius:50%;"></span> Titik Kuning: Ragu</span>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <div class="grid-inspect-container">
-            <?php foreach ($soalList as $s): ?>
-                <?php
-                    $btnClass = 'btn-kosong';
-                    if ($s['status_item'] === 'benar') $btnClass = 'btn-benar';
-                    elseif ($s['status_item'] === 'salah') $btnClass = 'btn-salah';
-                    elseif ($s['status_item'] === 'essai') $btnClass = 'btn-essai';
-                ?>
-                <a href="#soal-item-<?= $s['nomor'] ?>" class="grid-inspect-btn <?= $btnClass ?>" title="Soal No. <?= $s['nomor'] ?>: <?= strtoupper($s['status_item']) ?>">
-                    <?= $s['nomor'] ?>
-                    <?php if ($s['status_ragu']): ?>
-                        <span class="ragu-dot" title="Ditandai Ragu-ragu"></span>
-                    <?php endif; ?>
-                </a>
-            <?php endforeach; ?>
+        <div class="score-card">
+            <div class="title">Kosong</div>
+            <div class="number" style="color: #64748b;"><?= $statKosong ?></div>
         </div>
     </div>
 
-    <!-- FORM PEMERIKSAAN & INPUT NILAI ESSAI -->
+    <!-- Form Daftar Soal -->
     <form action="<?= base_url('guru/detail_jawaban.php') ?>" method="POST">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="simpan_nilai_essai">
         <input type="hidden" name="id_ujian_siswa" value="<?= $idUjianSiswa ?>">
         <input type="hidden" name="id_sesi" value="<?= (int)$detailUjian['id_sesi'] ?>">
 
-        <div class="flex-between mb-3" style="align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--gray-900); margin: 0;">
-                Rincian Jawaban Siswa per Butir Pertanyaan
-            </h2>
-            <?php if ($statEssai > 0): ?>
-                <button type="submit" class="btn btn-primary no-print" style="background: #7e22ce; border-color: #6b21a8; font-weight: 700;">
-                    💾 Simpan Nilai Essai
-                </button>
-            <?php endif; ?>
-        </div>
-
         <?php if (empty($soalList)): ?>
-            <div class="card text-center" style="padding: 3rem 0;">
-                <p class="text-muted">Tidak ada data butir soal yang dapat ditampilkan.</p>
+            <div class="item-card" style="text-align: center; color: #64748b; padding: 2rem;">
+                Tidak ada data butir soal.
             </div>
         <?php else: ?>
             <?php foreach ($soalList as $s): ?>
-                <div id="soal-item-<?= $s['nomor'] ?>" class="soal-inspect-card">
-                    <!-- Top Bar Nomor & Status Koreksi -->
-                    <div class="flex-between mb-3" style="border-bottom: 1px solid var(--gray-200); padding-bottom: 0.65rem; flex-wrap: wrap; gap: 0.5rem;">
-                        <div class="flex gap-2" style="align-items: center;">
-                            <span class="badge" style="background: var(--primary); color: #ffffff; font-size: 0.85rem; padding: 0.35rem 0.65rem; font-weight: 700;">
-                                SOAL NO. <?= $s['nomor'] ?>
+                <div class="item-card">
+                    <div class="item-head">
+                        <div>
+                            <strong>Soal No. <?= $s['nomor'] ?></strong>
+                            <span style="color: #64748b; font-size: 0.8rem; margin-left: 0.35rem;">
+                                (<?= $s['jenis_soal'] === 'essai' ? 'Essai / Uraian' : 'Pilihan Ganda' ?>)
                             </span>
-
-                            <?php if ($s['jenis_soal'] === 'essai'): ?>
-                                <span class="badge" style="background: #ede9fe; color: #6d28d9; font-weight: 700;">SOAL ESSAI / URAIAN</span>
-                            <?php else: ?>
-                                <span class="badge" style="background: #f1f5f9; color: #475569; font-weight: 600;">PILIHAN GANDA</span>
-                            <?php endif; ?>
-
-                            <?php if ($s['status_ragu']): ?>
-                                <span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 700;">⚠️ RAGU-RAGU</span>
-                            <?php endif; ?>
                         </div>
-
                         <div>
                             <?php if ($s['jenis_soal'] === 'essai'): ?>
                                 <?php if ($s['nilai_soal'] !== null): ?>
-                                    <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 800; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
-                                        ✓ Skor: <?= (float)$s['nilai_soal'] ?> / 100
-                                    </span>
+                                    <span class="badge-status benar">Nilai: <?= (float)$s['nilai_soal'] ?></span>
                                 <?php else: ?>
-                                    <span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 700; padding: 0.35rem 0.65rem;">
-                                        📝 Perlu Dinilai Manual
-                                    </span>
+                                    <span class="badge-status" style="background:#fef3c7;color:#92400e;">Belum Dinilai</span>
                                 <?php endif; ?>
                             <?php elseif ($s['status_item'] === 'benar'): ?>
-                                <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 800; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
-                                    ✓ JAWABAN BENAR (+1)
-                                </span>
+                                <span class="badge-status benar">Benar (+1)</span>
                             <?php elseif ($s['status_item'] === 'salah'): ?>
-                                <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 800; padding: 0.35rem 0.65rem; font-size: 0.85rem;">
-                                    ✕ JAWABAN SALAH (0)
-                                </span>
+                                <span class="badge-status salah">Salah (0)</span>
                             <?php else: ?>
-                                <span class="badge" style="background: #f1f5f9; color: #64748b; font-weight: 700; padding: 0.35rem 0.65rem;">
-                                    – TIDAK DIJAWAB (0)
-                                </span>
+                                <span class="badge-status kosong">Kosong (0)</span>
                             <?php endif; ?>
                         </div>
                     </div>
 
-                    <!-- Pertanyaan -->
-                    <div style="font-size: 1rem; color: var(--gray-900); line-height: 1.6; margin-bottom: 1rem;">
+                    <div class="item-question">
                         <?= nl2br(sanitize($s['pertanyaan'])) ?>
                     </div>
 
-                    <!-- Gambar Soal (jika ada) -->
                     <?php if (!empty($s['gambar'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <img src="<?= sanitize($s['gambar']) ?>" alt="Gambar Soal <?= $s['nomor'] ?>" style="max-width: 100%; max-height: 320px; border-radius: 6px; border: 1px solid var(--gray-200); object-fit: contain;">
+                        <div style="margin-bottom: 0.85rem;">
+                            <img src="<?= sanitize($s['gambar']) ?>" alt="Soal <?= $s['nomor'] ?>" style="max-width: 100%; max-height: 250px; border: 1px solid #e2e8f0; border-radius: 4px;">
                         </div>
                     <?php endif; ?>
 
-                    <!-- Opsi Jawaban Pilihan Ganda -->
                     <?php if ($s['jenis_soal'] !== 'essai'): ?>
-                        <div style="margin-bottom: 0.75rem;">
+                        <div class="opt-list">
                             <?php foreach ($s['opsi'] as $opt): ?>
                                 <?php
                                     if (empty($opt['text']) && $opt['text'] !== '0') continue;
 
-                                    $isStudentChoice = ($s['jawaban_terpilih'] === $opt['code']);
-                                    $isKey           = ($s['kunci_jawaban'] === $opt['code']);
+                                    $isChoice = ($s['jawaban_terpilih'] === $opt['code']);
+                                    $isKey    = ($s['kunci_jawaban'] === $opt['code']);
 
-                                    $optClass = '';
-                                    $badgeLabel = '';
+                                    $cls = '';
+                                    $tag = '';
 
-                                    if ($isStudentChoice && $isKey) {
-                                        $optClass = 'chosen-correct';
-                                        $badgeLabel = '<span class="badge" style="background:#22c55e; color:#ffffff; font-weight:700; font-size:0.75rem;">✓ Jawaban Siswa & Kunci Benar</span>';
-                                    } elseif ($isStudentChoice && !$isKey) {
-                                        $optClass = 'chosen-wrong';
-                                        $badgeLabel = '<span class="badge" style="background:#ef4444; color:#ffffff; font-weight:700; font-size:0.75rem;">✕ Jawaban Siswa (Salah)</span>';
-                                    } elseif (!$isStudentChoice && $isKey) {
-                                        $optClass = 'correct-key-only';
-                                        $badgeLabel = '<span class="badge" style="background:#16a34a; color:#ffffff; font-weight:700; font-size:0.75rem;">★ Kunci Jawaban Benar</span>';
+                                    if ($isChoice && $isKey) {
+                                        $cls = 'is-correct-choice';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa & Kunci Benar]</span>';
+                                    } elseif ($isChoice && !$isKey) {
+                                        $cls = 'is-wrong-choice';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa]</span>';
+                                    } elseif (!$isChoice && $isKey) {
+                                        $cls = 'is-key-target';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Kunci Benar]</span>';
                                     }
                                 ?>
-                                <div class="opsi-inspect-item <?= $optClass ?>">
-                                    <div class="opsi-inspect-code"><?= $opt['code'] ?></div>
-                                    <div style="flex: 1; line-height: 1.45;">
-                                        <?= sanitize($opt['text']) ?>
-                                    </div>
-                                    <?php if ($badgeLabel): ?>
-                                        <div style="margin-left: auto; flex-shrink: 0;">
-                                            <?= $badgeLabel ?>
-                                        </div>
-                                    <?php endif; ?>
+                                <div class="opt-item <?= $cls ?>">
+                                    <span style="font-weight:700;"><?= $opt['code'] ?>.</span>
+                                    <span><?= sanitize($opt['text']) ?></span>
+                                    <?= $tag ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
-
-                        <!-- Ringkasan Singkat Bawah Soal PG -->
-                        <div style="background: #f8fafc; border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.84rem; display: flex; gap: 1.5rem; flex-wrap: wrap; color: var(--gray-700); border: 1px solid var(--gray-200);">
-                            <div>
-                                Jawaban Siswa: 
-                                <?php if ($s['jawaban_terpilih']): ?>
-                                    <strong style="font-size: 0.95rem; color: <?= $s['is_correct'] ? '#16a34a' : '#dc2626' ?>;">
-                                        Opsi <?= $s['jawaban_terpilih'] ?>
-                                    </strong>
-                                <?php else: ?>
-                                    <span class="text-muted font-bold">(Kosong / Tidak Dijawab)</span>
-                                <?php endif; ?>
-                            </div>
-                            <div>
-                                Kunci Jawaban Resmi: 
-                                <strong style="font-size: 0.95rem; color: #16a34a;">
-                                    Opsi <?= $s['kunci_jawaban'] ?: '-' ?>
-                                </strong>
-                            </div>
-                            <?php if (!empty($s['waktu_jawab'])): ?>
-                                <div class="text-muted" style="margin-left: auto; font-size: 0.78rem;">
-                                    Tersimpan: <?= date('d/m/y H:i:s', strtotime($s['waktu_jawab'])) ?>
+                    <?php else: ?>
+                        <div class="essay-box">
+                            <?php if (!empty($s['kunci_jawaban'])): ?>
+                                <div style="font-size:0.8rem;color:#64748b;font-weight:600;margin-bottom:0.25rem;">Pedoman Jawaban:</div>
+                                <div style="font-size:0.9rem;color:#1e293b;margin-bottom:0.65rem;">
+                                    <?= nl2br(sanitize($s['kunci_jawaban'])) ?>
                                 </div>
                             <?php endif; ?>
-                        </div>
 
-                    <?php else: ?>
-                        <!-- Bagian Khusus Soal Essai -->
-                        <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 1rem 1.25rem;">
-                            <div style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-bottom: 0.35rem;">
-                                📋 Pedoman / Kunci Jawaban Essai:
-                            </div>
-                            <div style="font-size: 0.92rem; color: var(--gray-900); background: #ffffff; padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--gray-200);">
-                                <?= !empty($s['kunci_jawaban']) ? nl2br(sanitize($s['kunci_jawaban'])) : '<em class="text-muted">Tidak ada catatan pedoman kunci jawaban dari guru.</em>' ?>
-                            </div>
-                            <p class="text-xs text-muted" style="margin: 0.5rem 0 0.85rem 0;">
-                                Siswa mengerjakan butir soal ini langsung pada lembar kertas ujian. Silakan masukkan nilai yang diperoleh siswa di bawah ini:
-                            </p>
-
-                            <!-- Kotak Input Nilai Essai -->
-                            <div class="no-print" style="background: #faf5ff; border: 1.5px solid #d8b4fe; border-radius: 8px; padding: 0.85rem 1.15rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem;">
-                                    <label for="input_nilai_<?= $s['id_soal'] ?>" style="font-weight: 700; font-size: 0.92rem; color: #6b21a8;">
-                                        ✏️ Nilai untuk Soal No. <?= $s['nomor'] ?> (Skala 0 - 100):
-                                    </label>
-                                    <?php if ($s['nilai_soal'] !== null): ?>
-                                        <span class="badge badge-online" style="font-size: 0.78rem;">✓ Tersimpan: <?= (float)$s['nilai_soal'] ?> / 100</span>
-                                    <?php else: ?>
-                                        <span class="badge" style="background:#fef3c7; color:#b45309; font-size: 0.78rem;">Belum Dinilai</span>
-                                    <?php endif; ?>
-                                </div>
-                                <div style="display: flex; gap: 0.65rem; align-items: center;">
-                                    <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="input_nilai_<?= $s['id_soal'] ?>" class="form-control font-bold" min="0" max="100" step="0.5" placeholder="0 - 100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="max-width: 140px; font-size: 1.15rem; text-align: center; border: 2px solid #a855f7; background: #ffffff;">
-                                    <span style="font-weight: 700; color: #6b21a8; font-size: 0.95rem;">/ 100</span>
-                                </div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
+                                <label for="nilai_<?= $s['id_soal'] ?>" style="font-size:0.85rem;font-weight:600;color:#334155;">
+                                    Nilai Soal Ini:
+                                </label>
+                                <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="nilai_<?= $s['id_soal'] ?>" class="form-control" min="0" max="100" step="0.5" placeholder="0-100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="width:90px;text-align:center;padding:0.3rem 0.5rem;font-weight:600;">
+                                <span style="font-size:0.85rem;color:#64748b;">/ 100</span>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -827,36 +616,20 @@ $flash = flash_get();
             <?php endforeach; ?>
         <?php endif; ?>
 
-        <!-- Bottom Action Bar untuk Simpan Nilai Essai -->
         <?php if ($statEssai > 0): ?>
-            <div class="card no-print btn-save-essai-box" style="background: #faf5ff; border: 1.5px solid #c084fc; padding: 1.25rem 1.5rem; margin-top: 1.5rem; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
-                <div class="flex-between" style="flex-wrap: wrap; gap: 1rem; align-items: center;">
-                    <div>
-                        <h3 style="font-size: 1.1rem; font-weight: 800; color: #581c87; margin: 0 0 0.25rem 0;">
-                            Simpan Penilaian Soal Uraian / Essai
-                        </h3>
-                        <p class="text-xs text-muted" style="margin: 0;">
-                            Klik tombol di samping untuk menyimpan nilai seluruh butir uraian di atas dan memperbarui <strong>Nilai Akhir</strong> siswa secara otomatis.
-                        </p>
-                    </div>
-                    <div>
-                        <button type="submit" class="btn btn-primary" style="background: #7e22ce; border-color: #6b21a8; font-weight: 800; padding: 0.65rem 1.5rem; font-size: 0.95rem; box-shadow: var(--shadow-sm);">
-                            💾 Simpan Nilai Essai & Hitung Nilai Akhir
-                        </button>
-                    </div>
-                </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+                <span style="font-size:0.85rem;color:#64748b;">Klik simpan setelah mengisi nilai seluruh butir soal essai.</span>
+                <button type="submit" class="btn btn-primary" style="font-weight:600;">
+                    Simpan Nilai Essai
+                </button>
             </div>
         <?php endif; ?>
     </form>
 
-    <!-- Tombol Navigasi Bawah -->
-    <div class="flex-between mt-4 mb-4 no-print">
-        <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline">
-            ◄ Kembali ke Rekap Nilai
+    <div style="margin: 1.5rem 0 3rem 0;">
+        <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+            Kembali ke Rekap Nilai
         </a>
-        <button type="button" class="btn btn-primary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
-            ▲ Kembali ke Atas
-        </button>
     </div>
 </main>
 

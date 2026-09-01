@@ -1,6 +1,6 @@
 <?php
 /**
- * Modul Import Butir Soal Massal via CSV
+ * Modul Import Butir Soal Massal via CSV (Mendukung Pilihan Ganda & Essai)
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -18,8 +18,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
     // Beritahu Excel untuk memecah kolom dengan koma secara otomatis
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'kunci_jawaban']);
+    fputcsv($output, ['jenis_soal', 'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'kunci_jawaban']);
+    
+    // Contoh 1: Pilihan Ganda (Bisa ditulis 'pg' atau 'pilihan_ganda')
     fputcsv($output, [
+        'pg',
         'Ibu kota negara Indonesia yang baru sesuai undang-undang adalah...',
         'Jakarta',
         'Nusantara',
@@ -28,15 +31,43 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
         'Medan',
         'B'
     ]);
+    
+    // Contoh 2: Pilihan Ganda
     fputcsv($output, [
+        'pg',
         'Manakah di bawah ini yang merupakan sistem operasi open source?',
         'Windows 11',
         'macOS Sequoia',
         'Linux Ubuntu',
         'iOS 17',
-        'ChromeOS Pro',
+        '',
         'C'
     ]);
+
+    // Contoh 3: Soal Essai / Uraian (Opsi A-E dikosongkan)
+    fputcsv($output, [
+        'essai',
+        'Sebutkan 3 contoh sumber energi terbarukan dan jelaskan manfaatnya bagi lingkungan!',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Energi surya (matahari), energi angin, dan energi air. Manfaatnya ramah lingkungan dan tidak menghasilkan polusi udara.'
+    ]);
+
+    // Contoh 4: Soal Essai / Uraian
+    fputcsv($output, [
+        'essai',
+        'Jelaskan perbedaan antara kalimat utama dan ide pokok dalam sebuah paragraf!',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Kalimat utama adalah kalimat yang memuat ide pokok, sedangkan ide pokok adalah inti atau gagasan utama paragraf.'
+    ]);
+
     fclose($output);
     exit;
 }
@@ -64,81 +95,213 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $tmpPath = $_FILES['csv_file']['tmp_name'];
-    $handle  = fopen($tmpPath, 'r');
-    if ($handle === false) {
-        flash_set('danger', 'Gagal membuka berkas CSV yang diunggah.');
+    $rawContent = file_get_contents($tmpPath);
+    if ($rawContent === false || trim($rawContent) === '') {
+        flash_set('danger', 'Berkas CSV kosong atau tidak dapat dibaca.');
         redirect(base_url('guru/import_soal.php'));
     }
 
-    $imported = 0;
-    $skipped  = 0;
-    $rowIndex = 0;
+    // Bersihkan UTF-8 BOM jika ada
+    if (str_starts_with($rawContent, "\xEF\xBB\xBF")) {
+        $rawContent = substr($rawContent, 3);
+    }
+
+    // Deteksi pemisah terbaik (koma, titik koma, atau tab) dari baris-baris data
+    $lines = explode("\n", $rawContent);
+    $checkLines = [];
+    foreach ($lines as $l) {
+        $trimmed = trim($l);
+        if ($trimmed === '' || str_starts_with(strtolower($trimmed), 'sep=')) continue;
+        $checkLines[] = $trimmed;
+        if (count($checkLines) >= 5) break;
+    }
+    $sampleText = implode("\n", $checkLines);
+
+    $commaCount = substr_count($sampleText, ',');
+    $semiCount  = substr_count($sampleText, ';');
+    $tabCount   = substr_count($sampleText, "\t");
+
+    $delimiter = ',';
+    if ($semiCount > $commaCount && $semiCount > $tabCount) {
+        $delimiter = ';';
+    } elseif ($tabCount > $commaCount && $tabCount > $semiCount) {
+        $delimiter = "\t";
+    }
+
+    $handle = fopen($tmpPath, 'r');
+    if ($handle === false) {
+        flash_set('danger', 'Gagal membuka berkas CSV.');
+        redirect(base_url('guru/import_soal.php'));
+    }
+
+    $importedPG    = 0;
+    $importedEssai = 0;
+    $skipped       = 0;
+    $headerMap     = null;
 
     $stmtIns = $db->prepare("
-        INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
-        VALUES (:g, :m, :j, :p, :oa, :ob, :oc, :od, :oe, :k)
+        INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
+        VALUES (:g, :m, :j, :jenis, :p, :oa, :ob, :oc, :od, :oe, :k)
     ");
 
-    // Deteksi otomatis pemisah kolom (koma atau titik koma)
-    $sampleLine = fgets($handle);
-    $delimiter = ',';
-    if ($sampleLine !== false) {
-        $semiCount = substr_count($sampleLine, ';');
-        $commaCount = substr_count($sampleLine, ',');
-        if ($semiCount > $commaCount) {
-            $delimiter = ';';
-        }
-    }
-    rewind($handle);
+    while (($row = fgetcsv($handle, 8192, $delimiter)) !== false) {
+        if (empty($row)) continue;
 
-    while (($row = fgetcsv($handle, 4096, $delimiter)) !== false) {
+        // Bersihkan UTF-8 BOM dan spasi pada kolom pertama
+        if (isset($row[0])) {
+            $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', trim($row[0]));
+        }
+
         // Abaikan baris kosong atau baris penunjuk sep=...
-        if (empty($row) || (isset($row[0]) && str_starts_with(trim($row[0]), 'sep='))) {
-            continue;
+        if (empty($row[0]) && count(array_filter($row)) === 0) continue;
+        if (str_starts_with(strtolower($row[0]), 'sep=')) continue;
+
+        if ($headerMap === null) {
+            $headerMap = [
+                'jenis'      => null,
+                'pertanyaan' => null,
+                'opsi_a'     => null,
+                'opsi_b'     => null,
+                'opsi_c'     => null,
+                'opsi_d'     => null,
+                'opsi_e'     => null,
+                'kunci'      => null
+            ];
+
+            foreach ($row as $colIdx => $colName) {
+                $clean = strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $colName)));
+                if (in_array($clean, ['jenissoal', 'jenis', 'type'], true)) {
+                    $headerMap['jenis'] = $colIdx;
+                } elseif (in_array($clean, ['pertanyaan', 'soal', 'soalpertanyaan', 'question'], true)) {
+                    $headerMap['pertanyaan'] = $colIdx;
+                } elseif (in_array($clean, ['opsia', 'a', 'pilihan1', 'pilihana'], true)) {
+                    $headerMap['opsi_a'] = $colIdx;
+                } elseif (in_array($clean, ['opsib', 'b', 'pilihan2', 'pilihanb'], true)) {
+                    $headerMap['opsi_b'] = $colIdx;
+                } elseif (in_array($clean, ['opsic', 'c', 'pilihan3', 'pilihanc'], true)) {
+                    $headerMap['opsi_c'] = $colIdx;
+                } elseif (in_array($clean, ['opsid', 'd', 'pilihan4', 'pilihand'], true)) {
+                    $headerMap['opsi_d'] = $colIdx;
+                } elseif (in_array($clean, ['opsie', 'e', 'pilihan5', 'pilihane'], true)) {
+                    $headerMap['opsi_e'] = $colIdx;
+                } elseif (in_array($clean, ['kuncijawaban', 'kunci', 'jawaban', 'answer', 'key'], true)) {
+                    $headerMap['kunci'] = $colIdx;
+                }
+            }
+
+            // Fallback posisi kolom jika nama header tidak terdeteksi
+            if ($headerMap['pertanyaan'] === null) {
+                $firstCell = strtolower(trim($row[0] ?? ''));
+                if ($firstCell === 'no' || is_numeric($firstCell)) {
+                    $headerMap['jenis']      = 1;
+                    $headerMap['pertanyaan'] = 2;
+                    $headerMap['opsi_a']     = 3;
+                    $headerMap['opsi_b']     = 4;
+                    $headerMap['opsi_c']     = 5;
+                    $headerMap['opsi_d']     = 6;
+                    $headerMap['opsi_e']     = 7;
+                    $headerMap['kunci']      = 8;
+                } elseif (in_array($firstCell, ['jenis_soal', 'jenis', 'pg', 'pilihan_ganda', 'essai'])) {
+                    $headerMap['jenis']      = 0;
+                    $headerMap['pertanyaan'] = 1;
+                    $headerMap['opsi_a']     = 2;
+                    $headerMap['opsi_b']     = 3;
+                    $headerMap['opsi_c']     = 4;
+                    $headerMap['opsi_d']     = 5;
+                    $headerMap['opsi_e']     = 6;
+                    $headerMap['kunci']      = 7;
+                } else {
+                    $headerMap['jenis']      = null;
+                    $headerMap['pertanyaan'] = 0;
+                    $headerMap['opsi_a']     = 1;
+                    $headerMap['opsi_b']     = 2;
+                    $headerMap['opsi_c']     = 3;
+                    $headerMap['opsi_d']     = 4;
+                    $headerMap['opsi_e']     = 5;
+                    $headerMap['kunci']      = 6;
+                }
+            }
+            continue; // Header selesai diproses
         }
 
-        $rowIndex++;
-        if ($rowIndex === 1) continue; // Lewati header kolom
-
-        $pertanyaan = trim($row[0] ?? '');
-        $oa         = trim($row[1] ?? '');
-        $ob         = trim($row[2] ?? '');
-        $oc         = trim($row[3] ?? '');
-        $od         = trim($row[4] ?? '');
-        $oe         = trim($row[5] ?? '');
-        $kunci      = strtoupper(trim($row[6] ?? ''));
-
-        // Validasi kelengkapan minimal (pertanyaan, opsi A-D, kunci A-E)
-        if ($pertanyaan === '' || $oa === '' || $ob === '' || $oc === '' || $od === '' || !in_array($kunci, ['A', 'B', 'C', 'D', 'E'], true)) {
+        $pertanyaan = trim($row[$headerMap['pertanyaan']] ?? '');
+        if ($pertanyaan === '') {
             $skipped++;
             continue;
         }
 
+        $rawJenis = $headerMap['jenis'] !== null ? strtolower(trim($row[$headerMap['jenis']] ?? '')) : '';
+        $oa       = $headerMap['opsi_a'] !== null ? trim($row[$headerMap['opsi_a']] ?? '') : '';
+        $ob       = $headerMap['opsi_b'] !== null ? trim($row[$headerMap['opsi_b']] ?? '') : '';
+        $oc       = $headerMap['opsi_c'] !== null ? trim($row[$headerMap['opsi_c']] ?? '') : '';
+        $od       = $headerMap['opsi_d'] !== null ? trim($row[$headerMap['opsi_d']] ?? '') : '';
+        $oe       = $headerMap['opsi_e'] !== null ? trim($row[$headerMap['opsi_e']] ?? '') : '';
+        $kunci    = $headerMap['kunci'] !== null ? trim($row[$headerMap['kunci']] ?? '') : '';
+
+        if ($rawJenis === '') {
+            $rawJenis = ($oa === '' && $ob === '') ? 'essai' : 'pg';
+        }
+
+        $isEssai = in_array($rawJenis, ['essai', 'uraian', 'essay', 'esay', 'u'], true);
+
+        if ($isEssai) {
+            // Soal Essai / Uraian
+            $jenisDb = 'essai';
+            $oaDb = null;
+            $obDb = null;
+            $ocDb = null;
+            $odDb = null;
+            $oeDb = null;
+            // Fallback kunci jika kolom bergeser
+            if ($kunci === '' && isset($row[6]) && trim($row[6]) !== '' && $oa === '' && $ob === '') {
+                $kunci = trim($row[6]);
+            }
+            $kunciDb = ($kunci !== '') ? $kunci : null;
+            $importedEssai++;
+        } else {
+            // Soal Pilihan Ganda
+            $jenisDb = 'pilihan_ganda';
+            $kunciUpper = strtoupper($kunci);
+            if ($oa === '' || $ob === '' || $oc === '' || $od === '' || !in_array($kunciUpper, ['A', 'B', 'C', 'D', 'E'], true)) {
+                $skipped++;
+                continue;
+            }
+            $oaDb = $oa;
+            $obDb = $ob;
+            $ocDb = $oc;
+            $odDb = $od;
+            $oeDb = ($oe !== '' ? $oe : null);
+            $kunciDb = $kunciUpper;
+            $importedPG++;
+        }
+
         try {
             $stmtIns->execute([
-                ':g'  => $idGuru,
-                ':m'  => $idMapel,
-                ':j'  => $judulSoal,
-                ':p'  => $pertanyaan,
-                ':oa' => $oa,
-                ':ob' => $ob,
-                ':oc' => $oc,
-                ':od' => $od,
-                ':oe' => ($oe !== '' ? $oe : null),
-                ':k'  => $kunci
+                ':g'     => $idGuru,
+                ':m'     => $idMapel,
+                ':j'     => $judulSoal,
+                ':jenis' => $jenisDb,
+                ':p'     => $pertanyaan,
+                ':oa'    => $oaDb,
+                ':ob'    => $obDb,
+                ':oc'    => $ocDb,
+                ':od'    => $odDb,
+                ':oe'    => $oeDb,
+                ':k'     => $kunciDb
             ]);
-            $imported++;
         } catch (Exception $e) {
+            if ($isEssai) $importedEssai--; else $importedPG--;
             $skipped++;
         }
     }
 
     fclose($handle);
 
-    if ($imported > 0) {
-        flash_set('success', "Berhasil mengimpor {$imported} butir soal ke paket '{$judulSoal}'. (Dilewati: {$skipped})");
+    $totalImported = $importedPG + $importedEssai;
+    if ($totalImported > 0) {
+        flash_set('success', "Berhasil mengimpor {$totalImported} butir soal ({$importedPG} PG, {$importedEssai} Essai) ke paket '{$judulSoal}'." . ($skipped > 0 ? " (Dilewati: {$skipped})" : ''));
     } else {
-        flash_set('warning', "Tidak ada soal yang berhasil diimpor. Pastikan format CSV sesuai template.");
+        flash_set('warning', "Tidak ada soal yang berhasil diimpor. Pastikan file CSV memiliki kolom dan isi yang sesuai template.");
     }
     redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
 }
@@ -156,6 +319,7 @@ $flash = flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Import Soal Massal - CBT Guru</title>
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body>
@@ -163,7 +327,10 @@ $flash = flash_get();
 <header class="cbt-navbar">
     <div class="cbt-navbar-header">
         <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
             <span>CBT GURU</span>
         </a>
         <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
@@ -233,7 +400,6 @@ $flash = flash_get();
             </div>
 
             <!-- 3. Berkas CSV (Pertanyaan) -->
-
             <div class="form-group mt-3">
                 <label for="csv_file">Berkas CSV Soal <span class="text-danger">*</span></label>
                 <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv" required>
@@ -244,6 +410,18 @@ $flash = flash_get();
                 <button type="submit" class="btn btn-primary btn-lg">Mulai Import Soal</button>
             </div>
         </form>
+    </div>
+
+    <!-- Panduan Format CSV -->
+    <div class="card" style="padding: 1.25rem; font-size: 0.9rem;">
+        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--gray-900);">Petunjuk Format Berkas CSV</h3>
+        <p class="text-muted text-xs" style="margin-bottom: 0.75rem;">
+            Berkas CSV mendukung butir soal <strong>Pilihan Ganda</strong> dan <strong>Essai / Uraian</strong> secara bersamaan dalam satu paket:
+        </p>
+        <ul style="padding-left: 1.25rem; line-height: 1.6; color: var(--gray-700); font-size: 0.85rem;">
+            <li><strong>Soal Pilihan Ganda:</strong> Isi kolom <code>jenis_soal</code> dengan <code>pg</code> (atau <code>pilihan_ganda</code>), isi pertanyaan, isi <code>opsi_a</code> s/d <code>opsi_d</code> (opsi E opsional), dan isi <code>kunci_jawaban</code> dengan huruf opsi (<code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>, atau <code>E</code>).</li>
+            <li><strong>Soal Essai / Uraian:</strong> Isi kolom <code>jenis_soal</code> dengan <code>essai</code> (atau <code>uraian</code>), isi pertanyaan, kosongkan kolom <code>opsi_a</code> s/d <code>opsi_e</code>, dan isi <code>kunci_jawaban</code> dengan pedoman kunci jawaban guru (opsional).</li>
+        </ul>
     </div>
 </main>
 

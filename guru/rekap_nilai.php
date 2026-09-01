@@ -127,6 +127,7 @@ $flash = flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Rekapitulasi Nilai Ujian - CBT Guru</title>
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body>
@@ -134,7 +135,10 @@ $flash = flash_get();
 <header class="cbt-navbar no-print">
     <div class="cbt-navbar-header">
         <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
             <span>CBT GURU</span>
         </a>
         <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
@@ -156,7 +160,7 @@ $flash = flash_get();
     </nav>
 </header>
 
-<main class="container">
+<main class="container" style="max-width: 1380px;">
     <?php if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?> no-print">
             <?= sanitize($flash['message']) ?>
@@ -210,38 +214,48 @@ $flash = flash_get();
 
             <!-- Tabel Nilai Siswa (Auto-Card on Mobile) -->
             <div class="table-responsive table-mobile-cards">
-                <table class="table">
+                <table class="table" style="table-layout: auto;">
                     <thead>
                         <tr>
-                            <th style="width: 40px;">No</th>
-                            <th>NIS</th>
-                            <th>Username</th>
-                            <th>Nama Siswa</th>
-                            <th>Waktu Mulai</th>
-                            <th>Waktu Selesai</th>
-                            <th>Status</th>
-                            <th style="text-align: center;">Benar (PG)</th>
-                            <th style="text-align: center;">Nilai PG</th>
+                            <th style="width: 40px; text-align: center;">No</th>
+                            <th style="width: 105px;">NIS / Akun</th>
+                            <th style="min-width: 170px;">Nama Lengkap Siswa</th>
+                            <th style="width: 120px;">Waktu</th>
+                            <th style="text-align: center; width: 130px;">Status</th>
+                            <th style="text-align: center; width: 85px;">Benar</th>
+                            <th style="text-align: center; width: 85px;">Nilai PG</th>
                             <?php if ($totalEssai > 0): ?>
-                                <th style="text-align: center;">Nilai Essai</th>
+                                <th style="text-align: center; width: 95px;">Nilai Essai</th>
                             <?php endif; ?>
-                            <th style="text-align: center;">Nilai Akhir</th>
-                            <th style="text-align: center;" class="no-print">Aksi</th>
+                            <th style="text-align: center; width: 95px;">Nilai Akhir</th>
+                            <th style="text-align: center; width: 125px;" class="no-print">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($rekapList)): ?>
-                            <tr><td colspan="<?= $totalEssai > 0 ? 11 : 10 ?>" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
+                            <tr><td colspan="<?= $totalEssai > 0 ? 10 : 9 ?>" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
                         <?php else: ?>
                             <?php foreach ($rekapList as $idx => $r): ?>
                                 <tr>
-                                    <td data-label="No"><?= $idx + 1 ?></td>
-                                    <td data-label="NIS"><span class="badge" style="background:#e0f2fe; color:#0369a1; font-family:monospace;"><?= sanitize($r['nis'] ?? '-') ?></span></td>
-                                    <td data-label="Username"><strong><?= sanitize($r['username']) ?></strong></td>
-                                    <td data-label="Nama Siswa"><?= sanitize($r['nama_lengkap']) ?></td>
-                                    <td data-label="Mulai" class="text-xs"><?= $r['waktu_mulai'] ? date('d/m/y H:i', strtotime($r['waktu_mulai'])) : '-' ?></td>
-                                    <td data-label="Selesai" class="text-xs"><?= $r['waktu_selesai'] ? date('d/m/y H:i', strtotime($r['waktu_selesai'])) : '-' ?></td>
-                                    <td data-label="Status">
+                                    <td data-label="No" style="text-align: center;"><?= $idx + 1 ?></td>
+                                    <td data-label="NIS / Akun">
+                                        <span class="badge" style="background:#e0f2fe; color:#0369a1; font-family:monospace; font-weight: 700;"><?= sanitize($r['nis'] ?: $r['username']) ?></span>
+                                        <?php if ($r['nis'] && $r['nis'] !== $r['username']): ?>
+                                            <div class="text-xs text-muted" style="font-family: monospace;"><?= sanitize($r['username']) ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td data-label="Nama Siswa">
+                                        <strong style="color: var(--gray-900);"><?= sanitize($r['nama_lengkap']) ?></strong>
+                                    </td>
+                                    <td data-label="Waktu">
+                                        <?php if ($r['waktu_mulai']): ?>
+                                            <div class="text-xs font-bold" style="color: var(--gray-800);"><?= date('H:i', strtotime($r['waktu_mulai'])) ?> - <?= $r['waktu_selesai'] ? date('H:i', strtotime($r['waktu_selesai'])) : '...' ?></div>
+                                            <div class="text-xs text-muted"><?= date('d/m/Y', strtotime($r['waktu_mulai'])) ?></div>
+                                        <?php else: ?>
+                                            <span class="text-muted text-xs font-bold">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td data-label="Status" style="text-align: center;">
                                         <?php if ($r['status_ujian'] === 'selesai'): ?>
                                             <span class="badge badge-online">SELESAI</span>
                                         <?php elseif ($r['status_ujian'] === 'sedang'): ?>
@@ -250,16 +264,16 @@ $flash = flash_get();
                                             <span class="badge badge-offline">BELUM MENGERJAKAN</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td data-label="Benar (PG)" style="text-align: center; font-weight: 600;">
+                                    <td data-label="Benar" style="text-align: center; font-weight: 600;">
                                         <?= $r['jumlah_benar'] ?> / <?= $totalPG ?>
                                     </td>
-                                    <td data-label="Nilai PG" style="text-align: center; font-size: 1rem; font-weight: 700; color: #1e40af;">
+                                    <td data-label="Nilai PG" style="text-align: center; font-size: 0.95rem; font-weight: 700; color: #1e40af;">
                                         <?= number_format((float)$r['nilai_pg'], 2) ?>
                                     </td>
                                     <?php if ($totalEssai > 0): ?>
                                         <td data-label="Nilai Essai" style="text-align: center;">
                                             <?php if ($r['nilai_essai'] !== null): ?>
-                                                <strong style="color: #7e22ce; font-size: 1rem;"><?= number_format((float)$r['nilai_essai'], 2) ?></strong>
+                                                <strong style="color: #7e22ce; font-size: 0.95rem;"><?= number_format((float)$r['nilai_essai'], 2) ?></strong>
                                             <?php elseif (!empty($r['id_ujian_siswa'])): ?>
                                                 <span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.75rem;">Belum Dinilai</span>
                                             <?php else: ?>
@@ -267,13 +281,13 @@ $flash = flash_get();
                                             <?php endif; ?>
                                         </td>
                                     <?php endif; ?>
-                                    <td data-label="Nilai Akhir" style="text-align: center; font-size: 1.15rem; font-weight: 800; color: <?= ($r['nilai_akhir'] >= 75) ? '#166534' : '#991b1b' ?>;">
+                                    <td data-label="Nilai Akhir" style="text-align: center; font-size: 1.1rem; font-weight: 800; color: <?= ($r['nilai_akhir'] >= 75) ? '#166534' : '#991b1b' ?>;">
                                         <?= number_format((float)$r['nilai_akhir'], 2) ?>
                                     </td>
-                                    <td data-label="Aksi" class="no-print" style="text-align: center;">
+                                    <td data-label="Aksi" class="no-print" style="text-align: center; white-space: nowrap;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
-                                            <a href="<?= base_url('guru/detail_jawaban.php?id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                            <a href="<?= base_url('guru/detail_jawaban.php?id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                 <span>Detail & Nilai</span>
                                             </a>
                                         <?php else: ?>
@@ -289,10 +303,9 @@ $flash = flash_get();
 
             <?php if ($totalEssai > 0): ?>
                 <div class="alert alert-info mt-3 no-print" style="font-size: 0.85rem; padding: 0.65rem 0.95rem; margin-bottom: 0;">
-                    <strong>ℹ️ Keterangan:</strong> Terdapat <strong><?= $totalEssai ?> butir soal uraian/essai</strong> pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai essai siswa.
+                    <strong>Keterangan:</strong> Terdapat <?= $totalEssai ?> butir soal uraian/essai pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai essai siswa.
                 </div>
             <?php endif; ?>
-        </div>
         </div>
     <?php else: ?>
         <div class="card text-center" style="padding: 3rem 0;">
