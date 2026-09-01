@@ -33,11 +33,11 @@ if (!verify_csrf($csrfToken)) {
 
 $idUjianSiswa    = (int)($input['id_ujian_siswa'] ?? 0);
 $idSoal          = (int)($input['id_soal'] ?? 0);
-$jawabanTerpilih = trim($input['jawaban_terpilih'] ?? '');
+$jawabanTerpilih = trim($input['jawaban_terpilih'] ?? $input['jawaban'] ?? '');
 $sisaDetik       = isset($input['sisa_detik']) ? (int)$input['sisa_detik'] : null;
 
 if ($idUjianSiswa <= 0 || $idSoal <= 0) {
-    json_response(['success' => false, 'message' => 'Data parameter tidak lengkap.'], 422);
+    json_response(['success' => false, 'status' => 'error', 'message' => 'Data parameter tidak lengkap.'], 422);
 }
 
 $db = get_db();
@@ -53,11 +53,11 @@ try {
     $ujian = $stmtCek->fetch();
 
     if (!$ujian) {
-        json_response(['success' => false, 'message' => 'Sesi pengerjaan tidak ditemukan.'], 404);
+        json_response(['success' => false, 'status' => 'error', 'message' => 'Sesi pengerjaan tidak ditemukan.'], 404);
     }
 
     if ($ujian['status'] !== 'sedang') {
-        json_response(['success' => false, 'message' => 'Sesi ujian ini telah ditutup atau selesai.'], 403);
+        json_response(['success' => false, 'status' => 'error', 'message' => 'Sesi ujian ini telah ditutup atau selesai.'], 403);
     }
 
     // 2. Upsert Jawaban Siswa ke Tabel jawaban_siswa
@@ -83,6 +83,7 @@ try {
 
     json_response([
         'success' => true,
+        'status'  => 'success',
         'message' => 'Jawaban berhasil disimpan otomatis.',
         'data' => [
             'id_soal' => $idSoal,

@@ -205,11 +205,12 @@ $flash = flash_get();
                             <th>Status</th>
                             <th style="text-align: center;">Benar</th>
                             <th style="text-align: center;">Nilai Akhir</th>
+                            <th style="text-align: center;" class="no-print">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($rekapList)): ?>
-                            <tr><td colspan="9" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
+                            <tr><td colspan="10" class="text-center text-muted" style="padding: 2rem;">Belum ada data siswa di kelas ini.</td></tr>
                         <?php else: ?>
                             <?php foreach ($rekapList as $idx => $r): ?>
                                 <tr>
@@ -233,6 +234,16 @@ $flash = flash_get();
                                     </td>
                                     <td data-label="Nilai Akhir" style="text-align: center; font-size: 1.1rem; font-weight: 800; color: <?= ($r['nilai_akhir'] >= 75) ? '#166534' : '#991b1b' ?>;">
                                         <?= number_format((float)$r['nilai_akhir'], 2) ?>
+                                    </td>
+                                    <td data-label="Aksi" class="no-print" style="text-align: center;">
+                                        <?php if (!empty($r['id_ujian_siswa'])): ?>
+                                            <a href="<?= base_url('guru/detail_jawaban.php?id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                <span>Detail Jawaban</span>
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="text-muted text-xs font-bold">-</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

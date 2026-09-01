@@ -28,10 +28,11 @@ if (!verify_csrf($csrfToken)) {
 
 $idUjianSiswa = (int)($input['id_ujian_siswa'] ?? 0);
 $idSoal       = (int)($input['id_soal'] ?? 0);
-$statusRagu   = !empty($input['status_ragu']) ? 'true' : 'false';
+$isRaguVal    = $input['status_ragu'] ?? false;
+$statusRagu   = ($isRaguVal === true || $isRaguVal === 'true' || $isRaguVal === 1 || $isRaguVal === '1') ? 'true' : 'false';
 
 if ($idUjianSiswa <= 0 || $idSoal <= 0) {
-    json_response(['success' => false, 'message' => 'Parameter tidak lengkap.'], 422);
+    json_response(['success' => false, 'status' => 'error', 'message' => 'Parameter tidak lengkap.'], 422);
 }
 
 $db = get_db();
@@ -47,7 +48,7 @@ try {
     $ujian = $stmtCek->fetch();
 
     if (!$ujian || $ujian['status'] !== 'sedang') {
-        json_response(['success' => false, 'message' => 'Sesi tidak valid.'], 403);
+        json_response(['success' => false, 'status' => 'error', 'message' => 'Sesi tidak valid.'], 403);
     }
 
     // Upsert status ragu-ragu
@@ -65,7 +66,7 @@ try {
         ':ragu' => $statusRagu
     ]);
 
-    json_response(['success' => true, 'message' => 'Status ragu berhasil diperbarui.']);
+    json_response(['success' => true, 'status' => 'success', 'message' => 'Status ragu berhasil diperbarui.']);
 } catch (Exception $e) {
-    json_response(['success' => false, 'message' => 'Terjadi kesalahan basis data.'], 500);
+    json_response(['success' => false, 'status' => 'error', 'message' => 'Terjadi kesalahan basis data: ' . $e->getMessage()], 500);
 }

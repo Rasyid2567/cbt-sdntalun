@@ -254,10 +254,12 @@ class CBTExamManager {
         this.setSyncStatus('saving', 'Menyimpan...');
 
         const payload = {
-            id_ujian_siswa: this.idUjianSiswa,
-            id_soal:        idSoal,
-            jawaban:        jawaban,
-            csrf_token:     this.csrfToken
+            id_ujian_siswa:   this.idUjianSiswa,
+            id_soal:          idSoal,
+            jawaban:          jawaban,
+            jawaban_terpilih: jawaban,
+            sisa_detik:       (this.timerInstance && typeof this.timerInstance.remainingSeconds === 'number') ? this.timerInstance.remainingSeconds : null,
+            csrf_token:       this.csrfToken
         };
 
         fetch(this.saveUrl, {
@@ -273,7 +275,7 @@ class CBTExamManager {
             return response.json();
         })
         .then(data => {
-            if (data.status === 'success') {
+            if (data.success || data.status === 'success') {
                 this.setSyncStatus('saved', 'Jawaban tersimpan');
             } else {
                 throw new Error(data.message || 'Gagal menyimpan');
@@ -310,12 +312,14 @@ class CBTExamManager {
             body: JSON.stringify(payload)
         })
         .then(response => {
-            if (!response.ok) throw new Error('HTTP Error');
+            if (!response.ok) throw new Error('HTTP Error: ' + response.status);
             return response.json();
         })
         .then(data => {
-            if (data.status === 'success') {
+            if (data.success || data.status === 'success') {
                 this.setSyncStatus('saved', 'Status tersimpan');
+            } else {
+                throw new Error(data.message || 'Gagal menyimpan status ragu');
             }
         })
         .catch(err => {
@@ -342,11 +346,18 @@ class CBTExamManager {
             },
             body: JSON.stringify(item.payload)
         })
-        .then(res => res.json())
-        .then(() => {
-            this.setSyncStatus('saved', 'Semua data tersinkronisasi');
-            if (this.retryQueue.length > 0) {
-                this.processRetryQueue();
+        .then(res => {
+            if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (data.success || data.status === 'success') {
+                this.setSyncStatus('saved', 'Semua data tersinkronisasi');
+                if (this.retryQueue.length > 0) {
+                    this.processRetryQueue();
+                }
+            } else {
+                throw new Error(data.message || 'Gagal sync retry');
             }
         })
         .catch(() => {
