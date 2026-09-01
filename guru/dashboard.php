@@ -146,8 +146,14 @@ $flash = flash_get();
             </h1>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/sesi_ujian.php') ?>" class="btn btn-primary">+ Rilis Sesi Ujian</a>
-            <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline">Buat / Edit Soal</a>
+            <a href="<?= base_url('guru/sesi_ujian.php') ?>" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Rilis Sesi Ujian</span>
+            </a>
+            <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                <span>Bank Soal</span>
+            </a>
         </div>
     </div>
 
@@ -285,7 +291,8 @@ $flash = flash_get();
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="text" name="token_ujian" id="edit_input_token" class="form-control" placeholder="Contoh: PAS2024..." maxlength="15" required style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 1.5px;">
                     <button type="button" class="btn btn-outline" onclick="generateTokenInput('edit_input_token')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
-                        🎲 Acak
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                        <span>Acak</span>
                     </button>
                 </div>
                 <small class="text-muted" style="display: block; margin-top: 0.35rem;">Bisa berupa huruf & angka bebas (3-15 karakter).</small>

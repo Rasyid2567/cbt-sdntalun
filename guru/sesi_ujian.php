@@ -414,7 +414,8 @@ $flash = flash_get();
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="text" name="token_ujian" id="input_token_ujian" class="form-control" placeholder="Contoh: PAS2024 (Custom / Acak)..." maxlength="15" style="text-transform: uppercase; font-family: monospace; font-weight: 700; letter-spacing: 1px;">
                     <button type="button" class="btn btn-outline" onclick="generateTokenInput('input_token_ujian')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
-                        🎲 Acak
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                        <span>Acak</span>
                     </button>
                 </div>
             </div>
@@ -452,7 +453,8 @@ $flash = flash_get();
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="text" name="token_ujian" id="edit_input_token" class="form-control" placeholder="Contoh: PAS2024..." maxlength="15" required style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 1.5px;">
                     <button type="button" class="btn btn-outline" onclick="generateTokenInput('edit_input_token')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
-                        🎲 Acak
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                        <span>Acak</span>
                     </button>
                 </div>
                 <small class="text-muted" style="display: block; margin-top: 0.35rem;">Bisa berupa huruf & angka bebas (3-15 karakter).</small>

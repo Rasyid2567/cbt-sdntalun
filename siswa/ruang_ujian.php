@@ -133,7 +133,8 @@ foreach ($urutanIds as $index => $sid) {
             <span id="timer-display" class="timer-display">00:00:00</span>
         </div>
         <button type="button" id="btn-toggle-grid" class="btn btn-sm btn-outline webview-grid-toggle" title="Daftar Soal">
-            📋 Grid Soal
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Daftar Soal</span>
         </button>
     </div>
 </header>
@@ -191,7 +192,9 @@ foreach ($urutanIds as $index => $sid) {
             <span>DAFTAR NOMOR SOAL</span>
             <div class="flex gap-2" style="align-items: center;">
                 <span class="text-xs text-muted"><?= count($soalClean) ?> Butir</span>
-                <button type="button" id="btn-close-grid" class="btn btn-sm btn-outline webview-grid-close">✕</button>
+                <button type="button" id="btn-close-grid" class="btn btn-sm btn-outline webview-grid-close" aria-label="Tutup">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
         </div>
 

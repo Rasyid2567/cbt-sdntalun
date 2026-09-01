@@ -383,7 +383,8 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
                             </span>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)" style="<?= count($cardsToRender) > 1 ? '' : 'display: none;' ?>">
-                            ✕ Hapus Pertanyaan
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <span>Hapus</span>
                         </button>
                     </div>
 
@@ -466,11 +467,13 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
 
         <!-- TOMBOL TAMBAH PERTANYAAN (DIBAGI 2: KIRI PILIHAN GANDA, KANAN ESSAI) -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem;">
-            <button type="button" id="btn-tambah-pg" onclick="tambahPertanyaan('pilihan_ganda')" class="btn btn-outline" style="border: 2px dashed #2563eb; width: 100%; padding: 0.95rem; font-weight: 700; font-size: 0.95rem; color: #2563eb; background: #eff6ff; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; justify-content: center;">
-                ➕ Tambah Pilihan Ganda
+            <button type="button" id="btn-tambah-pg" onclick="tambahPertanyaan('pilihan_ganda')" class="btn btn-outline" style="border: 2px dashed #2563eb; width: 100%; padding: 0.85rem; font-weight: 600; font-size: 0.9rem; color: #2563eb; background: #eff6ff; border-radius: var(--radius-sm); cursor: pointer; justify-content: center; gap: 0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Tambah Pilihan Ganda</span>
             </button>
-            <button type="button" id="btn-tambah-essai" onclick="tambahPertanyaan('essai')" class="btn btn-outline" style="border: 2px dashed #7c3aed; width: 100%; padding: 0.95rem; font-weight: 700; font-size: 0.95rem; color: #7c3aed; background: #faf5ff; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; justify-content: center;">
-                ✍️ Tambah Soal Essai
+            <button type="button" id="btn-tambah-essai" onclick="tambahPertanyaan('essai')" class="btn btn-outline" style="border: 2px dashed #7c3aed; width: 100%; padding: 0.85rem; font-weight: 600; font-size: 0.9rem; color: #7c3aed; background: #faf5ff; border-radius: var(--radius-sm); cursor: pointer; justify-content: center; gap: 0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                <span>Tambah Soal Essai</span>
             </button>
         </div>
 
@@ -564,7 +567,8 @@ function tambahPertanyaan(tipe) {
                     <span class="badge" style="background: #ede9fe; color: #6d28d9; font-weight: 700;">Soal Essai</span>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)">
-                    ✕ Hapus Pertanyaan
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Hapus</span>
                 </button>
             </div>
 
@@ -591,7 +595,8 @@ function tambahPertanyaan(tipe) {
                     <span class="badge badge-jenis" style="background: #e0f2fe; color: #0369a1; font-weight: 700;">Pilihan Ganda</span>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)">
-                    ✕ Hapus Pertanyaan
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Hapus</span>
                 </button>
             </div>
 
