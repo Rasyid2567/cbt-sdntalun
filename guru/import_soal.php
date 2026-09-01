@@ -375,7 +375,7 @@ $flash = flash_get();
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label for="id_mapel" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">Mata Pelajaran <span class="text-danger">*</span></label>
                 <select name="id_mapel" id="id_mapel" class="form-control" required style="width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-                    <option value="">-- Pilih Mata Pelajaran --</option>
+                    <option value="">Pilih Mata Pelajaran</option>
                     <?php foreach ($mapelList as $m): ?>
                         <option value="<?= $m['id_mapel'] ?>" <?= (($_GET['id_mapel'] ?? '') == $m['id_mapel']) ? 'selected' : '' ?>><?= sanitize($m['nama_mapel']) ?></option>
                     <?php endforeach; ?>
