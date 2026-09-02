@@ -29,10 +29,11 @@ if ($idUjianSiswa <= 0) {
 
 // Ambil Detail Hasil
 $stmtHasil = $db->prepare("
-    SELECT us.*, s.nama_ujian, m.nama_mapel, k.nama_kelas,
-           (SELECT COUNT(*) FROM bank_soal WHERE id_mapel = s.id_mapel AND (s.judul_soal IS NULL OR judul_soal = s.judul_soal)) as total_soal
+    SELECT us.*, s.nama_ujian, m.nama_mapel, k.nama_kelas, p.nama_paket,
+           (SELECT COUNT(*) FROM bank_soal WHERE id_paket = s.id_paket) as total_soal
     FROM ujian_siswa us
     JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
     WHERE us.id_ujian_siswa = :us AND us.id_siswa = :s

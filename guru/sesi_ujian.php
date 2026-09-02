@@ -1,6 +1,6 @@
 <?php
 /**
- * Modul Konfigurasi Sesi Ujian & Generate Token (Guru Penguji)
+ * Modul Manajemen Sesi Ujian & Distribusi Token CBT Guru
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -9,23 +9,20 @@ $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 
-/**
- * Fungsi pembantu generate token 6 karakter alfanumerik unik
- */
+// Helper Generate Token Random 5 Karakter Huruf Kapital
 function generate_token_cbt(): string {
     $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $token = '';
-    $max = strlen($chars) - 1;
-    for ($i = 0; $i < 6; $i++) {
-        $token .= $chars[random_int(0, $max)];
+    $res = '';
+    for ($i = 0; $i < 5; $i++) {
+        $res .= $chars[random_int(0, strlen($chars) - 1)];
     }
-    return $token;
+    return $res;
 }
 
-// Tangani Request POST
+// Tangani Form POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
-        flash_set('danger', 'Validasi token keamanan gagal.');
+        flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
         redirect(base_url('guru/sesi_ujian.php'));
     }
 
@@ -33,9 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 1. BUAT SESI BARU
     if ($action === 'tambah_sesi') {
-        $judulSoal   = trim($_POST['judul_soal'] ?? '');
+        $idPaket     = (int)($_POST['id_paket'] ?? 0);
         $idMapel     = (int)($_POST['id_mapel'] ?? 0);
-        $namaUjian   = $judulSoal; // Nama sesi ujian selalu identik dengan judul soal
         $idKelas     = !empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : (int)($_POST['id_kelas'] ?? 0);
         $durasiMenit = (int)($_POST['durasi_menit'] ?? 60);
         $acakSoal    = !empty($_POST['acak_soal']) ? 'true' : 'false';
@@ -48,11 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = generate_token_cbt();
         }
 
-        // Otomatis ambil id_mapel dari bank_soal jika belum ada
-        if ($idMapel <= 0 && $judulSoal !== '') {
-            $stmtM = $db->prepare("SELECT id_mapel FROM bank_soal WHERE id_guru = :g AND judul_soal = :j LIMIT 1");
-            $stmtM->execute([':g' => $idGuru, ':j' => $judulSoal]);
-            $idMapel = (int)$stmtM->fetchColumn();
+        $namaUjian = '';
+        if ($idPaket > 0) {
+            $stmtP = $db->prepare("SELECT * FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
+            $stmtP->execute([':id' => $idPaket, ':g' => $idGuru]);
+            $paket = $stmtP->fetch();
+            if ($paket) {
+                $idMapel = (int)$paket['id_mapel'];
+                $namaUjian = $paket['nama_paket'];
+            }
         }
 
         // Fallback kelas jika akun guru belum diset kelasnya
@@ -60,18 +60,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $idKelas = 6;
         }
 
-        if ($judulSoal === '' || $idMapel <= 0 || $durasiMenit <= 0) {
-            flash_set('danger', 'Silakan pilih judul soal yang ingin diujikan.');
+        if ($idPaket <= 0 || $idMapel <= 0 || $durasiMenit <= 0 || $namaUjian === '') {
+            flash_set('danger', 'Silakan pilih paket soal yang ingin diujikan.');
         } else {
             $stmtIns = $db->prepare("
-                INSERT INTO sesi_ujian (id_guru, id_mapel, id_kelas, judul_soal, nama_ujian, token_ujian, durasi_menit, acak_soal, acak_opsi, status)
-                VALUES (:g, :m, :k, :j, :n, :t, :d, :as::boolean, :ao::boolean, 'aktif')
+                INSERT INTO sesi_ujian (id_guru, id_mapel, id_kelas, id_paket, nama_ujian, token_ujian, durasi_menit, acak_soal, acak_opsi, status)
+                VALUES (:g, :m, :k, :p, :n, :t, :d, :as::boolean, :ao::boolean, 'aktif')
             ");
             $stmtIns->execute([
                 ':g'  => $idGuru,
                 ':m'  => $idMapel,
                 ':k'  => $idKelas,
-                ':j'  => $judulSoal,
+                ':p'  => $idPaket,
                 ':n'  => $namaUjian,
                 ':t'  => $token,
                 ':d'  => $durasiMenit,
@@ -143,17 +143,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Ambil Data Sesi Ujian Guru (beserta sisa waktu sesi global live)
 $stmt = $db->prepare("
-    SELECT s.*, m.nama_mapel, k.nama_kelas,
+    SELECT s.*, m.nama_mapel, m.kode_mapel, k.nama_kelas, p.nama_paket,
+           (SELECT COUNT(*) FROM bank_soal WHERE id_paket = s.id_paket) as total_soal,
            COUNT(us.id_ujian_siswa) as total_peserta,
            COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
            COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
            GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian s
+    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
     LEFT JOIN ujian_siswa us ON s.id_sesi = us.id_sesi
     WHERE s.id_guru = :g
-    GROUP BY s.id_sesi, m.nama_mapel, k.nama_kelas
+    GROUP BY s.id_sesi, m.nama_mapel, m.kode_mapel, k.nama_kelas, p.nama_paket
     ORDER BY s.created_at DESC
 ");
 $stmt->execute([':g' => $idGuru]);
@@ -166,14 +168,15 @@ $stmtGK = $db->prepare("SELECT nama_kelas FROM kelas WHERE id_kelas = :k");
 $stmtGK->execute([':k' => $idKelasGuru]);
 $namaKelasGuru = $stmtGK->fetchColumn() ?: $namaKelasGuru;
 
-// Ambil paket-paket judul soal milik guru beserta mapelnya
+// Ambil paket-paket soal milik guru beserta mapelnya
 $stmtPaket = $db->prepare("
-    SELECT b.judul_soal, b.id_mapel, m.nama_mapel, m.kode_mapel, COUNT(b.id_soal) as total_soal
-    FROM bank_soal b
-    JOIN mapel m ON b.id_mapel = m.id_mapel
-    WHERE b.id_guru = :g
-    GROUP BY b.judul_soal, b.id_mapel, m.nama_mapel, m.kode_mapel
-    ORDER BY b.judul_soal ASC
+    SELECT p.id_paket, p.nama_paket, p.id_mapel, m.nama_mapel, m.kode_mapel, COUNT(b.id_soal) as total_soal
+    FROM paket_soal p
+    JOIN mapel m ON p.id_mapel = m.id_mapel
+    LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
+    WHERE p.id_guru = :g
+    GROUP BY p.id_paket, p.nama_paket, p.id_mapel, m.nama_mapel, m.kode_mapel
+    ORDER BY p.nama_paket ASC
 ");
 $stmtPaket->execute([':g' => $idGuru]);
 $paketList = $stmtPaket->fetchAll();
@@ -220,21 +223,26 @@ $flash = flash_get();
 </header>
 
 <main class="container">
+    <div class="card-header mb-4">
+        <div>
+            <h1 class="card-title">Sesi Ujian & Token</h1>
+            <p class="text-sm text-muted">Kelola sesi ujian aktif, rilis token ujian, dan pantau status peserta.</p>
+        </div>
+        <div class="card-header-actions">
+            <button class="btn btn-primary" onclick="openModal('modal-tambah-sesi')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Buat Sesi Ujian</span>
+            </button>
+        </div>
+    </div>
+
     <?php if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <div class="card-header">
-        <div>
-            <h1 class="card-title">Konfigurasi Sesi Ujian & Token</h1>
-        </div>
-        <div class="card-header-actions">
-            <button type="button" class="btn btn-primary" onclick="openModal('modal-tambah-sesi')">+ Buat Sesi Ujian</button>
-        </div>
-    </div>
-
+    <!-- DAFTAR SESI UJIAN -->
     <div class="card">
         <?php if (empty($sesiList)): ?>
             <p class="text-center text-muted" style="padding: 2.5rem 0;">Belum ada sesi ujian yang dibuat. Klik tombol "+ Buat Sesi Ujian" untuk memulai.</p>
@@ -256,7 +264,12 @@ $flash = flash_get();
                     <tbody>
                         <?php foreach ($sesiList as $s): ?>
                             <tr>
-                                <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_ujian']) ?></strong></td>
+                                <td data-label="Nama Ujian">
+                                    <strong><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></strong>
+                                    <?php if (!empty($s['total_soal'])): ?>
+                                        <div class="text-xs text-muted"><?= (int)$s['total_soal'] ?> Butir Soal</div>
+                                    <?php endif; ?>
+                                </td>
                                 <td data-label="Mapel & Kelas">
                                     <div><?= sanitize($s['nama_mapel']) ?></div>
                                     <span class="text-xs text-muted">Kelas: <?= sanitize($s['nama_kelas']) ?></span>
@@ -267,7 +280,7 @@ $flash = flash_get();
                                             <?= sanitize($s['token_ujian']) ?>
                                         </span>
                                         <!-- Tombol Edit Token Custom -->
-                                        <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_ujian'])) ?>')">
+                                        <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>')">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
                                         <!-- Tombol Acak Ulang Cepat -->
@@ -357,27 +370,28 @@ $flash = flash_get();
             <input type="hidden" name="action" value="tambah_sesi">
             <input type="hidden" name="id_kelas" value="<?= $idKelasGuru ?>">
             <input type="hidden" name="id_mapel" id="hidden_id_mapel" value="">
-            <input type="hidden" name="judul_soal" id="hidden_judul_soal" value="">
+            <input type="hidden" name="id_paket" id="hidden_id_paket" value="">
 
-            <!-- 1. PILIH PAKET / JUDUL SOAL -->
+            <!-- 1. PILIH PAKET SOAL -->
             <div class="form-group">
-                <label for="select_paket_soal">Pilih Judul Soal <span class="text-danger">*</span></label>
+                <label for="select_paket_soal">Pilih Paket Soal <span class="text-danger">*</span></label>
                 <?php if (empty($paketList)): ?>
                     <div class="alert alert-warning" style="font-size: 0.85rem; padding: 0.75rem 0.95rem; margin-top: 0.25rem;">
-                        Belum ada soal di Bank Soal. <a href="<?= base_url('guru/tambah_soal.php') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
+                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru/tambah_soal.php') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
                     </div>
                 <?php else: ?>
                     <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)">
-                        <option value="">Pilih Judul Soal yang Diujikan</option>
+                        <option value="">Pilih Paket Soal yang Diujikan</option>
                         <?php foreach ($paketList as $p): ?>
                             <option value="<?= htmlspecialchars(json_encode([
-                                'judul'      => $p['judul_soal'],
+                                'id_paket'   => (int)$p['id_paket'],
+                                'judul'      => $p['nama_paket'],
                                 'id_mapel'   => (int)$p['id_mapel'],
                                 'nama_mapel' => $p['nama_mapel'],
                                 'kode_mapel' => $p['kode_mapel'],
                                 'total_soal' => (int)$p['total_soal']
                             ])) ?>">
-                                <?= sanitize($p['judul_soal']) ?> — <?= sanitize($p['kode_mapel'] ?: $p['nama_mapel']) ?>
+                                <?= sanitize($p['nama_paket']) ?> — <?= sanitize($p['kode_mapel'] ?: $p['nama_mapel']) ?> (<?= (int)$p['total_soal'] ?> Soal)
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -408,40 +422,38 @@ $flash = flash_get();
                 <input type="number" name="durasi_menit" id="durasi_menit" class="form-control" min="5" max="300" value="60" required>
             </div>
 
-            <!-- TOKEN UJIAN (OPSIONAL / BISA CUSTOM) -->
+            <!-- TOKEN UJIAN (OPSIONAL / AUTO) -->
             <div class="form-group">
-                <label for="input_token_ujian">Token Ujian <span class="text-muted" style="font-size: 0.8rem; font-weight: normal;">(Opsional, Kosongkan untuk Acak)</span></label>
+                <label for="input_token_tambah">Token Ujian <small class="text-muted">(Kosongkan jika ingin token acak otomatis)</small></label>
                 <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" name="token_ujian" id="input_token_ujian" class="form-control" placeholder="Contoh: PAS2024 (Custom / Acak)..." maxlength="15" style="text-transform: uppercase; font-family: monospace; font-weight: 700; letter-spacing: 1px;">
-                    <button type="button" class="btn btn-outline" onclick="generateTokenInput('input_token_ujian')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
-                        <span>Acak</span>
+                    <input type="text" name="token_ujian" id="input_token_tambah" class="form-control" placeholder="Contoh: KLS6A" maxlength="15" style="text-transform: uppercase; font-family: monospace; font-weight: 700; letter-spacing: 1px;">
+                    <button type="button" class="btn btn-outline" onclick="generateRandomTokenTambah()" title="Generate Token Acak">
+                        Acak
                     </button>
                 </div>
             </div>
 
-            <!-- FITUR PENGACAKAN -->
-            <div class="form-group mt-3" style="background: var(--gray-50); padding: 0.75rem 0.9rem; border-radius: 6px; border: 1px solid var(--gray-200);">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 600;">
-                    <input type="checkbox" name="acak_soal" value="1" checked> Acak Urutan Butir Soal Antar-Siswa
+            <!-- OPSI ACAK SOAL -->
+            <div class="form-group" style="margin-top: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="acak_soal" value="1" checked style="width: 18px; height: 18px;">
+                    <span>Acak Urutan Butir Soal untuk Tiap Siswa</span>
                 </label>
             </div>
 
-            <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
+            <div class="flex gap-2" style="justify-content: flex-end; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-tambah-sesi')">Batal</button>
-                <button type="submit" class="btn btn-primary" id="btn_submit_sesi" <?= empty($paketList) ? 'disabled' : '' ?>>
-                    Rilis Sesi & Buat Token
-                </button>
+                <button type="submit" class="btn btn-primary" <?= empty($paketList) ? 'disabled' : '' ?>>Rilis & Aktifkan Sesi</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal Ubah / Custom Token -->
+<!-- Modal Edit Token Custom -->
 <div id="modal-edit-token" class="modal-overlay">
     <div class="modal-box" style="max-width: 440px;">
-        <h2 class="card-title mb-2">Ubah Token Ujian</h2>
-        <p class="text-sm text-muted mb-3" id="edit_token_subtitle">Ubah token untuk sesi ujian</p>
+        <h2 class="card-title mb-1">Ubah Token Ujian</h2>
+        <p class="text-xs text-muted mb-3" id="edit_token_subtitle">Sesuaikan kode token ujian untuk peserta</p>
 
         <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST">
             <?= csrf_field() ?>
@@ -449,18 +461,17 @@ $flash = flash_get();
             <input type="hidden" name="id_sesi" id="edit_token_id_sesi" value="">
 
             <div class="form-group">
-                <label for="edit_input_token">Token Ujian Baru <span class="text-danger">*</span></label>
-                <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" name="token_ujian" id="edit_input_token" class="form-control" placeholder="Contoh: PAS2024..." maxlength="15" required style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 1.5px;">
-                    <button type="button" class="btn btn-outline" onclick="generateTokenInput('edit_input_token')" title="Buat Token Acak Otomatis" style="white-space: nowrap;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
-                        <span>Acak</span>
+                <label for="edit_input_token">Kode Token Baru (3 - 15 Karakter): <span class="text-danger">*</span></label>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+                    <input type="text" name="token_ujian" id="edit_input_token" class="form-control" placeholder="Contoh: PASMTK" maxlength="15" required style="text-transform: uppercase; font-family: monospace; font-size: 1.15rem; font-weight: 800; letter-spacing: 1.5px;">
+                    <button type="button" class="btn btn-outline" onclick="generateRandomTokenEdit()" title="Generate Acak">
+                        Acak
                     </button>
                 </div>
-                <small class="text-muted" style="display: block; margin-top: 0.35rem;">Bisa berupa huruf & angka bebas (3-15 karakter).</small>
+                <small class="text-muted" style="display: block; margin-top: 0.35rem;">Bisa berupa kata mudah (contoh: <code>IPA6A</code>, <code>PAS01</code>) atau kombinasi angka & huruf.</small>
             </div>
 
-            <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
+            <div class="flex gap-2" style="justify-content: flex-end; margin-top: 1.25rem;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-token')">Batal</button>
                 <button type="submit" class="btn btn-primary">Simpan Token</button>
             </div>
@@ -469,15 +480,27 @@ $flash = flash_get();
 </div>
 
 <script>
-function generateTokenInput(targetId) {
+function generateRandomToken(len = 5) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let token = '';
-    for (let i = 0; i < 6; i++) {
-        token += chars.charAt(Math.floor(Math.random() * chars.length));
+    let res = '';
+    for (let i = 0; i < len; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    const input = document.getElementById(targetId);
+    return res;
+}
+
+function generateRandomTokenTambah() {
+    const input = document.getElementById('input_token_tambah');
     if (input) {
-        input.value = token;
+        input.value = generateRandomToken(5);
+        input.focus();
+    }
+}
+
+function generateRandomTokenEdit() {
+    const input = document.getElementById('edit_input_token');
+    if (input) {
+        input.value = generateRandomToken(5);
         input.focus();
     }
 }
@@ -496,21 +519,21 @@ function openModalEditToken(idSesi, currentToken, namaUjian) {
 function onPilihPaket(sel) {
     const infoBox = document.getElementById('info_otomatis');
     const hidMapel = document.getElementById('hidden_id_mapel');
-    const hidJudul = document.getElementById('hidden_judul_soal');
+    const hidPaket = document.getElementById('hidden_id_paket');
     const prevJudul = document.getElementById('preview_judul');
     const prevMapel = document.getElementById('preview_mapel');
 
     if (!sel.value) {
         infoBox.style.display = 'none';
         hidMapel.value = '';
-        hidJudul.value = '';
+        hidPaket.value = '';
         return;
     }
 
     try {
         const data = JSON.parse(sel.value);
         hidMapel.value = data.id_mapel;
-        hidJudul.value = data.judul;
+        hidPaket.value = data.id_paket;
         prevJudul.textContent = data.judul;
         let mapelName = data.nama_mapel;
         if (data.kode_mapel && !mapelName.includes('(' + data.kode_mapel + ')')) {

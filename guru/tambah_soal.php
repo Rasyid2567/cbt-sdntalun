@@ -10,31 +10,60 @@ $db = get_db();
 $idGuru = $currentUser['id_user'];
 
 // Tangani parameter inisialisasi
-$initMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : 0;
-$initJudul = trim($_GET['judul_soal'] ?? '');
+$initPaketId  = !empty($_GET['id_paket']) ? (int)$_GET['id_paket'] : 0;
+$initMapel    = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : 0;
+$initJudul    = trim($_GET['judul_soal'] ?? '');
 $editSingleId = !empty($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
-// Jika datang dari tombol edit butir soal tunggal, ambil mapel & judul soalnya
-if ($editSingleId > 0 && ($initMapel === 0 || $initJudul === '')) {
-    $stmtSingle = $db->prepare("SELECT id_mapel, judul_soal FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
+// Jika datang dari parameter edit butir soal tunggal
+if ($editSingleId > 0 && $initPaketId <= 0) {
+    $stmtSingle = $db->prepare("
+        SELECT b.id_soal, b.id_paket, p.id_mapel, p.nama_paket 
+        FROM bank_soal b
+        JOIN paket_soal p ON b.id_paket = p.id_paket
+        WHERE b.id_soal = :id AND p.id_guru = :g
+    ");
     $stmtSingle->execute([':id' => $editSingleId, ':g' => $idGuru]);
     $singleData = $stmtSingle->fetch();
     if ($singleData) {
-        $initMapel = (int)$singleData['id_mapel'];
-        $initJudul = $singleData['judul_soal'];
+        $initPaketId = (int)$singleData['id_paket'];
+        $initMapel   = (int)$singleData['id_mapel'];
+        $initJudul   = $singleData['nama_paket'];
     }
 }
 
-// Ambil seluruh butir pertanyaan dalam paket ini jika mapel & judul ditentukan
+// Jika id_paket ditentukan, ambil detail paket
+if ($initPaketId > 0) {
+    $stmtP = $db->prepare("SELECT * FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
+    $stmtP->execute([':id' => $initPaketId, ':g' => $idGuru]);
+    $paketRow = $stmtP->fetch();
+    if ($paketRow) {
+        $initMapel = (int)$paketRow['id_mapel'];
+        $initJudul = $paketRow['nama_paket'];
+    }
+}
+
+// Ambil seluruh butir pertanyaan dalam paket ini jika paket sudah ada
 $existingQuestions = [];
-if ($initMapel > 0 && $initJudul !== '') {
+if ($initPaketId > 0) {
     $stmtPaket = $db->prepare("
         SELECT * FROM bank_soal 
-        WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j 
+        WHERE id_paket = :p 
         ORDER BY id_soal ASC
     ");
-    $stmtPaket->execute([':g' => $idGuru, ':m' => $initMapel, ':j' => $initJudul]);
+    $stmtPaket->execute([':p' => $initPaketId]);
     $existingQuestions = $stmtPaket->fetchAll();
+} elseif ($initMapel > 0 && $initJudul !== '') {
+    // Fallback pencarian paket berdasarkan mapel dan nama jika id_paket belum di URL
+    $stmtP = $db->prepare("SELECT * FROM paket_soal WHERE id_guru = :g AND id_mapel = :m AND nama_paket = :j");
+    $stmtP->execute([':g' => $idGuru, ':m' => $initMapel, ':j' => $initJudul]);
+    $paketRow = $stmtP->fetch();
+    if ($paketRow) {
+        $initPaketId = (int)$paketRow['id_paket'];
+        $stmtPaket = $db->prepare("SELECT * FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
+        $stmtPaket->execute([':p' => $initPaketId]);
+        $existingQuestions = $stmtPaket->fetchAll();
+    }
 }
 
 $isEditMode = !empty($existingQuestions);
@@ -43,13 +72,12 @@ $isEditMode = !empty($existingQuestions);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
-        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
+        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
     }
 
+    $idPaket   = (int)($_POST['id_paket'] ?? 0);
     $idMapel   = (int)($_POST['id_mapel'] ?? 0);
     $judulSoal = trim($_POST['judul_soal'] ?? '');
-    $oldMapel  = (int)($_POST['old_mapel'] ?? 0);
-    $oldJudul  = trim($_POST['old_judul'] ?? '');
     $soalItems = $_POST['soal'] ?? [];
 
     if ($judulSoal === '') {
@@ -58,16 +86,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($idMapel <= 0) {
         flash_set('danger', 'Silakan pilih Mata Pelajaran terlebih dahulu.');
-        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
+        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
     }
 
     if (empty($soalItems) || !is_array($soalItems)) {
         flash_set('danger', 'Minimal harus ada 1 butir pertanyaan.');
-        redirect(base_url('guru/tambah_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel . '&judul_soal=' . urlencode($initJudul) : '')));
+        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
     }
 
     $db->beginTransaction();
     try {
+        // 1. Simpan Header Paket Soal (INSERT atau UPDATE)
+        if ($idPaket > 0) {
+            $stmtUpdPaket = $db->prepare("
+                UPDATE paket_soal 
+                SET id_mapel = :m, nama_paket = :j 
+                WHERE id_paket = :p AND id_guru = :g
+            ");
+            $stmtUpdPaket->execute([':m' => $idMapel, ':j' => $judulSoal, ':p' => $idPaket, ':g' => $idGuru]);
+        } else {
+            // Cek apakah sudah ada paket dengan nama & mapel yang sama
+            $stmtCek = $db->prepare("SELECT id_paket FROM paket_soal WHERE id_guru = :g AND id_mapel = :m AND nama_paket = :j");
+            $stmtCek->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judulSoal]);
+            $foundPaketId = $stmtCek->fetchColumn();
+
+            if ($foundPaketId) {
+                $idPaket = (int)$foundPaketId;
+            } else {
+                $stmtInsPaket = $db->prepare("
+                    INSERT INTO paket_soal (id_guru, id_mapel, nama_paket)
+                    VALUES (:g, :m, :j)
+                ");
+                $stmtInsPaket->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judulSoal]);
+                $idPaket = (int)$db->lastInsertId('paket_soal_id_paket_seq');
+            }
+        }
+
         // Kumpulkan ID butir soal yang masih dipertahankan pada form ini
         $submittedIds = [];
         foreach ($soalItems as $item) {
@@ -77,38 +131,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Hapus butir soal lama yang dihapus oleh guru dari paket ini
-        if ($oldMapel > 0 && $oldJudul !== '') {
-            $stmtOld = $db->prepare("
-                SELECT id_soal, gambar FROM bank_soal 
-                WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j
-            ");
-            $stmtOld->execute([':g' => $idGuru, ':m' => $oldMapel, ':j' => $oldJudul]);
-            $oldRows = $stmtOld->fetchAll();
+        // Hapus butir soal lama yang dibuang oleh guru dari paket ini
+        $stmtOld = $db->prepare("SELECT id_soal, gambar FROM bank_soal WHERE id_paket = :p");
+        $stmtOld->execute([':p' => $idPaket]);
+        $oldRows = $stmtOld->fetchAll();
 
-            foreach ($oldRows as $oldR) {
-                if (!in_array((int)$oldR['id_soal'], $submittedIds, true)) {
-                    // Hapus gambar jika ada
-                    if (!empty($oldR['gambar']) && file_exists(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'))) {
-                        unlink(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'));
-                    }
-                    $delStmt = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
-                    $delStmt->execute([':id' => $oldR['id_soal'], ':g' => $idGuru]);
+        foreach ($oldRows as $oldR) {
+            if (!in_array((int)$oldR['id_soal'], $submittedIds, true)) {
+                // Hapus gambar jika ada
+                if (!empty($oldR['gambar']) && file_exists(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'))) {
+                    @unlink(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'));
                 }
+                $delStmt = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_paket = :p");
+                $delStmt->execute([':id' => $oldR['id_soal'], ':p' => $idPaket]);
             }
         }
 
         // Siapkan statement INSERT & UPDATE
         $stmtInsert = $db->prepare("
-            INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, jenis_soal, pertanyaan, gambar, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
-            VALUES (:g, :m, :j, :jenis, :p, :gbr, :oa, :ob, :oc, :od, :oe, :k)
+            INSERT INTO bank_soal (id_paket, jenis_soal, pertanyaan, gambar, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
+            VALUES (:p, :jenis, :pert, :gbr, :oa, :ob, :oc, :od, :oe, :k)
         ");
 
         $stmtUpdate = $db->prepare("
             UPDATE bank_soal 
-            SET id_mapel = :m, judul_soal = :j, jenis_soal = :jenis, pertanyaan = :p, gambar = :gbr, 
+            SET jenis_soal = :jenis, pertanyaan = :pert, gambar = :gbr, 
                 opsi_a = :oa, opsi_b = :ob, opsi_c = :oc, opsi_d = :od, opsi_e = :oe, kunci_jawaban = :k
-            WHERE id_soal = :id AND id_guru = :g
+            WHERE id_soal = :id AND id_paket = :p
         ");
 
         $savedCount = 0;
@@ -128,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Jika ada request hapus gambar lama
             if (!empty($item['hapus_gambar']) && $gambarPath) {
                 if (file_exists(__DIR__ . '/../' . ltrim($gambarPath, '/'))) {
-                    unlink(__DIR__ . '/../' . ltrim($gambarPath, '/'));
+                    @unlink(__DIR__ . '/../' . ltrim($gambarPath, '/'));
                 }
                 $gambarPath = null;
             }
@@ -164,18 +213,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($jenis === 'essai') {
                 $kunci = trim($item['kunci_jawaban'] ?? '');
                 $params = [
-                    ':m'     => $idMapel,
-                    ':j'     => $judulSoal,
+                    ':p'     => $idPaket,
                     ':jenis' => 'essai',
-                    ':p'     => $pertanyaan,
+                    ':pert'  => $pertanyaan,
                     ':gbr'   => $gambarPath,
                     ':oa'    => null,
                     ':ob'    => null,
                     ':oc'    => null,
                     ':od'    => null,
                     ':oe'    => null,
-                    ':k'     => $kunci !== '' ? $kunci : null,
-                    ':g'     => $idGuru
+                    ':k'     => $kunci !== '' ? $kunci : null
                 ];
 
                 if ($itemSoalId > 0) {
@@ -200,18 +247,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $params = [
-                    ':m'     => $idMapel,
-                    ':j'     => $judulSoal,
+                    ':p'     => $idPaket,
                     ':jenis' => 'pilihan_ganda',
-                    ':p'     => $pertanyaan,
+                    ':pert'  => $pertanyaan,
                     ':gbr'   => $gambarPath,
                     ':oa'    => $opsiA,
                     ':ob'    => $opsiB,
                     ':oc'    => $opsiC,
                     ':od'    => $opsiD,
                     ':oe'    => $opsiE !== '' ? $opsiE : null,
-                    ':k'     => $kunci,
-                    ':g'     => $idGuru
+                    ':k'     => $kunci
                 ];
 
                 if ($itemSoalId > 0) {
@@ -243,8 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmtMapel = $db->query("SELECT * FROM mapel ORDER BY nama_mapel ASC");
 $mapelList = $stmtMapel->fetchAll();
 
-// Ambil Daftar Judul Soal yang pernah dibuat untuk auto-suggest
-$stmtJudul = $db->prepare("SELECT DISTINCT judul_soal FROM bank_soal WHERE id_guru = :g ORDER BY judul_soal ASC");
+// Ambil Daftar Nama Paket Soal yang pernah dibuat untuk auto-suggest
+$stmtJudul = $db->prepare("SELECT DISTINCT nama_paket FROM paket_soal WHERE id_guru = :g ORDER BY nama_paket ASC");
 $stmtJudul->execute([':g' => $idGuru]);
 $existingJudul = $stmtJudul->fetchAll(PDO::FETCH_COLUMN);
 
@@ -303,40 +348,40 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
     </nav>
 </header>
 
-<main class="container" style="max-width: 960px;">
-    <?php $flash = flash_get(); if ($flash): ?>
+<main class="container">
+    <div class="card-header mb-4">
+        <div>
+            <h1 class="card-title"><?= $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru' ?></h1>
+            <p style="color: var(--gray-500); font-size: 0.85rem; margin-top: 0.25rem;">
+                Kelola nama paket dan butir pertanyaan sekaligus (Pilihan Ganda & Essai).
+            </p>
+        </div>
+        <div class="card-header-actions">
+            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">
+                Kembali
+            </a>
+        </div>
+    </div>
+
+    <?php if ($flash = flash_get()): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <div class="card-header mb-4">
-        <div>
-            <h1 class="card-title"><?= $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru' ?></h1>
-        </div>
-        <div>
-            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Kembali</a>
-        </div>
-    </div>
-
-    <form action="<?= base_url('guru/tambah_soal.php') ?>" method="POST" enctype="multipart/form-data" id="form-soal">
+    <form action="<?= base_url('guru/tambah_soal.php') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
         <?= csrf_field() ?>
-        <input type="hidden" name="old_mapel" value="<?= (int)$initMapel ?>">
-        <input type="hidden" name="old_judul" value="<?= sanitize($initJudul) ?>">
+        <input type="hidden" name="id_paket" value="<?= $initPaketId ?>">
 
-        <!-- INFORMASI PAKET SOAL (Mata Pelajaran & Judul Paket) -->
-        <div class="card mb-4">
-            <div class="mb-3 pb-2" style="border-bottom: 1px solid var(--gray-200);">
-                <h3 class="font-bold" style="font-size: 1.15rem; color: var(--primary); margin: 0;">
-                    Informasi Paket Soal
-                </h3>
-            </div>
-
-            <!-- 1. Mata Pelajaran (Mapel) -->
+        <!-- KARTU INFORMASI UTAMA PAKET -->
+        <div class="card mb-4" style="border-left: 4px solid var(--primary);">
+            <h3 class="font-bold mb-3" style="font-size: 1.1rem; color: var(--gray-800);">Informasi Paket Soal</h3>
+            
+            <!-- 1. Pilihan Mata Pelajaran -->
             <div class="form-group">
-                <label for="id_mapel">Mata Pelajaran (Mapel) <span class="text-danger">*</span></label>
+                <label for="id_mapel">Mata Pelajaran <span class="text-danger">*</span></label>
                 <select name="id_mapel" id="id_mapel" class="form-control" required>
-                    <option value="">Pilih Mata Pelajaran</option>
+                    <option value="">-- Pilih Mata Pelajaran --</option>
                     <?php foreach ($mapelList as $m): ?>
                         <option value="<?= $m['id_mapel'] ?>" <?= ($initMapel == $m['id_mapel']) ? 'selected' : '' ?>>
                             <?= sanitize($m['nama_mapel']) ?> (<?= sanitize($m['kode_mapel']) ?>)
@@ -347,8 +392,8 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
 
             <!-- 2. Soal (Judul / Nama Ujian) -->
             <div class="form-group mt-3">
-                <label for="judul_soal">Soal (Judul / Nama Ujian) <span class="text-danger">*</span></label>
-                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Nama / Judul Paket Soal..." value="<?= sanitize($initJudul) ?>" required>
+                <label for="judul_soal">Nama / Judul Paket Soal <span class="text-danger">*</span></label>
+                <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Contoh: Penilaian Harian 1, PTS Matematika..." value="<?= sanitize($initJudul) ?>" required>
                 <datalist id="list_judul">
                     <?php foreach ($existingJudul as $ej): ?>
                         <option value="<?= sanitize($ej) ?>"></option>
@@ -390,29 +435,43 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
 
                     <!-- Teks Pertanyaan -->
                     <div class="form-group">
-                        <label>Teks Pertanyaan <span class="text-danger">*</span></label>
-                        <textarea name="soal[<?= $idx ?>][pertanyaan]" class="form-control field-pertanyaan" rows="4" required placeholder="Tuliskan teks butir pertanyaan di sini..."><?= sanitize($q['pertanyaan'] ?? '') ?></textarea>
+                        <label>Teks Pertanyaan <?= $isEssai ? 'Essai / Uraian' : '' ?> <span class="text-danger">*</span></label>
+                        <textarea name="soal[<?= $idx ?>][pertanyaan]" class="form-control field-pertanyaan" rows="4" required placeholder="Tuliskan butir soal pertanyaan di sini..."><?= sanitize($q['pertanyaan'] ?? '') ?></textarea>
                     </div>
 
                     <!-- Lampiran Gambar -->
                     <div class="form-group mt-3">
                         <label>Lampiran Gambar (Opsional)</label>
-                        <input type="file" name="gambar_<?= $idx ?>" class="form-control" accept="image/*">
                         <?php if (!empty($q['gambar'])): ?>
-                            <div class="mt-2 flex gap-3" style="align-items: center;">
-                                <img src="<?= base_url(ltrim($q['gambar'], '/')) ?>" alt="Preview" style="max-height: 80px; border-radius: 4px; border: 1px solid #ccc;">
-                                <label style="cursor: pointer; font-size: 0.85rem;" class="text-danger">
-                                    <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1"> Hapus gambar lampiran ini
+                            <div class="mb-2 flex gap-3" style="align-items: center;">
+                                <img src="<?= base_url(sanitize($q['gambar'])) ?>" alt="Gambar Soal" style="max-height: 90px; border-radius: 4px; border: 1px solid var(--gray-300);">
+                                <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--danger); cursor: pointer;">
+                                    <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1">
+                                    <span>Hapus Gambar Ini</span>
                                 </label>
                                 <input type="hidden" name="soal[<?= $idx ?>][existing_gambar]" value="<?= sanitize($q['gambar']) ?>">
                             </div>
                         <?php endif; ?>
+                        <input type="file" name="gambar_<?= $idx ?>" class="form-control" accept="image/*">
                     </div>
 
-                    <?php if (!$isEssai): ?>
-                        <!-- Area Pilihan Ganda -->
+                    <!-- Input Jawaban Berdasarkan Tipe -->
+                    <?php if ($isEssai): ?>
+                        <div class="area-essai">
+                            <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                            <div class="form-group">
+                                <label style="color: #6d28d9; font-weight: 600;">Pedoman Jawaban / Kata Kunci Essai (Opsional)</label>
+                                <textarea name="soal[<?= $idx ?>][kunci_jawaban]" class="form-control field-kunci-essai" rows="2" placeholder="Catatan kunci penilaian untuk guru saat memeriksa..."><?= sanitize($q['kunci_jawaban'] ?? '') ?></textarea>
+                            </div>
+                        </div>
+                    <?php else: ?>
                         <div class="area-pilihan-ganda">
                             <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                            <label style="font-weight: 700; margin-bottom: 0.65rem; display: block; color: var(--gray-800);">
+                                Pilihan Jawaban & Kunci Benar: <span class="text-danger">*</span>
+                                <small style="font-weight: normal; color: var(--gray-500); display: block;">Centang kotak pada opsi yang merupakan jawaban benar (bisa lebih dari 1).</small>
+                            </label>
+
                             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                                 <!-- A -->
                                 <div style="display: flex; align-items: center; gap: 0.65rem;">
@@ -522,7 +581,10 @@ function updateQuestionNumbers() {
         if (fi) fi.name = `gambar_${i}`;
 
         const isEssai = card.getAttribute('data-type') === 'essai';
-        if (!isEssai) {
+        if (isEssai) {
+            const kunciEssai = card.querySelector('.field-kunci-essai');
+            if (kunciEssai) kunciEssai.name = `soal[${i}][kunci_jawaban]`;
+        } else {
             const inputs = card.querySelectorAll('.field-opsi');
             if (inputs[0]) inputs[0].name = `soal[${i}][opsi_a]`;
             if (inputs[1]) inputs[1].name = `soal[${i}][opsi_b]`;
@@ -580,6 +642,14 @@ function tambahPertanyaan(tipe) {
             <div class="form-group mt-3">
                 <label>Lampiran Gambar (Opsional)</label>
                 <input type="file" name="gambar_${newIndex}" class="form-control" accept="image/*">
+            </div>
+
+            <div class="area-essai">
+                <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1.25rem 0;">
+                <div class="form-group">
+                    <label style="color: #6d28d9; font-weight: 600;">Pedoman Jawaban / Kata Kunci Essai (Opsional)</label>
+                    <textarea name="soal[${newIndex}][kunci_jawaban]" class="form-control field-kunci-essai" rows="2" placeholder="Catatan kunci penilaian untuk guru saat memeriksa..."></textarea>
+                </div>
             </div>
         `;
     } else {

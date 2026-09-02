@@ -1,6 +1,6 @@
 <?php
 /**
- * Modul Bank Soal Guru (Daftar & Hapus Soal Terkelompok: Mapel -> Judul Soal)
+ * Modul Bank Soal Guru (Daftar & Kelola Paket Soal Terkelompok)
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -11,20 +11,45 @@ $idGuru = $currentUser['id_user'];
 
 // Tangani Export CSV per Paket
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
+    $idPaket = (int)($_GET['id_paket'] ?? 0);
     $expMapel = (int)($_GET['id_mapel'] ?? 0);
     $expJudul = trim($_GET['judul_soal'] ?? '');
 
+    $paket = null;
+    if ($idPaket > 0) {
+        $stmtP = $db->prepare("
+            SELECT p.*, m.nama_mapel 
+            FROM paket_soal p
+            JOIN mapel m ON p.id_mapel = m.id_mapel
+            WHERE p.id_paket = :p AND p.id_guru = :g
+        ");
+        $stmtP->execute([':p' => $idPaket, ':g' => $idGuru]);
+        $paket = $stmtP->fetch();
+    } elseif ($expMapel > 0 && $expJudul !== '') {
+        $stmtP = $db->prepare("
+            SELECT p.*, m.nama_mapel 
+            FROM paket_soal p
+            JOIN mapel m ON p.id_mapel = m.id_mapel
+            WHERE p.id_mapel = :m AND p.nama_paket = :j AND p.id_guru = :g
+        ");
+        $stmtP->execute([':m' => $expMapel, ':j' => $expJudul, ':g' => $idGuru]);
+        $paket = $stmtP->fetch();
+    }
+
+    if (!$paket) {
+        flash_set('danger', 'Paket soal tidak ditemukan.');
+        redirect(base_url('guru/bank_soal.php'));
+    }
+
     $stmtExp = $db->prepare("
-        SELECT b.*, m.nama_mapel 
-        FROM bank_soal b
-        JOIN mapel m ON b.id_mapel = m.id_mapel
-        WHERE b.id_guru = :g AND b.id_mapel = :m AND b.judul_soal = :j
-        ORDER BY b.id_soal ASC
+        SELECT * FROM bank_soal 
+        WHERE id_paket = :p
+        ORDER BY id_soal ASC
     ");
-    $stmtExp->execute([':g' => $idGuru, ':m' => $expMapel, ':j' => $expJudul]);
+    $stmtExp->execute([':p' => $paket['id_paket']]);
     $rows = $stmtExp->fetchAll();
 
-    $filename = 'paket_soal_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $expJudul) . '.csv';
+    $filename = 'paket_soal_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $paket['nama_paket']) . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=' . $filename);
 
@@ -49,7 +74,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     exit;
 }
 
-// Tangani Form POST (Hapus Soal, Rename Paket, Hapus Paket)
+// Tangani Form POST (Hapus Soal Tunggal, Rename Paket, Hapus Paket)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
@@ -57,11 +82,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $action = $_POST['action'] ?? '';
+
+    // Hapus Butir Soal Tunggal
     if ($action === 'hapus') {
         $idSoal = (int)($_POST['id_soal'] ?? 0);
         if ($idSoal > 0) {
             // Ambil info gambar untuk dihapus dari server
-            $stmtImg = $db->prepare("SELECT gambar FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
+            $stmtImg = $db->prepare("
+                SELECT b.gambar 
+                FROM bank_soal b
+                JOIN paket_soal p ON b.id_paket = p.id_paket
+                WHERE b.id_soal = :id AND p.id_guru = :g
+            ");
             $stmtImg->execute([':id' => $idSoal, ':g' => $idGuru]);
             $soalImg = $stmtImg->fetchColumn();
 
@@ -69,40 +101,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 unlink(__DIR__ . '/../' . ltrim($soalImg, '/'));
             }
 
-            $del = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_guru = :g");
+            $del = $db->prepare("
+                DELETE FROM bank_soal 
+                WHERE id_soal = :id AND id_paket IN (SELECT id_paket FROM paket_soal WHERE id_guru = :g)
+            ");
             $del->execute([':id' => $idSoal, ':g' => $idGuru]);
             flash_set('danger', 'Butir soal berhasil dihapus.');
         }
         redirect(base_url('guru/bank_soal.php' . (!empty($_POST['redirect_mapel']) ? '?id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
     }
 
+    // Rename Nama Paket
     if ($action === 'rename_paket') {
-        $idMapel  = (int)($_POST['id_mapel'] ?? 0);
-        $oldJudul = trim($_POST['old_judul'] ?? '');
+        $idPaket  = (int)($_POST['id_paket'] ?? 0);
         $newJudul = trim($_POST['new_judul'] ?? '');
 
-        if ($idMapel > 0 && $oldJudul !== '' && $newJudul !== '') {
+        if ($idPaket > 0 && $newJudul !== '') {
             $upd = $db->prepare("
-                UPDATE bank_soal 
-                SET judul_soal = :new 
-                WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :old
+                UPDATE paket_soal 
+                SET nama_paket = :new 
+                WHERE id_paket = :id AND id_guru = :g
             ");
-            $upd->execute([':new' => $newJudul, ':g' => $idGuru, ':m' => $idMapel, ':old' => $oldJudul]);
+            $upd->execute([':new' => $newJudul, ':id' => $idPaket, ':g' => $idGuru]);
             flash_set('success', "Nama paket soal berhasil diubah menjadi '{$newJudul}'.");
         }
-        redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+        redirect(base_url('guru/bank_soal.php' . (!empty($_POST['id_mapel']) ? '?id_mapel=' . (int)$_POST['id_mapel'] : '')));
     }
 
+    // Hapus Seluruh Paket Soal (Cascade Butir Soal & Gambar)
     if ($action === 'hapus_paket') {
+        $idPaket = (int)($_POST['id_paket'] ?? 0);
         $idMapel = (int)($_POST['id_mapel'] ?? 0);
-        $judul   = trim($_POST['judul_soal'] ?? '');
 
-        if ($idMapel > 0 && $judul !== '') {
-            $del = $db->prepare("DELETE FROM bank_soal WHERE id_guru = :g AND id_mapel = :m AND judul_soal = :j");
-            $del->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judul]);
-            flash_set('danger', "Seluruh butir soal dalam paket '{$judul}' berhasil dihapus.");
+        if ($idPaket > 0) {
+            // Ambil nama paket & hapus gambar-gambar terkait
+            $stmtP = $db->prepare("SELECT nama_paket, id_mapel FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
+            $stmtP->execute([':id' => $idPaket, ':g' => $idGuru]);
+            $pInfo = $stmtP->fetch();
+
+            if ($pInfo) {
+                $idMapel = (int)$pInfo['id_mapel'];
+                $namaPaket = $pInfo['nama_paket'];
+
+                // Hapus berkas gambar butir soal
+                $stmtImgs = $db->prepare("SELECT gambar FROM bank_soal WHERE id_paket = :p AND gambar IS NOT NULL");
+                $stmtImgs->execute([':p' => $idPaket]);
+                $imgs = $stmtImgs->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($imgs as $img) {
+                    if ($img && file_exists(__DIR__ . '/../' . ltrim($img, '/'))) {
+                        @unlink(__DIR__ . '/../' . ltrim($img, '/'));
+                    }
+                }
+
+                $del = $db->prepare("DELETE FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
+                $del->execute([':id' => $idPaket, ':g' => $idGuru]);
+                flash_set('danger', "Seluruh butir soal dalam paket '{$namaPaket}' berhasil dihapus.");
+            }
         }
-        redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+        redirect(base_url('guru/bank_soal.php' . ($idMapel > 0 ? '?id_mapel=' . $idMapel : '')));
     }
 }
 
@@ -123,9 +179,10 @@ $search      = trim($_GET['search'] ?? '');
 $stmtMapel = $db->prepare("
     SELECT m.id_mapel, m.nama_mapel, m.kode_mapel,
            COUNT(b.id_soal) AS total_soal,
-           COUNT(DISTINCT b.judul_soal) AS total_paket
+           COUNT(DISTINCT p.id_paket) AS total_paket
     FROM mapel m
-    LEFT JOIN bank_soal b ON m.id_mapel = b.id_mapel AND b.id_guru = :g
+    LEFT JOIN paket_soal p ON m.id_mapel = p.id_mapel AND p.id_guru = :g
+    LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
     GROUP BY m.id_mapel, m.nama_mapel, m.kode_mapel
     ORDER BY m.id_mapel ASC
 ");
@@ -139,27 +196,29 @@ foreach ($mapelList as $m) {
 
 // Query Ambil Seluruh Paket Soal Guru Ini
 $sql = "
-    SELECT b.id_mapel, b.judul_soal, m.nama_mapel, m.kode_mapel,
+    SELECT p.id_paket, p.nama_paket, p.id_mapel, p.created_at,
+           m.nama_mapel, m.kode_mapel,
            COUNT(b.id_soal) AS total_butir,
            COUNT(CASE WHEN b.jenis_soal = 'essai' THEN 1 END) AS total_essai,
            COUNT(CASE WHEN b.jenis_soal != 'essai' OR b.jenis_soal IS NULL THEN 1 END) AS total_pg
-    FROM bank_soal b
-    JOIN mapel m ON b.id_mapel = m.id_mapel
-    WHERE b.id_guru = :g
+    FROM paket_soal p
+    JOIN mapel m ON p.id_mapel = m.id_mapel
+    LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
+    WHERE p.id_guru = :g
 ";
 $params = [':g' => $idGuru];
 
 if ($filterMapel) {
-    $sql .= " AND b.id_mapel = :m";
+    $sql .= " AND p.id_mapel = :m";
     $params[':m'] = $filterMapel;
 }
 
 if ($search !== '') {
-    $sql .= " AND (b.pertanyaan ILIKE :s OR b.judul_soal ILIKE :s)";
+    $sql .= " AND (p.nama_paket ILIKE :s OR b.pertanyaan ILIKE :s)";
     $params[':s'] = "%{$search}%";
 }
 
-$sql .= " GROUP BY b.id_mapel, b.judul_soal, m.nama_mapel, m.kode_mapel ORDER BY m.nama_mapel ASC, b.judul_soal ASC";
+$sql .= " GROUP BY p.id_paket, p.nama_paket, p.id_mapel, p.created_at, m.nama_mapel, m.kode_mapel ORDER BY m.nama_mapel ASC, p.nama_paket ASC";
 $stmtPaket = $db->prepare($sql);
 $stmtPaket->execute($params);
 $paketList = $stmtPaket->fetchAll();
@@ -285,7 +344,7 @@ $flash = flash_get();
                             <div>
                                 <div class="flex gap-2" style="align-items: center; flex-wrap: wrap;">
                                     <h3 style="font-size: 1.08rem; font-weight: 700; color: var(--gray-900); margin: 0;">
-                                        <?= sanitize($p['judul_soal']) ?>
+                                        <?= sanitize($p['nama_paket']) ?>
                                     </h3>
                                     <span class="badge badge-online" style="font-size: 0.75rem; font-weight: 700;">
                                         <?= (int)$p['total_butir'] ?> Butir Soal
@@ -304,19 +363,19 @@ $flash = flash_get();
 
                         <!-- Tombol Aksi Paket -->
                         <div class="flex gap-2" style="align-items: center;">
-                            <a href="<?= base_url('guru/tambah_soal.php?id_mapel=' . $p['id_mapel'] . '&judul_soal=' . urlencode($p['judul_soal'])) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
+                            <a href="<?= base_url('guru/tambah_soal.php?id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 <span>Edit</span>
                             </a>
-                            <a href="<?= base_url('guru/bank_soal.php?action=export_csv&id_mapel=' . $p['id_mapel'] . '&judul_soal=' . urlencode($p['judul_soal'])) ?>" class="btn btn-outline btn-sm" title="Export CSV">
+                            <a href="<?= base_url('guru/bank_soal.php?action=export_csv&id_paket=' . $p['id_paket']) ?>" class="btn btn-outline btn-sm" title="Export CSV">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 <span>Export</span>
                             </a>
-                            <form action="<?= base_url('guru/bank_soal.php') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['judul_soal']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
+                            <form action="<?= base_url('guru/bank_soal.php') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['nama_paket']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="hapus_paket">
+                                <input type="hidden" name="id_paket" value="<?= $p['id_paket'] ?>">
                                 <input type="hidden" name="id_mapel" value="<?= $p['id_mapel'] ?>">
-                                <input type="hidden" name="judul_soal" value="<?= sanitize($p['judul_soal']) ?>">
                                 <button type="submit" class="btn btn-danger btn-sm" title="Hapus Paket Soal">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                     <span>Hapus</span>

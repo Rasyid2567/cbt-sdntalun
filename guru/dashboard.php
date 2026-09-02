@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmtSoal = $db->prepare("SELECT COUNT(DISTINCT (id_mapel, judul_soal)) FROM bank_soal WHERE id_guru = :g");
+$stmtSoal = $db->prepare("SELECT COUNT(*) FROM paket_soal WHERE id_guru = :g");
 $stmtSoal->execute([':g' => $idGuru]);
 $totalPaket = (int)$stmtSoal->fetchColumn();
 
@@ -69,17 +69,18 @@ $totalSelesai = $stmtPeserta->fetchColumn();
 
 // Ambil Daftar Sesi Ujian Terbaru Milik Guru (beserta sisa waktu sesi global live)
 $stmtSesiList = $db->prepare("
-    SELECT su.*, m.nama_mapel, k.nama_kelas,
+    SELECT su.*, m.nama_mapel, k.nama_kelas, p.nama_paket,
            COUNT(us.id_ujian_siswa) as total_peserta,
            COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
            COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
            GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (su.created_at + (su.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian su
+    LEFT JOIN paket_soal p ON su.id_paket = p.id_paket
     JOIN mapel m ON su.id_mapel = m.id_mapel
     JOIN kelas k ON su.id_kelas = k.id_kelas
     LEFT JOIN ujian_siswa us ON su.id_sesi = us.id_sesi
     WHERE su.id_guru = :g
-    GROUP BY su.id_sesi, m.nama_mapel, k.nama_kelas
+    GROUP BY su.id_sesi, m.nama_mapel, k.nama_kelas, p.nama_paket
     ORDER BY su.created_at DESC
     LIMIT 5
 ");
@@ -217,7 +218,7 @@ $flash = flash_get();
                     <tbody>
                         <?php foreach ($recentSessions as $s): ?>
                             <tr>
-                                <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_ujian']) ?></strong></td>
+                                <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></strong></td>
                                 <td data-label="Mapel"><?= sanitize($s['nama_mapel']) ?></td>
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas']) ?></td>
                                 <td data-label="Token" style="text-align: center;">
@@ -226,7 +227,7 @@ $flash = flash_get();
                                             <?= sanitize($s['token_ujian']) ?>
                                         </span>
                                         <!-- Tombol Edit Token Custom -->
-                                        <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_ujian'])) ?>')">
+                                        <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>')">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
                                         <!-- Tombol Acak Ulang Cepat -->

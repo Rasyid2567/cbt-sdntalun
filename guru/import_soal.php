@@ -1,6 +1,7 @@
 <?php
 /**
- * Modul Import Butir Soal Massal via CSV (Mendukung Pilihan Ganda & Essai)
+ * Modul Import Soal CSV / Excel Sederhana
+ * Mendukung Soal Pilihan Ganda & Soal Essai (Uraian)
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -9,63 +10,64 @@ $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 
-// Tangani Pengunduhan Template CSV
+// Tangani Download Template CSV
 if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
+    $filename = 'template_import_soal_cbt.csv';
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename=template_import_soal_cbt.csv');
+    header('Content-Disposition: attachment; filename=' . $filename);
+
     $output = fopen('php://output', 'w');
-    // UTF-8 BOM untuk kompatibilitas Microsoft Excel
+    // Tulis UTF-8 BOM agar Excel membukanya dengan karakter yang benar
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-    // Beritahu Excel untuk memecah kolom dengan koma secara otomatis
+    
+    // Baris instruksi delimiter untuk Excel
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['jenis_soal', 'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'kunci_jawaban']);
-    
-    // Contoh 1: Pilihan Ganda (Bisa ditulis 'pg' atau 'pilihan_ganda')
+
+    // Header Kolom
     fputcsv($output, [
-        'pg',
-        'Ibu kota negara Indonesia yang baru sesuai undang-undang adalah...',
-        'Jakarta',
-        'Nusantara',
-        'Bandung',
-        'Surabaya',
-        'Medan',
-        'B'
+        'jenis_soal',
+        'pertanyaan',
+        'opsi_a',
+        'opsi_b',
+        'opsi_c',
+        'opsi_d',
+        'opsi_e',
+        'kunci_jawaban'
     ]);
-    
-    // Contoh 2: Pilihan Ganda
+
+    // Contoh Soal Pilihan Ganda
     fputcsv($output, [
         'pg',
-        'Manakah di bawah ini yang merupakan sistem operasi open source?',
-        'Windows 11',
-        'macOS Sequoia',
-        'Linux Ubuntu',
-        'iOS 17',
+        'Salah satu sila dalam Pancasila yang dilambangkan dengan pohon beringin adalah sila ke-...',
+        'Pertama',
+        'Kedua',
+        'Ketiga',
+        'Keempat',
+        'Kelima',
+        'C'
+    ]);
+
+    fputcsv($output, [
+        'pg',
+        'Hasil dari 25 x 4 + 50 adalah ...',
+        '100',
+        '120',
+        '150',
+        '200',
         '',
         'C'
     ]);
 
-    // Contoh 3: Soal Essai / Uraian (Opsi A-E dikosongkan)
+    // Contoh Soal Essai
     fputcsv($output, [
         'essai',
-        'Sebutkan 3 contoh sumber energi terbarukan dan jelaskan manfaatnya bagi lingkungan!',
+        'Jelaskan secara singkat apa makna dari semboyan Bhinneka Tunggal Ika bagi bangsa Indonesia!',
         '',
         '',
         '',
         '',
         '',
-        'Energi surya (matahari), energi angin, dan energi air. Manfaatnya ramah lingkungan dan tidak menghasilkan polusi udara.'
-    ]);
-
-    // Contoh 4: Soal Essai / Uraian
-    fputcsv($output, [
-        'essai',
-        'Jelaskan perbedaan antara kalimat utama dan ide pokok dalam sebuah paragraf!',
-        '',
-        '',
-        '',
-        '',
-        '',
-        'Kalimat utama adalah kalimat yang memuat ide pokok, sedangkan ide pokok adalah inti atau gagasan utama paragraf.'
+        'Berbeda-beda tetapi tetap satu jua'
     ]);
 
     fclose($output);
@@ -134,14 +136,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('guru/import_soal.php'));
     }
 
+    // Cari atau Buat Paket Soal
+    $stmtCek = $db->prepare("SELECT id_paket FROM paket_soal WHERE id_guru = :g AND id_mapel = :m AND nama_paket = :j");
+    $stmtCek->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judulSoal]);
+    $idPaket = (int)$stmtCek->fetchColumn();
+
+    if ($idPaket <= 0) {
+        $stmtInsP = $db->prepare("INSERT INTO paket_soal (id_guru, id_mapel, nama_paket) VALUES (:g, :m, :j)");
+        $stmtInsP->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judulSoal]);
+        $idPaket = (int)$db->lastInsertId('paket_soal_id_paket_seq');
+    }
+
     $importedPG    = 0;
     $importedEssai = 0;
     $skipped       = 0;
     $headerMap     = null;
 
     $stmtIns = $db->prepare("
-        INSERT INTO bank_soal (id_guru, id_mapel, judul_soal, jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
-        VALUES (:g, :m, :j, :jenis, :p, :oa, :ob, :oc, :od, :oe, :k)
+        INSERT INTO bank_soal (id_paket, jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
+        VALUES (:p, :jenis, :pert, :oa, :ob, :oc, :od, :oe, :k)
     ");
 
     while (($row = fgetcsv($handle, 8192, $delimiter)) !== false) {
@@ -277,11 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmtIns->execute([
-                ':g'     => $idGuru,
-                ':m'     => $idMapel,
-                ':j'     => $judulSoal,
+                ':p'     => $idPaket,
                 ':jenis' => $jenisDb,
-                ':p'     => $pertanyaan,
+                ':pert'  => $pertanyaan,
                 ':oa'    => $oaDb,
                 ':ob'    => $obDb,
                 ':oc'    => $ocDb,
@@ -308,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Data Mapel & Judul yang pernah ada
 $mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY nama_mapel ASC")->fetchAll();
-$stmtJudul = $db->prepare("SELECT DISTINCT judul_soal FROM bank_soal WHERE id_guru = :g ORDER BY judul_soal ASC");
+$stmtJudul = $db->prepare("SELECT DISTINCT nama_paket FROM paket_soal WHERE id_guru = :g ORDER BY nama_paket ASC");
 $stmtJudul->execute([':g' => $idGuru]);
 $existingJudul = $stmtJudul->fetchAll(PDO::FETCH_COLUMN);
 $flash = flash_get();
@@ -318,7 +329,7 @@ $flash = flash_get();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Import Soal - CBT Guru</title>
+    <title>Import Soal CSV - CBT Guru</title>
     <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
@@ -352,64 +363,78 @@ $flash = flash_get();
     </nav>
 </header>
 
-<main class="container" style="max-width: 620px; margin-top: 1.5rem; margin-bottom: 2rem;">
+<main class="container">
     <?php if ($flash): ?>
-        <div class="alert alert-<?= sanitize($flash['type']) ?>" style="margin-bottom: 1rem;">
+        <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <div class="card" style="padding: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); background: #fff;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid #f1f5f9;">
+    <div class="card" style="max-width: 680px; margin: 0 auto;">
+        <div class="flex-between mb-4 pb-2" style="border-bottom: 1px solid #e2e8f0;">
             <div>
-                <h1 style="font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 0;">Import Soal CSV</h1>
-                <p style="font-size: 0.8rem; color: #64748b; margin: 0.15rem 0 0;">Upload file CSV untuk menambah butir soal secara massal.</p>
+                <h1 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">Import Butir Soal (CSV)</h1>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 0.25rem 0 0;">Unggah banyak soal sekaligus (Pilihan Ganda & Essai).</p>
             </div>
             <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-sm btn-outline" style="font-size: 0.8rem;">Kembali</a>
+        </div>
+
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+            <div style="font-weight: 600; color: #1d4ed8; font-size: 0.9rem; margin-bottom: 0.35rem;">Petunjuk Format CSV:</div>
+            <ul style="font-size: 0.82rem; color: #1e40af; margin: 0; padding-left: 1.25rem; line-height: 1.5;">
+                <li>Kolom 1: <code>jenis_soal</code> (isi <strong>pg</strong> untuk Pilihan Ganda atau <strong>essai</strong> untuk Uraian)</li>
+                <li>Kolom 2: <code>pertanyaan</code> (Teks butir soal)</li>
+                <li>Kolom 3-7: <code>opsi_a</code> s/d <code>opsi_e</code> (Wajib untuk PG, kosongkan untuk Essai)</li>
+                <li>Kolom 8: <code>kunci_jawaban</code> (Huruf <strong>A/B/C/D/E</strong> untuk PG, atau kata kunci untuk Essai)</li>
+            </ul>
+            <div style="margin-top: 0.75rem;">
+                <a href="<?= base_url('guru/import_soal.php?action=download_template') ?>" class="btn btn-sm btn-secondary" style="font-size: 0.8rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Unduh Template CSV</span>
+                </a>
+            </div>
         </div>
 
         <form action="<?= base_url('guru/import_soal.php') ?>" method="POST" enctype="multipart/form-data">
             <?= csrf_field() ?>
 
-            <!-- 1. Mapel -->
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label for="id_mapel" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">Mata Pelajaran <span class="text-danger">*</span></label>
+            <div class="form-group mb-3">
+                <label for="id_mapel" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">Mata Pelajaran Tujuan <span class="text-danger">*</span></label>
                 <select name="id_mapel" id="id_mapel" class="form-control" required style="width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-                    <option value="">Pilih Mata Pelajaran</option>
+                    <option value="">-- Pilih Mata Pelajaran --</option>
                     <?php foreach ($mapelList as $m): ?>
-                        <option value="<?= $m['id_mapel'] ?>" <?= (($_GET['id_mapel'] ?? '') == $m['id_mapel']) ? 'selected' : '' ?>><?= sanitize($m['nama_mapel']) ?></option>
+                        <option value="<?= $m['id_mapel'] ?>" <?= (isset($_GET['id_mapel']) && $_GET['id_mapel'] == $m['id_mapel']) ? 'selected' : '' ?>>
+                            <?= sanitize($m['nama_mapel']) ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
-            <!-- 2. Judul Paket Soal -->
-            <div class="form-group" style="margin-bottom: 1rem;">
+            <div class="form-group mb-3">
                 <label for="judul_soal" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">Judul / Paket Soal <span class="text-danger">*</span></label>
                 <input type="text" name="judul_soal" id="judul_soal" class="form-control" list="list_judul" placeholder="Contoh: Penilaian Harian 1" value="<?= sanitize($_GET['judul_soal'] ?? '') ?>" required style="width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                 <datalist id="list_judul">
-                    <?php foreach ($existingJudul as $ej): ?>
-                        <option value="<?= sanitize($ej) ?>"></option>
+                    <?php foreach ($existingJudul as $j): ?>
+                        <option value="<?= sanitize($j) ?>"></option>
                     <?php endforeach; ?>
+                    <option value="Asesmen Nasional"></option>
                     <option value="Penilaian Harian 1"></option>
                     <option value="Penilaian Tengah Semester"></option>
                     <option value="Penilaian Akhir Semester"></option>
-                    <option value="Asesmen Nasional"></option>
                 </datalist>
             </div>
 
-            <!-- 3. Berkas CSV -->
-            <div class="form-group" style="margin-bottom: 1.25rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                    <label for="csv_file" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin: 0;">Berkas CSV <span class="text-danger">*</span></label>
-                    <a href="<?= base_url('guru/import_soal.php?action=download_template') ?>" style="font-size: 0.75rem; color: #2563eb; text-decoration: none; font-weight: 500;">Unduh Template CSV</a>
-                </div>
-                <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv" required style="width: 100%; padding: 0.45rem 0.75rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-                <span style="font-size: 0.75rem; color: #94a3b8; display: block; margin-top: 0.25rem;">Kolom CSV: <code>jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban</code></span>
+            <div class="form-group mb-4">
+                <label for="csv_file" style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">Pilih Berkas CSV <span class="text-danger">*</span></label>
+                <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv, text/csv, text/plain" required style="width: 100%; padding: 0.45rem 0.75rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #f1f5f9;">
+            <div class="flex gap-2" style="justify-content: flex-end;">
                 <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.5rem 1rem;">Batal</a>
-                <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem; font-weight: 600;">Import Soal</button>
+                <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem; font-weight: 600;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <span>Unggah & Impor Soal</span>
+                </button>
             </div>
         </form>
     </div>

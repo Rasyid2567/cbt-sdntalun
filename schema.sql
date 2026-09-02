@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS jawaban_siswa CASCADE;
 DROP TABLE IF EXISTS ujian_siswa CASCADE;
 DROP TABLE IF EXISTS sesi_ujian CASCADE;
 DROP TABLE IF EXISTS bank_soal CASCADE;
+DROP TABLE IF EXISTS paket_soal CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS mapel CASCADE;
 DROP TABLE IF EXISTS kelas CASCADE;
@@ -49,12 +50,20 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Tabel Bank Soal
-CREATE TABLE bank_soal (
-    id_soal SERIAL PRIMARY KEY,
+-- 6. Tabel Master Paket Soal (Header)
+CREATE TABLE paket_soal (
+    id_paket SERIAL PRIMARY KEY,
     id_guru INT NOT NULL REFERENCES users(id_user) ON DELETE CASCADE,
     id_mapel INT NOT NULL REFERENCES mapel(id_mapel) ON DELETE CASCADE,
-    judul_soal VARCHAR(150) NOT NULL DEFAULT 'Latihan Soal',
+    nama_paket VARCHAR(150) NOT NULL,
+    deskripsi TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Tabel Butir Bank Soal (Detail)
+CREATE TABLE bank_soal (
+    id_soal SERIAL PRIMARY KEY,
+    id_paket INT NOT NULL REFERENCES paket_soal(id_paket) ON DELETE CASCADE,
     jenis_soal VARCHAR(20) DEFAULT 'pilihan_ganda', -- 'pilihan_ganda' atau 'essai'
     pertanyaan TEXT NOT NULL,
     gambar VARCHAR(255) NULL,
@@ -67,15 +76,15 @@ CREATE TABLE bank_soal (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. Tabel Sesi Ujian
+-- 8. Tabel Sesi Ujian
 CREATE TABLE sesi_ujian (
     id_sesi SERIAL PRIMARY KEY,
     id_guru INT NOT NULL REFERENCES users(id_user) ON DELETE CASCADE,
     id_mapel INT NOT NULL REFERENCES mapel(id_mapel) ON DELETE CASCADE,
     id_kelas INT NOT NULL REFERENCES kelas(id_kelas) ON DELETE CASCADE,
-    judul_soal VARCHAR(150) NULL,
+    id_paket INT NULL REFERENCES paket_soal(id_paket) ON DELETE SET NULL,
     nama_ujian VARCHAR(100) NOT NULL,
-    token_ujian VARCHAR(10) NOT NULL,
+    token_ujian VARCHAR(20) NOT NULL,
     durasi_menit INT NOT NULL,
     acak_soal BOOLEAN DEFAULT FALSE,
     acak_opsi BOOLEAN DEFAULT FALSE,
@@ -83,7 +92,7 @@ CREATE TABLE sesi_ujian (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. Tabel Ujian Siswa (Log Sesi Peserta)
+-- 9. Tabel Ujian Siswa (Log Sesi Peserta)
 CREATE TABLE ujian_siswa (
     id_ujian_siswa SERIAL PRIMARY KEY,
     id_sesi INT NOT NULL REFERENCES sesi_ujian(id_sesi) ON DELETE CASCADE,
@@ -100,7 +109,7 @@ CREATE TABLE ujian_siswa (
     CONSTRAINT unique_siswa_sesi UNIQUE (id_sesi, id_siswa)
 );
 
--- 9. Tabel Jawaban Siswa
+-- 10. Tabel Jawaban Siswa
 CREATE TABLE jawaban_siswa (
     id_jawaban SERIAL PRIMARY KEY,
     id_ujian_siswa INT NOT NULL REFERENCES ujian_siswa(id_ujian_siswa) ON DELETE CASCADE,
@@ -115,8 +124,10 @@ CREATE TABLE jawaban_siswa (
 -- Index Optimasi Performa Query Real-time
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_login ON users(status_login);
-CREATE INDEX idx_bank_soal_mapel ON bank_soal(id_mapel);
-CREATE INDEX idx_bank_soal_judul ON bank_soal(judul_soal);
+CREATE INDEX idx_paket_soal_guru ON paket_soal(id_guru);
+CREATE INDEX idx_paket_soal_mapel ON paket_soal(id_mapel);
+CREATE INDEX idx_bank_soal_paket ON bank_soal(id_paket);
+CREATE INDEX idx_sesi_ujian_paket ON sesi_ujian(id_paket);
 CREATE INDEX idx_sesi_status ON sesi_ujian(status);
 CREATE INDEX idx_ujian_siswa_status ON ujian_siswa(status);
 CREATE INDEX idx_jawaban_ujian ON jawaban_siswa(id_ujian_siswa);

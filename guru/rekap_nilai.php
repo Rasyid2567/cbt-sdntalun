@@ -12,8 +12,9 @@ $idGuru = $currentUser['id_user'];
 
 // Ambil Daftar Seluruh Sesi Ujian Guru
 $stmtSesiAll = $db->prepare("
-    SELECT s.id_sesi, s.nama_ujian, m.nama_mapel, k.nama_kelas
+    SELECT s.id_sesi, s.nama_ujian, s.token_ujian, s.status, s.id_mapel, m.nama_mapel, k.nama_kelas, p.nama_paket
     FROM sesi_ujian s
+    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
     WHERE s.id_guru = :g
@@ -32,8 +33,9 @@ $totalSoalUjian = 0;
 if ($selectedSesiId > 0) {
     // Detail Sesi
     $stmtDet = $db->prepare("
-        SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas
+        SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas, p.nama_paket
         FROM sesi_ujian s
+        LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
         JOIN mapel m ON s.id_mapel = m.id_mapel
         JOIN kelas k ON s.id_kelas = k.id_kelas
         WHERE s.id_sesi = :id AND s.id_guru = :g
@@ -43,21 +45,25 @@ if ($selectedSesiId > 0) {
 
     if ($sesiDetail) {
         // Hitung total butir soal, PG, dan Essai untuk paket ujian ini
-        $whereSql = "id_mapel = :m";
-        $paramsSoal = [':m' => $sesiDetail['id_mapel']];
-        if (!empty($sesiDetail['judul_soal'])) {
-            $whereSql .= " AND judul_soal = :j";
-            $paramsSoal[':j'] = $sesiDetail['judul_soal'];
+        if (!empty($sesiDetail['id_paket'])) {
+            $stmtStat = $db->prepare("
+                SELECT COUNT(*) as total_soal,
+                       COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
+                       COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
+                FROM bank_soal 
+                WHERE id_paket = :p
+            ");
+            $stmtStat->execute([':p' => $sesiDetail['id_paket']]);
+        } else {
+            $stmtStat = $db->prepare("
+                SELECT COUNT(*) as total_soal,
+                       COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
+                       COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
+                FROM bank_soal 
+                WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m)
+            ");
+            $stmtStat->execute([':m' => $sesiDetail['id_mapel']]);
         }
-
-        $stmtStat = $db->prepare("
-            SELECT COUNT(*) as total_soal,
-                   COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
-                   COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
-            FROM bank_soal 
-            WHERE $whereSql
-        ");
-        $stmtStat->execute($paramsSoal);
         $statRow = $stmtStat->fetch();
 
         $totalSoalUjian = (int)($statRow['total_soal'] ?? 0);

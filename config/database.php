@@ -74,16 +74,77 @@ function get_db(): PDO {
             die("Koneksi database PostgreSQL gagal: " . htmlspecialchars($lastException->getMessage()) . "<br><small>Pastikan service PostgreSQL aktif dan database '" . htmlspecialchars(DB_NAME) . "' dapat diakses.</small>");
         }
 
-        // Auto-migration & Self-Healing: Pastikan kolom baru otomatis dibuat jika menggunakan DB versi lama
+        // Auto-migration & Self-Healing: Pastikan struktur paket_soal dan kolom baru otomatis dibuat jika menggunakan DB versi lama
         try {
             $pdo->exec("
-                ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS jenis_soal VARCHAR(20) DEFAULT 'pilihan_ganda';
-                ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) DEFAULT 'Latihan Soal';
-                ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS judul_soal VARCHAR(150) NULL;
+                -- 1. Buat tabel paket_soal jika belum ada
+                CREATE TABLE IF NOT EXISTS paket_soal (
+                    id_paket SERIAL PRIMARY KEY,
+                    id_guru INT NOT NULL REFERENCES users(id_user) ON DELETE CASCADE,
+                    id_mapel INT NOT NULL REFERENCES mapel(id_mapel) ON DELETE CASCADE,
+                    nama_paket VARCHAR(150) NOT NULL,
+                    deskripsi TEXT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                -- 2. Tambah kolom id_paket di bank_soal dan sesi_ujian
+                ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE CASCADE;
+                ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE SET NULL;
                 ALTER TABLE sesi_ujian ALTER COLUMN token_ujian TYPE VARCHAR(20);
                 ALTER TABLE jawaban_siswa ADD COLUMN IF NOT EXISTS nilai_soal NUMERIC(5,2) DEFAULT NULL;
                 ALTER TABLE ujian_siswa ADD COLUMN IF NOT EXISTS nilai_pg NUMERIC(5,2) DEFAULT NULL;
                 ALTER TABLE ujian_siswa ADD COLUMN IF NOT EXISTS nilai_essai NUMERIC(5,2) DEFAULT NULL;
+
+                -- 3. Migrasi data lama dari bank_soal ke paket_soal jika kolom judul_soal masih ada
+                DO \$\$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'bank_soal' AND column_name = 'judul_soal'
+                    ) THEN
+                        -- Masukkan paket yang belum ada di paket_soal
+                        INSERT INTO paket_soal (id_guru, id_mapel, nama_paket, created_at)
+                        SELECT b.id_guru, b.id_mapel, COALESCE(NULLIF(TRIM(b.judul_soal), ''), 'Latihan Soal'), MIN(b.created_at)
+                        FROM bank_soal b
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM paket_soal p 
+                            WHERE p.id_guru = b.id_guru 
+                              AND p.id_mapel = b.id_mapel 
+                              AND p.nama_paket = COALESCE(NULLIF(TRIM(b.judul_soal), ''), 'Latihan Soal')
+                        )
+                        GROUP BY b.id_guru, b.id_mapel, COALESCE(NULLIF(TRIM(b.judul_soal), ''), 'Latihan Soal');
+
+                        -- Hubungkan bank_soal yang id_paket nya masih NULL
+                        UPDATE bank_soal b
+                        SET id_paket = p.id_paket
+                        FROM paket_soal p
+                        WHERE b.id_paket IS NULL
+                          AND b.id_guru = p.id_guru 
+                          AND b.id_mapel = p.id_mapel 
+                          AND COALESCE(NULLIF(TRIM(b.judul_soal), ''), 'Latihan Soal') = p.nama_paket;
+                    END IF;
+
+                    -- Hubungkan sesi_ujian yang id_paket nya masih NULL
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'sesi_ujian' AND column_name = 'judul_soal'
+                    ) THEN
+                        UPDATE sesi_ujian s
+                        SET id_paket = p.id_paket
+                        FROM paket_soal p
+                        WHERE s.id_paket IS NULL 
+                          AND s.judul_soal IS NOT NULL
+                          AND s.id_guru = p.id_guru 
+                          AND s.id_mapel = p.id_mapel 
+                          AND s.judul_soal = p.nama_paket;
+                    END IF;
+                END \$\$;
+
+                -- 4. Indeks optimasi performa
+                CREATE INDEX IF NOT EXISTS idx_paket_soal_guru ON paket_soal(id_guru);
+                CREATE INDEX IF NOT EXISTS idx_paket_soal_mapel ON paket_soal(id_mapel);
+                CREATE INDEX IF NOT EXISTS idx_bank_soal_paket ON bank_soal(id_paket);
+                CREATE INDEX IF NOT EXISTS idx_sesi_ujian_paket ON sesi_ujian(id_paket);
             ");
         } catch (Throwable $e) {
             // Abaikan jika tabel belum diinisialisasi

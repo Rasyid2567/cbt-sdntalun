@@ -21,13 +21,15 @@ if ($idUjianSiswa <= 0) {
 $stmtUjian = $db->prepare("
     SELECT us.*, 
            u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
-           s.id_sesi, s.nama_ujian, s.judul_soal, s.id_guru, s.durasi_menit,
+           s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
+           p.nama_paket,
            m.id_mapel, m.nama_mapel, m.kode_mapel,
            k.id_kelas, k.nama_kelas,
            g.nama_lengkap as nama_guru
     FROM ujian_siswa us
     JOIN users u ON us.id_siswa = u.id_user
     JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
     LEFT JOIN users g ON s.id_guru = g.id_user
@@ -145,11 +147,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
 // 3. Urutan Soal
 $urutanIds = json_decode($detailUjian['urutan_soal'], true);
 if (empty($urutanIds) || !is_array($urutanIds)) {
-    if (!empty($detailUjian['judul_soal'])) {
-        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m AND judul_soal = :j ORDER BY id_soal ASC");
-        $stmtFallback->execute([':m' => $detailUjian['id_mapel'], ':j' => $detailUjian['judul_soal']]);
+    if (!empty($detailUjian['id_paket'])) {
+        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
+        $stmtFallback->execute([':p' => $detailUjian['id_paket']]);
     } else {
-        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m ORDER BY id_soal ASC");
+        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m) ORDER BY id_soal ASC");
         $stmtFallback->execute([':m' => $detailUjian['id_mapel']]);
     }
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);

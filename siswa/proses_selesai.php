@@ -26,7 +26,7 @@ if ($idUjianSiswa <= 0) {
 
 // 1. Ambil Data Ujian Siswa
 $stmtUs = $db->prepare("
-    SELECT us.*, s.id_mapel, s.nama_ujian 
+    SELECT us.*, s.id_mapel, s.id_paket, s.nama_ujian 
     FROM ujian_siswa us
     JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
     WHERE us.id_ujian_siswa = :us AND us.id_siswa = :siswa
@@ -48,9 +48,14 @@ if ($ujian['status'] === 'selesai') {
 $urutanIds = json_decode($ujian['urutan_soal'], true) ?: [];
 
 if (empty($urutanIds)) {
-    // Fallback ambil seluruh soal di mapel ini jika urutan_soal kosong
-    $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m");
-    $stmtFallback->execute([':m' => $ujian['id_mapel']]);
+    // Fallback ambil seluruh soal di paket/mapel ini jika urutan_soal kosong
+    if (!empty($ujian['id_paket'])) {
+        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p");
+        $stmtFallback->execute([':p' => $ujian['id_paket']]);
+    } else {
+        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m)");
+        $stmtFallback->execute([':m' => $ujian['id_mapel']]);
+    }
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);
 }
 

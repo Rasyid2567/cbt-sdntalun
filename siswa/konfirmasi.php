@@ -24,11 +24,12 @@ $ujianBerjalan = $stmtAktif->fetch();
 
 // 2. Ambil Daftar Sesi Ujian yang Aktif untuk Kelas Siswa
 $stmtSesiTersedia = $db->prepare("
-    SELECT s.*, m.nama_mapel, k.nama_kelas,
-           (SELECT COUNT(*) FROM bank_soal WHERE id_mapel = s.id_mapel AND (s.judul_soal IS NULL OR judul_soal = s.judul_soal)) as total_soal,
+    SELECT s.*, m.nama_mapel, k.nama_kelas, p.nama_paket,
+           (SELECT COUNT(*) FROM bank_soal WHERE id_paket = s.id_paket) as total_soal,
            us.status as status_ujian_siswa, us.id_ujian_siswa,
            GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
     FROM sesi_ujian s
+    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
     LEFT JOIN ujian_siswa us ON (s.id_sesi = us.id_sesi AND us.id_siswa = :siswa)
@@ -93,12 +94,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Ambil daftar butir soal untuk mapel ini (dan judul_soal jika ditentukan)
-    if (!empty($sesi['judul_soal'])) {
-        $stmtSoal = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m AND judul_soal = :j ORDER BY id_soal ASC");
-        $stmtSoal->execute([':m' => $sesi['id_mapel'], ':j' => $sesi['judul_soal']]);
+    // Ambil daftar butir soal untuk paket ini
+    if (!empty($sesi['id_paket'])) {
+        $stmtSoal = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
+        $stmtSoal->execute([':p' => $sesi['id_paket']]);
     } else {
-        $stmtSoal = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_mapel = :m ORDER BY id_soal ASC");
+        $stmtSoal = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m) ORDER BY id_soal ASC");
         $stmtSoal->execute([':m' => $sesi['id_mapel']]);
     }
     $soalRows = $stmtSoal->fetchAll(PDO::FETCH_COLUMN);
