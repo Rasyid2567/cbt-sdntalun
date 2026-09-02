@@ -140,7 +140,13 @@ function get_db(): PDO {
                     END IF;
                 END \$\$;
 
-                -- 4. Indeks optimasi performa
+                -- 4. Hapus kolom lama yang sudah tidak digunakan (Bersihkan redundansi)
+                ALTER TABLE bank_soal DROP COLUMN IF EXISTS judul_soal CASCADE;
+                ALTER TABLE bank_soal DROP COLUMN IF EXISTS id_guru CASCADE;
+                ALTER TABLE bank_soal DROP COLUMN IF EXISTS id_mapel CASCADE;
+                ALTER TABLE sesi_ujian DROP COLUMN IF EXISTS judul_soal CASCADE;
+
+                -- 5. Indeks optimasi performa
                 CREATE INDEX IF NOT EXISTS idx_paket_soal_guru ON paket_soal(id_guru);
                 CREATE INDEX IF NOT EXISTS idx_paket_soal_mapel ON paket_soal(id_mapel);
                 CREATE INDEX IF NOT EXISTS idx_bank_soal_paket ON bank_soal(id_paket);
