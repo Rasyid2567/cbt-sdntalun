@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Redirect URL yang masih mengetik .php ke versi bersih (tanpa .php)
+    # Contoh: domain.com/login.php -> domain.com/login
+    RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s([^.]+)\.php(\?[^\s]*)?\s [NC]
+    RewriteRule ^ %1 [R=301,L]
+
+    # 2. Jika file/folder asli ada, gunakan langsung
+    RewriteCond %{REQUEST_FILENAME} -d [OR]
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # 3. Rewrite URL tanpa ekstensi ke file .php yang sesuai jika file tersebut ada
+    # Contoh: domain.com/guru/dashboard -> membaca domain.com/guru/dashboard.php
+    RewriteCond %{REQUEST_FILENAME}.php -f
+    RewriteRule ^(.*)$ $1.php [L,QSA]
+</IfModule>
