@@ -2001,6 +2001,8 @@ body.app-webview-body {
     }
 
     .table-mobile-cards tbody tr {
+        display: flex !important;
+        flex-direction: column !important;
         background: #ffffff;
         border: 1px solid var(--gray-200);
         border-radius: var(--radius-md);
@@ -2016,8 +2018,9 @@ body.app-webview-body {
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
     }
 
-    /* Primary Summary Header: Tampil rapi di atas dengan Nama di kiri & Icon Chevron di kanan */
+    /* Primary Summary Header: Selalu di posisi paling atas (order: 1) */
     .table-mobile-cards td.mobile-primary-cell {
+        order: 1 !important;
         display: flex !important;
         align-items: center;
         justify-content: space-between;
@@ -2028,14 +2031,21 @@ body.app-webview-body {
         font-weight: 700;
         color: var(--gray-900);
         cursor: pointer;
+        width: 100%;
+    }
+
+    .table-mobile-cards tr.expanded td.mobile-primary-cell {
+        padding-bottom: 0.45rem !important;
+        border-bottom: 1px solid var(--gray-200) !important;
     }
 
     .table-mobile-cards td.mobile-primary-cell::before {
         display: none !important;
     }
 
-    /* Detail Rows: Disembunyikan secara default, hanya muncul saat tombol Extend ditekan */
+    /* Detail Rows: Tampil di bawah header saat expanded (order: 10) */
     .table-mobile-cards td.mobile-detail-cell {
+        order: 10 !important;
         display: none !important;
         border: none !important;
         border-top: 1px dashed var(--gray-200) !important;
@@ -2044,6 +2054,7 @@ body.app-webview-body {
         justify-content: space-between !important;
         align-items: center !important;
         text-align: right !important;
+        width: 100%;
     }
 
     .table-mobile-cards tr.expanded td.mobile-detail-cell {
@@ -2051,7 +2062,7 @@ body.app-webview-body {
     }
 
     .table-mobile-cards tr.expanded td.mobile-detail-cell:first-of-type {
-        margin-top: 0.45rem;
+        border-top: none !important;
     }
 
     .table-mobile-cards td.mobile-detail-cell::before {
@@ -2071,11 +2082,13 @@ body.app-webview-body {
     }
 
     .table-mobile-cards td[data-label="Aksi"] {
+        order: 99 !important;
         display: none !important;
         border-top: 1px solid var(--gray-200) !important;
         padding-top: 0.65rem !important;
         margin-top: 0.35rem !important;
         text-align: center !important;
+        width: 100%;
     }
 
     .table-mobile-cards tr.expanded td[data-label="Aksi"] {
