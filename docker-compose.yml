@@ -26,7 +26,7 @@ services:
     container_name: cbt_sdntalun_db
     restart: unless-stopped
     ports:
-      - "5433:5432" # Dipetakan ke port 5433 host agar tidak bentrok dengan PostgreSQL lokal (5432)
+      - "5432:5432"
     environment:
       - POSTGRES_DB=cbt_sdntalun
       - POSTGRES_USER=postgres
