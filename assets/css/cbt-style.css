@@ -1982,86 +1982,106 @@ body.app-webview-body {
         justify-content: center;
     }
 
-    /* 5. Responsive Table to Mobile App Cards */
-    .table-mobile-cards table,
-    .table-mobile-cards thead,
-    .table-mobile-cards tbody,
-    .table-mobile-cards th,
-    .table-mobile-cards td,
-    .table-mobile-cards tr {
-        display: block;
+    /* 5. Responsive Table on Mobile: Clean, Compact Horizontal Scrolling */
+    .table-responsive,
+    .table-mobile-cards {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-sm);
+        background: #ffffff;
+        margin-top: 0.5rem;
     }
 
-    .table-mobile-cards thead {
+    .table-mobile-cards table,
+    .table-responsive table {
+        display: table !important;
+        width: 100%;
+        white-space: nowrap;
+        margin-top: 0;
+        border-collapse: collapse;
+    }
+
+    .table-mobile-cards thead,
+    .table-responsive thead {
+        display: table-header-group !important;
+    }
+
+    .table-mobile-cards tbody,
+    .table-responsive tbody {
+        display: table-row-group !important;
+    }
+
+    .table-mobile-cards tr,
+    .table-responsive tr {
+        display: table-row !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .table-mobile-cards th,
+    .table-responsive th {
+        display: table-cell !important;
+        padding: 0.55rem 0.75rem !important;
+        font-size: 0.75rem !important;
+        font-weight: 700 !important;
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        border-bottom: 1px solid var(--gray-200) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .table-mobile-cards td,
+    .table-responsive td {
+        display: table-cell !important;
+        padding: 0.55rem 0.75rem !important;
+        font-size: 0.84rem !important;
+        border-bottom: 1px solid var(--gray-100) !important;
+        vertical-align: middle !important;
+        text-align: left !important;
+    }
+
+    .table-mobile-cards td::before,
+    .table-responsive td::before {
         display: none !important;
     }
 
-    .table-mobile-cards tbody tr {
-        background: #ffffff;
-        border: 1px solid var(--gray-200);
-        border-radius: var(--radius-md);
-        padding: 0.85rem 1rem;
-        margin-bottom: 0.85rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    .table-mobile-cards td[data-label="No"],
+    .table-responsive td[data-label="No"] {
+        display: table-cell !important;
+        width: 40px;
+        text-align: center !important;
     }
 
-    .table-mobile-cards td {
-        border: none;
-        border-bottom: 1px dashed var(--gray-200);
-        padding: 0.45rem 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.9rem;
-        text-align: right;
+    .table-mobile-cards tbody tr:nth-child(even),
+    .table-responsive tbody tr:nth-child(even) {
+        background-color: #f8fafc !important;
     }
 
-    .table-mobile-cards td::before {
-        content: attr(data-label);
-        font-weight: 700;
-        font-size: 0.75rem;
-        color: var(--gray-500);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        text-align: left;
-        margin-right: 0.75rem;
+    .table-mobile-cards td[data-label="Aksi"],
+    .table-responsive td[data-label="Aksi"] {
+        display: table-cell !important;
+        text-align: center !important;
+        padding: 0.4rem 0.6rem !important;
     }
 
-    .table-mobile-cards td[data-label="No"] {
-        display: none;
+    .table-mobile-cards td .btn,
+    .table-responsive td .btn {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.78rem;
+        min-height: unset;
+        white-space: nowrap;
     }
 
-    .table-mobile-cards td[data-label="Aksi"] {
-        display: block;
-        border-bottom: none;
-        padding-top: 0.75rem;
-        text-align: center;
-    }
-
-    .table-mobile-cards td[data-label="Aksi"]::before {
-        display: none;
-    }
-
-    .table-mobile-cards td[data-label="Aksi"] .flex {
-        display: flex;
-        width: 100%;
-        gap: 0.5rem;
-    }
-
-    .table-mobile-cards td[data-label="Aksi"] .btn {
-        flex: 1;
-        min-height: 42px;
-        font-size: 0.85rem;
-        justify-content: center;
-    }
-
-    .table-mobile-cards td[data-label="Aksi"] form {
-        flex: 1;
-        display: flex;
-    }
-
-    .table-mobile-cards td[data-label="Aksi"] form .btn {
-        width: 100%;
+    .table-mobile-cards td .badge,
+    .table-responsive td .badge {
+        font-size: 0.72rem;
+        padding: 0.2rem 0.5rem;
     }
 
     /* 6. Ruang Ujian Mobile (Soal di Atas, Kolom Nomor Soal di Bawah) */
