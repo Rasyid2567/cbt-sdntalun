@@ -384,30 +384,31 @@ window.initMobileTableExtend = function(root = document) {
                 }
             });
 
-            // Buat Tombol Extend di bagian bawah kartu
+            // Buat Tombol Icon Extend di bagian kanan header kartu
             const extendBtn = document.createElement('button');
             extendBtn.type = 'button';
             extendBtn.className = 'cbt-mobile-extend-btn';
-            extendBtn.innerHTML = `<span>Lihat Detail</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>`;
+            extendBtn.setAttribute('aria-label', 'Toggle Detail');
+            extendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>`;
 
             extendBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const isExpanded = row.classList.toggle('expanded');
-                extendBtn.querySelector('span').textContent = isExpanded ? 'Sembunyikan' : 'Lihat Detail';
+                row.classList.toggle('expanded');
             });
 
             // Klik pada nama / header baris juga bisa untuk membuka/menutup detail
             if (primaryCell) {
+                primaryCell.appendChild(extendBtn);
                 primaryCell.addEventListener('click', (e) => {
                     if (window.innerWidth <= 768) {
                         if (e.target.closest('a, button, input, select, form')) return;
-                        extendBtn.click();
+                        row.classList.toggle('expanded');
                     }
                 });
+            } else {
+                row.appendChild(extendBtn);
             }
-
-            row.appendChild(extendBtn);
         });
     });
 };
