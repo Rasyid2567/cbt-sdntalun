@@ -982,6 +982,10 @@ body.page-login #cbt-toast-container {
     overflow-x: auto;
 }
 
+.cbt-mobile-extend-btn {
+    display: none;
+}
+
 .table {
     width: 100%;
     border-collapse: collapse;
@@ -1982,106 +1986,158 @@ body.app-webview-body {
         justify-content: center;
     }
 
-    /* 5. Responsive Table on Mobile: Clean, Compact Horizontal Scrolling */
-    .table-responsive,
-    .table-mobile-cards {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        border: 1px solid var(--gray-200);
-        border-radius: var(--radius-sm);
-        background: #ffffff;
-        margin-top: 0.5rem;
-    }
-
+    /* 5. Responsive Table to Compact Expandable Mobile Cards */
     .table-mobile-cards table,
-    .table-responsive table {
-        display: table !important;
-        width: 100%;
-        white-space: nowrap;
-        margin-top: 0;
-        border-collapse: collapse;
-    }
-
     .table-mobile-cards thead,
-    .table-responsive thead {
-        display: table-header-group !important;
-    }
-
     .table-mobile-cards tbody,
-    .table-responsive tbody {
-        display: table-row-group !important;
-    }
-
-    .table-mobile-cards tr,
-    .table-responsive tr {
-        display: table-row !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
     .table-mobile-cards th,
-    .table-responsive th {
-        display: table-cell !important;
-        padding: 0.55rem 0.75rem !important;
-        font-size: 0.75rem !important;
-        font-weight: 700 !important;
-        background-color: #f1f5f9 !important;
-        color: #475569 !important;
-        border-bottom: 1px solid var(--gray-200) !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
     .table-mobile-cards td,
-    .table-responsive td {
-        display: table-cell !important;
-        padding: 0.55rem 0.75rem !important;
-        font-size: 0.84rem !important;
-        border-bottom: 1px solid var(--gray-100) !important;
-        vertical-align: middle !important;
-        text-align: left !important;
+    .table-mobile-cards tr {
+        display: block;
     }
 
-    .table-mobile-cards td::before,
-    .table-responsive td::before {
+    .table-mobile-cards thead {
         display: none !important;
     }
 
-    .table-mobile-cards td[data-label="No"],
-    .table-responsive td[data-label="No"] {
-        display: table-cell !important;
-        width: 40px;
-        text-align: center !important;
+    .table-mobile-cards tbody tr {
+        background: #ffffff;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        padding: 0.65rem 0.85rem;
+        margin-bottom: 0.55rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        transition: all 0.22s ease;
+        position: relative;
     }
 
-    .table-mobile-cards tbody tr:nth-child(even),
-    .table-responsive tbody tr:nth-child(even) {
-        background-color: #f8fafc !important;
+    .table-mobile-cards tbody tr.expanded {
+        border-color: var(--primary-light);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
     }
 
-    .table-mobile-cards td[data-label="Aksi"],
-    .table-responsive td[data-label="Aksi"] {
-        display: table-cell !important;
-        text-align: center !important;
-        padding: 0.4rem 0.6rem !important;
+    /* Primary Summary Header: Selalu tampil di atas dengan tampilan rapi & ramping */
+    .table-mobile-cards td.mobile-primary-cell {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        border: none !important;
+        padding: 0 0 0.35rem 0 !important;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        cursor: pointer;
     }
 
-    .table-mobile-cards td .btn,
-    .table-responsive td .btn {
-        padding: 0.25rem 0.6rem;
-        font-size: 0.78rem;
-        min-height: unset;
-        white-space: nowrap;
+    .table-mobile-cards td.mobile-primary-cell::before {
+        display: none !important;
     }
 
-    .table-mobile-cards td .badge,
-    .table-responsive td .badge {
+    /* Detail Rows: Disembunyikan secara default, hanya muncul saat tombol Extend ditekan */
+    .table-mobile-cards td.mobile-detail-cell {
+        display: none !important;
+        border: none !important;
+        border-top: 1px dashed var(--gray-200) !important;
+        padding: 0.38rem 0 !important;
+        font-size: 0.84rem !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        text-align: right !important;
+    }
+
+    .table-mobile-cards tr.expanded td.mobile-detail-cell {
+        display: flex !important;
+    }
+
+    .table-mobile-cards td.mobile-detail-cell::before {
+        content: attr(data-label);
+        font-weight: 700;
         font-size: 0.72rem;
-        padding: 0.2rem 0.5rem;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        text-align: left;
+        margin-right: 0.5rem;
+    }
+
+    .table-mobile-cards td.mobile-no-cell,
+    .table-mobile-cards td[data-label="No"] {
+        display: none !important;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"] {
+        display: none !important;
+        border-top: 1px solid var(--gray-200) !important;
+        padding-top: 0.65rem !important;
+        margin-top: 0.35rem !important;
+        text-align: center !important;
+    }
+
+    .table-mobile-cards tr.expanded td[data-label="Aksi"] {
+        display: block !important;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"]::before {
+        display: none !important;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"] .flex {
+        display: flex;
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"] .btn {
+        flex: 1;
+        min-height: 38px;
+        font-size: 0.82rem;
+        justify-content: center;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"] form {
+        flex: 1;
+        display: flex;
+    }
+
+    .table-mobile-cards td[data-label="Aksi"] form .btn {
+        width: 100%;
+    }
+
+    /* Tombol Extend / Detail di Bawah Kartu */
+    .cbt-mobile-extend-btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        width: 100%;
+        padding: 0.35rem 0.6rem;
+        margin-top: 0.35rem;
+        background: #f8fafc;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-sm);
+        color: var(--primary);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .cbt-mobile-extend-btn:hover {
+        background: #eff6ff;
+        border-color: var(--primary-light);
+    }
+
+    .cbt-mobile-extend-btn svg {
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .table-mobile-cards tr.expanded .cbt-mobile-extend-btn {
+        background: #f1f5f9;
+        color: var(--gray-700);
+    }
+
+    .table-mobile-cards tr.expanded .cbt-mobile-extend-btn svg {
+        transform: rotate(180deg);
     }
 
     /* 6. Ruang Ujian Mobile (Soal di Atas, Kolom Nomor Soal di Bawah) */

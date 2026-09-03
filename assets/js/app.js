@@ -352,8 +352,71 @@ window.cbtToast = function(message, type = 'success', duration = 4000) {
     }
 };
 
+// Responsive Mobile Table Expand / Collapse Controller
+window.initMobileTableExtend = function(root = document) {
+    const tables = root.querySelectorAll('.table-mobile-cards table');
+    tables.forEach(table => {
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            if (row.querySelector('.cbt-mobile-extend-btn')) return;
+
+            const cells = Array.from(row.querySelectorAll('td'));
+            if (cells.length <= 1) return;
+
+            // Cari cell utama (Nama / Judul / Ujian / Paket)
+            let primaryCell = cells.find(c => {
+                const label = (c.getAttribute('data-label') || '').toLowerCase();
+                return label.includes('nama') || label.includes('ujian') || label.includes('judul') || label.includes('paket');
+            }) || cells.find(c => {
+                const label = (c.getAttribute('data-label') || '').toLowerCase();
+                return label !== 'no' && label !== 'aksi' && label !== '';
+            }) || cells[0];
+
+            // Tandai kelas cell untuk styling mobile
+            cells.forEach(c => {
+                const label = (c.getAttribute('data-label') || '').toLowerCase();
+                if (c === primaryCell) {
+                    c.classList.add('mobile-primary-cell');
+                } else if (label === 'no') {
+                    c.classList.add('mobile-no-cell');
+                } else {
+                    c.classList.add('mobile-detail-cell');
+                }
+            });
+
+            // Buat Tombol Extend di bagian bawah kartu
+            const extendBtn = document.createElement('button');
+            extendBtn.type = 'button';
+            extendBtn.className = 'cbt-mobile-extend-btn';
+            extendBtn.innerHTML = `<span>Lihat Detail</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>`;
+
+            extendBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const isExpanded = row.classList.toggle('expanded');
+                extendBtn.querySelector('span').textContent = isExpanded ? 'Sembunyikan' : 'Lihat Detail';
+            });
+
+            // Klik pada nama / header baris juga bisa untuk membuka/menutup detail
+            if (primaryCell) {
+                primaryCell.addEventListener('click', (e) => {
+                    if (window.innerWidth <= 768) {
+                        if (e.target.closest('a, button, input, select, form')) return;
+                        extendBtn.click();
+                    }
+                });
+            }
+
+            row.appendChild(extendBtn);
+        });
+    });
+};
+
 // Automatic conversion of server-side PHP flash messages into floating stacked toasts
 document.addEventListener('DOMContentLoaded', () => {
+    window.initCustomSelects();
+    window.initMobileTableExtend();
+
     document.querySelectorAll('.alert:not(.alert-inline)').forEach(alert => {
         if (!alert.closest('.modal-box') && !alert.closest('.soal-box')) {
             let type = 'info';
@@ -369,3 +432,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
