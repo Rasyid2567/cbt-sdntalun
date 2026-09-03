@@ -113,7 +113,7 @@ $flash = flash_get();
             </div>
         <?php endif; ?>
 
-        <form action="<?= base_url('index.php') ?>" method="POST" class="form-login">
+        <form action="<?= base_url('login') ?>" method="POST" class="form-login">
             <?= csrf_field() ?>
             
             <div class="form-group">

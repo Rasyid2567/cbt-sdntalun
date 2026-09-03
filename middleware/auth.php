@@ -18,7 +18,7 @@ function auth_check(array $allowed_roles = []): array {
 
     if (empty($_SESSION['user_id']) || empty($_SESSION['role'])) {
         flash_set('danger', 'Sesi Anda telah berakhir. Silakan login kembali.');
-        redirect(base_url('index.php'));
+        redirect(base_url('login'));
     }
 
     $db = get_db();
@@ -31,7 +31,7 @@ function auth_check(array $allowed_roles = []): array {
         $_SESSION = [];
         session_destroy();
         flash_set('danger', 'Akun pengguna tidak ditemukan.');
-        redirect(base_url('index.php'));
+        redirect(base_url('login'));
     }
 
     // Validasi izin role
@@ -50,7 +50,7 @@ function auth_check(array $allowed_roles = []): array {
                 redirect(base_url('siswa/konfirmasi.php'));
                 break;
             default:
-                redirect(base_url('index.php'));
+                redirect(base_url('login'));
         }
     }
 

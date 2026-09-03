@@ -4,6 +4,11 @@
  * Driver: PostgreSQL via PDO (PHP 8.x+)
  */
 
+// Aktifkan output buffering untuk mencegah error header/redirect
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
 // Pastikan sesi aktif dengan parameter aman
 if (session_status() === PHP_SESSION_NONE) {
     session_start([

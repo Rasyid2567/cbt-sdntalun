@@ -37,4 +37,4 @@ session_destroy();
 // Mulai sesi baru untuk pesan flash
 session_start();
 flash_set('info', 'Anda telah berhasil logout dari sistem.');
-redirect(base_url('index.php'));
+redirect(base_url('login'));
