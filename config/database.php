@@ -292,6 +292,12 @@ function base_url(string $path = ''): string {
         if ($cleanPath === 'index') {
             $cleanPath = 'login';
         }
+    } elseif (str_ends_with($cleanPath, '.css') || str_ends_with($cleanPath, '.js')) {
+        // Auto Cache-Busting: Tambahkan timestamp versi agar Tunnel/CDN & Browser langsung memuat update terbaru
+        $localFilePath = dirname(__DIR__) . '/' . $cleanPath;
+        if (file_exists($localFilePath)) {
+            $cleanPath .= '?v=' . filemtime($localFilePath);
+        }
     }
 
     return ($scriptDir === '' ? '' : $scriptDir) . '/' . $cleanPath;
