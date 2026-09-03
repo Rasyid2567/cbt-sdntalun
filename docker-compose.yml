@@ -16,6 +16,6 @@ services:
       - DB_PORT=5432
       - DB_NAME=cbt_sdntalun
       - DB_USER=postgres
-      - DB_PASS=postgres
+      - DB_PASS=ngebel1234
     extra_hosts:
       - "host.docker.internal:host-gateway"
