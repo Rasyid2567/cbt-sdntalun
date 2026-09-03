@@ -284,5 +284,15 @@ function base_url(string $path = ''): string {
     // Normalisasi jika berada di subfolder (misal /operator atau /guru)
     $scriptDir = preg_replace('/(\/operator|\/guru|\/siswa|\/config)$/', '', $scriptDir);
     $scriptDir = rtrim($scriptDir, '/\\');
-    return ($scriptDir === '' ? '' : $scriptDir) . '/' . ltrim($path, '/');
+
+    $cleanPath = ltrim($path, '/');
+    // Jika path menuju file .php (dan bukan asset statis css/js/gambar), buang ekstensi .php
+    if (str_ends_with($cleanPath, '.php')) {
+        $cleanPath = substr($cleanPath, 0, -4);
+        if ($cleanPath === 'index') {
+            $cleanPath = 'login';
+        }
+    }
+
+    return ($scriptDir === '' ? '' : $scriptDir) . '/' . $cleanPath;
 }

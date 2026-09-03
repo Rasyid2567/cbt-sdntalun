@@ -2,20 +2,25 @@
     RewriteEngine On
     DirectoryIndex index.php
 
-    # 1. Redirect akses GET langsung ke /index.php atau /index menuju /login
+    # 1. Redirect akses GET /index.php atau /index langsung ke /login
     RewriteCond %{REQUEST_METHOD} =GET
     RewriteCond %{THE_REQUEST} ^GET\s+/(index\.php|index)(\?[^\s]*)?\s [NC]
     RewriteRule ^ /login [R=301,L]
 
-    # 2. Alias URL /login ke index.php
+    # 2. Redirect akses GET yang masih mengetik .php ke URL bersih tanpa .php (hanya GET agar tidak merusak form POST)
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteCond %{THE_REQUEST} ^GET\s+([^\s?]+)\.php(\?[^\s]*)?\s [NC]
+    RewriteRule ^ %1 [R=301,L]
+
+    # 3. Alias URL /login ke index.php
     RewriteRule ^login/?$ index.php [L,QSA]
 
-    # 3. Layani langsung file dan folder fisik yang ada (CSS, JS, Gambar, Uploads)
+    # 4. Layani langsung file dan folder fisik yang ada (CSS, JS, Gambar, Uploads)
     RewriteCond %{REQUEST_FILENAME} -d [OR]
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
-    # 4. Rewrite URL tanpa ekstensi .php ke file .php yang sesuai
+    # 5. Rewrite URL tanpa ekstensi .php ke file .php yang sesuai
     RewriteCond %{REQUEST_FILENAME}.php -f
     RewriteRule ^(.*)$ $1.php [L,QSA]
 </IfModule>
