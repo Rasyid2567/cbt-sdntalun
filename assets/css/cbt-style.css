@@ -1379,44 +1379,10 @@ body.page-login #cbt-toast-container {
 }
 
 /* Interactive Essai Input in Ruang Ujian */
-.cbt-essai-container {
-    background: #ffffff;
-    border: 1.5px solid #cbd5e1;
-    border-radius: var(--radius-md);
-    padding: 1.25rem;
-    margin-top: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.cbt-essai-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.65rem;
-    border-bottom: 1px solid var(--gray-200);
-}
-
-.cbt-essai-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #4338ca;
-}
-
-.cbt-essai-instruction {
-    font-size: 0.84rem;
-    color: var(--gray-600);
-    margin-bottom: 0.75rem;
-    line-height: 1.4;
-}
-
 .cbt-essai-textarea {
     width: 100%;
-    min-height: 160px;
-    padding: 0.85rem 1rem;
+    min-height: 180px;
+    padding: 0.9rem 1.1rem;
     font-size: 1rem;
     line-height: 1.6;
     border: 1.5px solid #cbd5e1;
@@ -1426,22 +1392,14 @@ body.page-login #cbt-toast-container {
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     box-sizing: border-box;
     background-color: #fafbfc;
+    margin-top: 0.75rem;
 }
 
 .cbt-essai-textarea:focus {
-    border-color: #4f46e5;
+    border-color: var(--primary, #2563eb);
     background-color: #ffffff;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     outline: none;
-}
-
-.cbt-essai-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 0.65rem;
-    font-size: 0.8rem;
-    color: var(--gray-500);
 }
 
 /* Legend Indicator */

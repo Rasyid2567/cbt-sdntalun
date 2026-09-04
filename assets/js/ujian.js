@@ -145,75 +145,35 @@ class CBTExamManager {
             this.dom.opsiList.innerHTML = '';
 
             if (currentSoal.jenis_soal === 'essai') {
-                const essaiWrapper = document.createElement('div');
-                essaiWrapper.className = 'cbt-essai-container';
+                const textarea = document.createElement('textarea');
+                textarea.id = 'cbt-textarea-essai';
+                textarea.className = 'cbt-essai-textarea';
+                textarea.rows = 7;
+                textarea.placeholder = 'Tuliskan jawaban uraian Anda di sini...';
+                textarea.value = currentSoal.jawaban_terpilih || '';
 
-                const charCount = (currentSoal.jawaban_terpilih || '').length;
+                this.dom.opsiList.appendChild(textarea);
 
-                essaiWrapper.innerHTML = `
-                    <div class="cbt-essai-header">
-                        <div class="cbt-essai-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                            <span>Lembar Jawaban Uraian / Essai</span>
-                        </div>
-                        <span class="badge" style="background:#ede9fe; color:#6d28d9; font-weight:700; font-size:0.75rem;">Essai</span>
-                    </div>
-                    <div class="cbt-essai-instruction">
-                        Ketikkan jawaban Anda secara jelas dan lengkap pada kolom di bawah ini. Jawaban Anda akan tersimpan secara otomatis ke sistem.
-                    </div>
-                    <textarea 
-                        id="cbt-textarea-essai" 
-                        class="cbt-essai-textarea" 
-                        rows="6" 
-                        placeholder="Tuliskan jawaban uraian Anda di sini..."
-                    >${currentSoal.jawaban_terpilih || ''}</textarea>
-                    <div class="cbt-essai-footer">
-                        <span id="cbt-char-counter">${charCount} karakter</span>
-                        <span id="cbt-save-indicator" class="text-xs" style="color: #10b981; font-weight: 600;">✓ Tersimpan otomatis</span>
-                    </div>
-                `;
+                textarea.addEventListener('input', (e) => {
+                    const val = e.target.value;
+                    currentSoal.jawaban_terpilih = val;
+                    this.setSyncStatus('saving', 'Menyimpan...');
+                    this.updateGridClasses();
 
-                this.dom.opsiList.appendChild(essaiWrapper);
+                    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => {
+                        this.debounceTimer = null;
+                        this.saveJawabanToServer(currentSoal.id_soal, val);
+                    }, 500);
+                });
 
-                const textarea = essaiWrapper.querySelector('#cbt-textarea-essai');
-                const counter = essaiWrapper.querySelector('#cbt-char-counter');
-                const indicator = essaiWrapper.querySelector('#cbt-save-indicator');
-
-                if (textarea) {
-                    textarea.addEventListener('input', (e) => {
-                        const val = e.target.value;
-                        currentSoal.jawaban_terpilih = val;
-                        if (counter) counter.textContent = `${val.length} karakter`;
-                        if (indicator) {
-                            indicator.style.color = '#f59e0b';
-                            indicator.textContent = 'Menyimpan...';
-                        }
-                        this.setSyncStatus('saving', 'Menyimpan...');
-                        this.updateGridClasses();
-
-                        if (this.debounceTimer) clearTimeout(this.debounceTimer);
-                        this.debounceTimer = setTimeout(() => {
-                            this.debounceTimer = null;
-                            this.saveJawabanToServer(currentSoal.id_soal, val);
-                            if (indicator) {
-                                indicator.style.color = '#10b981';
-                                indicator.textContent = '✓ Tersimpan otomatis';
-                            }
-                        }, 500);
-                    });
-
-                    textarea.addEventListener('blur', (e) => {
-                        if (this.debounceTimer) {
-                            clearTimeout(this.debounceTimer);
-                            this.debounceTimer = null;
-                            this.saveJawabanToServer(currentSoal.id_soal, e.target.value);
-                            if (indicator) {
-                                indicator.style.color = '#10b981';
-                                indicator.textContent = '✓ Tersimpan otomatis';
-                            }
-                        }
-                    });
-                }
+                textarea.addEventListener('blur', (e) => {
+                    if (this.debounceTimer) {
+                        clearTimeout(this.debounceTimer);
+                        this.debounceTimer = null;
+                        this.saveJawabanToServer(currentSoal.id_soal, e.target.value);
+                    }
+                });
             } else {
                 // Pilihan Ganda (Single / Multi)
                 currentSoal.opsi.forEach(opt => {
