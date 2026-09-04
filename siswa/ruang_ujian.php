@@ -216,7 +216,7 @@ foreach ($urutanIds as $index => $sid) {
             </div>
             <div class="legend-item">
                 <span class="legend-color essai"></span>
-                <span>Soal Essai di Kertas (Ungu)</span>
+                <span>Soal Essai Belum Diisi (Ungu)</span>
             </div>
         </div>
     </aside>

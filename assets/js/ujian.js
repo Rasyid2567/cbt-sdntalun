@@ -22,6 +22,7 @@ class CBTExamManager {
         this.currentIndex = 0;
         this.retryQueue   = [];
         this.isSaving     = false;
+        this.debounceTimer = null;
 
         // Elemen DOM
         this.dom = {
@@ -64,6 +65,7 @@ class CBTExamManager {
         // Event Navigasi
         if (this.dom.btnPrev) {
             this.dom.btnPrev.addEventListener('click', () => {
+                this.flushEssaiSave();
                 if (this.currentIndex > 0) {
                     this.renderSoal(this.currentIndex - 1);
                 }
@@ -72,6 +74,7 @@ class CBTExamManager {
 
         if (this.dom.btnNext) {
             this.dom.btnNext.addEventListener('click', () => {
+                this.flushEssaiSave();
                 if (this.currentIndex < this.soalData.length - 1) {
                     this.renderSoal(this.currentIndex + 1);
                 }
@@ -88,6 +91,7 @@ class CBTExamManager {
         // Event Modal Selesai
         if (this.dom.btnFinish) {
             this.dom.btnFinish.addEventListener('click', () => {
+                this.flushEssaiSave();
                 this.showFinishModal();
             });
         }
@@ -110,6 +114,7 @@ class CBTExamManager {
      */
     renderSoal(index) {
         if (index < 0 || index >= this.soalData.length) return;
+        this.flushEssaiSave();
         this.currentIndex = index;
 
         const currentSoal = this.soalData[index];
@@ -141,19 +146,74 @@ class CBTExamManager {
 
             if (currentSoal.jenis_soal === 'essai') {
                 const essaiWrapper = document.createElement('div');
-                essaiWrapper.style.cssText = 'background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem 1.5rem; margin-top: 1rem; text-align: center;';
+                essaiWrapper.className = 'cbt-essai-container';
+
+                const charCount = (currentSoal.jawaban_terpilih || '').length;
 
                 essaiWrapper.innerHTML = `
-                    <div style="width: 44px; height: 44px; margin: 0 auto 0.5rem; border-radius: 50%; background: #ede9fe; color: #6d28d9; display: flex; align-items: center; justify-content: center;">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    <div class="cbt-essai-header">
+                        <div class="cbt-essai-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            <span>Lembar Jawaban Uraian / Essai</span>
+                        </div>
+                        <span class="badge" style="background:#ede9fe; color:#6d28d9; font-weight:700; font-size:0.75rem;">Essai</span>
                     </div>
-                    <h3 style="font-size: 1.05rem; font-weight: 700; color: #1e293b; margin: 0 0 0.4rem 0;">SOAL URAIAN / ESSAI</h3>
-                    <p style="font-size: 0.92rem; color: #475569; margin: 0; line-height: 1.5;">
-                        Tuliskan jawaban untuk butir pertanyaan ini pada <strong>Lembar Kertas Jawaban Ujian</strong> yang telah disediakan oleh Pengawas Ujian.
-                    </p>
+                    <div class="cbt-essai-instruction">
+                        Ketikkan jawaban Anda secara jelas dan lengkap pada kolom di bawah ini. Jawaban Anda akan tersimpan secara otomatis ke sistem.
+                    </div>
+                    <textarea 
+                        id="cbt-textarea-essai" 
+                        class="cbt-essai-textarea" 
+                        rows="6" 
+                        placeholder="Tuliskan jawaban uraian Anda di sini..."
+                    >${currentSoal.jawaban_terpilih || ''}</textarea>
+                    <div class="cbt-essai-footer">
+                        <span id="cbt-char-counter">${charCount} karakter</span>
+                        <span id="cbt-save-indicator" class="text-xs" style="color: #10b981; font-weight: 600;">✓ Tersimpan otomatis</span>
+                    </div>
                 `;
 
                 this.dom.opsiList.appendChild(essaiWrapper);
+
+                const textarea = essaiWrapper.querySelector('#cbt-textarea-essai');
+                const counter = essaiWrapper.querySelector('#cbt-char-counter');
+                const indicator = essaiWrapper.querySelector('#cbt-save-indicator');
+
+                if (textarea) {
+                    textarea.addEventListener('input', (e) => {
+                        const val = e.target.value;
+                        currentSoal.jawaban_terpilih = val;
+                        if (counter) counter.textContent = `${val.length} karakter`;
+                        if (indicator) {
+                            indicator.style.color = '#f59e0b';
+                            indicator.textContent = 'Menyimpan...';
+                        }
+                        this.setSyncStatus('saving', 'Menyimpan...');
+                        this.updateGridClasses();
+
+                        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+                        this.debounceTimer = setTimeout(() => {
+                            this.debounceTimer = null;
+                            this.saveJawabanToServer(currentSoal.id_soal, val);
+                            if (indicator) {
+                                indicator.style.color = '#10b981';
+                                indicator.textContent = '✓ Tersimpan otomatis';
+                            }
+                        }, 500);
+                    });
+
+                    textarea.addEventListener('blur', (e) => {
+                        if (this.debounceTimer) {
+                            clearTimeout(this.debounceTimer);
+                            this.debounceTimer = null;
+                            this.saveJawabanToServer(currentSoal.id_soal, e.target.value);
+                            if (indicator) {
+                                indicator.style.color = '#10b981';
+                                indicator.textContent = '✓ Tersimpan otomatis';
+                            }
+                        }
+                    });
+                }
             } else {
                 // Pilihan Ganda (Single / Multi)
                 currentSoal.opsi.forEach(opt => {
@@ -397,6 +457,7 @@ class CBTExamManager {
             btn.textContent = idx + 1;
 
             btn.addEventListener('click', () => {
+                this.flushEssaiSave();
                 this.renderSoal(idx);
             });
 
@@ -422,15 +483,29 @@ class CBTExamManager {
                 btn.classList.add('active');
             }
 
-            // Status Ragu, Essai Kertas, atau Pilihan Ganda Dijawab
+            // Status Ragu, Dijawab, atau Essai Belum Diisi
             if (soal.status_ragu) {
                 btn.classList.add('ragu');
-            } else if (soal.jenis_soal === 'essai') {
-                btn.classList.add('essai');
             } else if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
                 btn.classList.add('dijawab');
+            } else if (soal.jenis_soal === 'essai') {
+                btn.classList.add('essai');
             }
         });
+    }
+
+    /**
+     * Menyimpan draf jawaban essai jika ada timer debounce yang masih berjalan
+     */
+    flushEssaiSave() {
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = null;
+            const currentSoal = this.soalData[this.currentIndex];
+            if (currentSoal && currentSoal.jenis_soal === 'essai') {
+                this.saveJawabanToServer(currentSoal.id_soal, currentSoal.jawaban_terpilih || '');
+            }
+        }
     }
 
     /**
@@ -441,14 +516,21 @@ class CBTExamManager {
         let pgDijawab = 0;
         let pgBelum = 0;
         let ragu = 0;
-        let essaiCount = 0;
+        let essaiTotal = 0;
+        let essaiDijawab = 0;
+        let essaiBelum = 0;
 
         this.soalData.forEach(soal => {
             if (soal.status_ragu) {
                 ragu++;
             }
             if (soal.jenis_soal === 'essai') {
-                essaiCount++;
+                essaiTotal++;
+                if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
+                    essaiDijawab++;
+                } else {
+                    essaiBelum++;
+                }
             } else {
                 pgTotal++;
                 if (soal.jawaban_terpilih && soal.jawaban_terpilih.trim() !== '') {
@@ -466,6 +548,7 @@ class CBTExamManager {
                         <span>Total Butir Soal:</span>
                         <strong>${this.soalData.length} Soal</strong>
                     </div>
+                    ${pgTotal > 0 ? `
                     <div class="flex-between mb-2 text-success">
                         <span>Pilihan Ganda Terjawab:</span>
                         <strong>${pgDijawab} / ${pgTotal}</strong>
@@ -475,24 +558,31 @@ class CBTExamManager {
                         <span>Pilihan Ganda Belum Dijawab:</span>
                         <strong>${pgBelum}</strong>
                     </div>` : ''}
+                    ` : ''}
+                    ${essaiTotal > 0 ? `
+                    <div class="flex-between mb-2" style="color: #6d28d9; border-top: 1px dashed var(--gray-300); padding-top: 0.5rem; margin-top: 0.5rem;">
+                        <span>Soal Essai / Uraian Terjawab:</span>
+                        <strong>${essaiDijawab} / ${essaiTotal}</strong>
+                    </div>
+                    ${essaiBelum > 0 ? `
+                    <div class="flex-between mb-2 text-danger">
+                        <span>Soal Essai Belum Diisi:</span>
+                        <strong>${essaiBelum}</strong>
+                    </div>` : ''}
+                    ` : ''}
                     ${ragu > 0 ? `
-                    <div class="flex-between mb-2 text-warning">
+                    <div class="flex-between mb-2 text-warning" style="border-top: 1px dashed var(--gray-300); padding-top: 0.5rem; margin-top: 0.5rem;">
                         <span>Masih Ragu-ragu:</span>
                         <strong>${ragu}</strong>
                     </div>` : ''}
-                    ${essaiCount > 0 ? `
-                    <div class="flex-between" style="color: #6d28d9; border-top: 1px dashed var(--gray-300); padding-top: 0.5rem; margin-top: 0.5rem;">
-                        <span>Soal Uraian / Essai (Di Kertas):</span>
-                        <strong>${essaiCount} Butir</strong>
-                    </div>` : ''}
                 </div>
-                ${(pgBelum > 0 || ragu > 0) ? `
+                ${(pgBelum > 0 || essaiBelum > 0 || ragu > 0) ? `
                     <div class="alert alert-warning text-sm">
-                        <strong>Perhatian:</strong> Masih ada soal pilihan ganda yang belum dijawab atau bertanda ragu-ragu. Pastikan juga jawaban soal uraian telah Anda tulis di kertas sebelum mengakhiri sesi.
+                        <strong>Perhatian:</strong> Masih ada butir soal yang belum dijawab atau bertanda ragu-ragu. Pastikan seluruh jawaban telah Anda periksa sebelum mengakhiri sesi.
                     </div>
                 ` : `
                     <div class="alert alert-success text-sm">
-                        Seluruh soal pilihan ganda telah dijawab. Pastikan lembar kertas jawaban uraian juga sudah terisi, lalu klik <strong>SELESAIKAN UJIAN</strong>.
+                        Seluruh butir soal telah dijawab. Silakan klik <strong>SELESAIKAN UJIAN</strong> untuk mengumpulkan lembar jawaban Anda.
                     </div>
                 `}
             `;

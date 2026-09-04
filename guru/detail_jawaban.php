@@ -58,9 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     $inputNilai = $_POST['nilai_soal'] ?? [];
 
     $stmtUpdSoal = $db->prepare("
-        UPDATE jawaban_siswa 
-        SET nilai_soal = :n, updated_at = CURRENT_TIMESTAMP 
-        WHERE id_ujian_siswa = :us AND id_soal = :soal
+        INSERT INTO jawaban_siswa (id_ujian_siswa, id_soal, nilai_soal, updated_at)
+        VALUES (:us, :soal, :n, CURRENT_TIMESTAMP)
+        ON CONFLICT (id_ujian_siswa, id_soal) 
+        DO UPDATE SET 
+            nilai_soal = EXCLUDED.nilai_soal,
+            updated_at = CURRENT_TIMESTAMP
     ");
 
     foreach ($inputNilai as $sid => $scoreVal) {
@@ -190,8 +193,10 @@ if (!empty($urutanIds)) {
         $item = $soalMap[$sid];
         
         $jenisSoal    = $item['jenis_soal'] ?? 'pilihan_ganda';
-        $jawabanSiswa = strtoupper(trim($item['jawaban_terpilih'] ?? ''));
-        $kunciJawaban = strtoupper(trim($item['kunci_jawaban'] ?? ''));
+        $rawJawaban   = trim($item['jawaban_terpilih'] ?? '');
+        $rawKunci     = trim($item['kunci_jawaban'] ?? '');
+        $jawabanSiswa = ($jenisSoal === 'essai') ? $rawJawaban : strtoupper($rawJawaban);
+        $kunciJawaban = ($jenisSoal === 'essai') ? $rawKunci : strtoupper($rawKunci);
         $nilaiSoal    = $item['nilai_soal'] !== null ? (float)$item['nilai_soal'] : null;
         
         $isCorrect = false;
@@ -199,7 +204,7 @@ if (!empty($urutanIds)) {
 
         if ($jenisSoal === 'essai') {
             $statEssai++;
-            $statusItem = 'essai';
+            $statusItem = ($nilaiSoal !== null) ? 'dinilai' : 'essai';
         } else {
             if ($jawabanSiswa === '') {
                 $statKosong++;
@@ -546,6 +551,9 @@ $flash = flash_get();
                                 <?php else: ?>
                                     <span class="badge-status" style="background:#fef3c7;color:#92400e;">Belum Dinilai</span>
                                 <?php endif; ?>
+                                <?php if (empty($s['jawaban_terpilih'])): ?>
+                                    <span class="badge-status kosong" style="margin-left:0.25rem;">Tidak Diisi</span>
+                                <?php endif; ?>
                             <?php elseif ($s['status_item'] === 'benar'): ?>
                                 <span class="badge-status benar">Benar (+1)</span>
                             <?php elseif ($s['status_item'] === 'salah'): ?>
@@ -598,19 +606,36 @@ $flash = flash_get();
                         </div>
                     <?php else: ?>
                         <div class="essay-box">
+                            <div style="margin-bottom: 0.85rem;">
+                                <div style="font-size:0.82rem;color:#475569;font-weight:700;margin-bottom:0.35rem;display:flex;align-items:center;gap:0.4rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                    <span>Jawaban Siswa (Diisi Online):</span>
+                                </div>
+                                <div style="background:#fff;border:1.5px solid #cbd5e1;border-radius:6px;padding:0.75rem 1rem;font-size:0.95rem;color:#1e293b;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-height:54px;">
+                                    <?php if (!empty($s['jawaban_terpilih'])): ?>
+                                        <?= nl2br(sanitize($s['jawaban_terpilih'])) ?>
+                                    <?php else: ?>
+                                        <span style="color:#94a3b8;font-style:italic;">(Siswa tidak mengisi jawaban untuk butir soal ini)</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
                             <?php if (!empty($s['kunci_jawaban'])): ?>
-                                <div style="font-size:0.8rem;color:#64748b;font-weight:600;margin-bottom:0.25rem;">Pedoman Jawaban:</div>
-                                <div style="font-size:0.9rem;color:#1e293b;margin-bottom:0.65rem;">
-                                    <?= nl2br(sanitize($s['kunci_jawaban'])) ?>
+                                <div style="margin-bottom: 0.85rem;">
+                                    <div style="font-size:0.8rem;color:#64748b;font-weight:600;margin-bottom:0.25rem;">Pedoman Penilaian / Kunci Jawaban:</div>
+                                    <div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;padding:0.6rem 0.85rem;font-size:0.88rem;color:#334155;line-height:1.5;">
+                                        <?= nl2br(sanitize($s['kunci_jawaban'])) ?>
+                                    </div>
                                 </div>
                             <?php endif; ?>
 
-                            <div style="display:flex;align-items:center;gap:0.5rem;">
-                                <label for="nilai_<?= $s['id_soal'] ?>" style="font-size:0.85rem;font-weight:600;color:#334155;">
-                                    Nilai Soal Ini:
+                            <div style="display:flex;align-items:center;gap:0.6rem;background:#ede9fe;border:1px solid #ddd6fe;border-radius:6px;padding:0.6rem 0.85rem;flex-wrap:wrap;">
+                                <label for="nilai_<?= $s['id_soal'] ?>" style="font-size:0.85rem;font-weight:700;color:#5b21b6;margin:0;">
+                                    Beri Nilai Manual:
                                 </label>
-                                <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="nilai_<?= $s['id_soal'] ?>" class="form-control" min="0" max="100" step="0.5" placeholder="0-100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="width:90px;text-align:center;padding:0.3rem 0.5rem;font-weight:600;">
-                                <span style="font-size:0.85rem;color:#64748b;">/ 100</span>
+                                <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="nilai_<?= $s['id_soal'] ?>" class="form-control" min="0" max="100" step="0.5" placeholder="0-100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="width:90px;text-align:center;padding:0.35rem 0.5rem;font-weight:700;background:#fff;">
+                                <span style="font-size:0.85rem;color:#6d28d9;font-weight:600;">/ 100</span>
+                                <span style="font-size:0.75rem;color:#7c3aed;margin-left:auto;">(Skala 0 - 100)</span>
                             </div>
                         </div>
                     <?php endif; ?>

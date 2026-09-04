@@ -107,7 +107,7 @@ if ($totalSoal > 0) {
 }
 
 // 3. Hitung Nilai Akhir Otomatis dari Pilihan Ganda (Skala 0 - 100)
-// Soal Uraian / Essai dikerjakan di kertas dan dinilai secara manual oleh Guru
+// Soal Uraian / Essai diisi di halaman ujian CBT dan dinilai secara manual oleh Guru di menu Rekap Nilai
 $nilaiPG = ($totalPG > 0) ? round(($jumlahBenar / $totalPG) * 100, 2) : 0.00;
 $nilaiAkhir = $nilaiPG;
 
