@@ -119,95 +119,83 @@ foreach ($urutanIds as $index => $sid) {
 <body class="cbt-fullscreen app-webview-body">
 
 <!-- Header Ujian (Fixed Top) -->
-<header class="cbt-exam-header">
-    <div class="header-left">
-        <div class="cbt-logo-badge">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
-            <span class="exam-title-text"><?= sanitize($ujianSiswa['nama_ujian']) ?></span>
+<header class="cbt-exam-header app-safe-top">
+    <div class="cbt-header-info">
+        <div class="cbt-exam-title"><?= sanitize($ujianSiswa['nama_ujian']) ?></div>
+        <div class="text-xs text-muted cbt-student-info">
+            <strong><?= sanitize($currentUser['nama_lengkap']) ?></strong> | NIS: <code><?= sanitize($currentUser['nis'] ?? '-') ?></code> (<?= sanitize($ujianSiswa['nama_mapel']) ?>)
         </div>
-        <span class="exam-mapel-text">(<?= sanitize($ujianSiswa['nama_mapel']) ?>)</span>
     </div>
-
-    <div class="header-right">
-        <!-- Floating Global Real-time Countdown Timer -->
-        <div class="cbt-timer" id="timer-container" title="Sisa waktu ujian Anda">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            <span id="timer-display">--:--:--</span>
+    <div class="flex gap-2 cbt-header-actions" style="align-items: center;">
+        <span id="status-sync" class="sync-badge saved">Tersinkron</span>
+        <div class="timer-container">
+            <span class="timer-label">WAKTU:</span>
+            <span id="timer-display" class="timer-display">00:00:00</span>
         </div>
-
-        <!-- Tombol Toggle Grid Nomor (Mobile/Drawer) -->
-        <button type="button" id="btn-toggle-grid" class="btn-toggle-grid" aria-label="Buka Daftar Nomor">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <button type="button" id="btn-toggle-grid" class="btn btn-sm btn-outline webview-grid-toggle" title="Daftar Soal">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
             <span>Daftar Soal</span>
         </button>
     </div>
 </header>
 
-<main class="cbt-exam-wrapper">
-    <!-- Area Lembar Soal (Kiri) -->
-    <section class="cbt-question-area" id="cbt-question-area">
-        <!-- Top Toolbar Soal: Nomor & Ukuran Font -->
-        <div class="question-header">
-            <div class="question-number">
-                <span>Soal No.</span>
-                <strong id="current-question-num">1</strong>
-                <span id="label-jenis-soal" style="font-size: 0.8rem; margin-left: 0.5rem; font-weight: 700;"></span>
+<!-- Main Exam Layout -->
+<main class="cbt-exam-layout">
+    <!-- Kolom Kiri: Box Soal (1 Soal per Layar) -->
+    <div class="soal-box">
+        <!-- Top Bar Soal -->
+        <div class="soal-top-bar">
+            <div id="soal-nomor-badge" class="soal-nomor-badge">
+                SOAL NO. 1 DARI <?= count($soalClean) ?>
             </div>
-            
-            <div class="font-size-adjuster" title="Ubah Ukuran Tulisan">
-                <span class="text-xs text-muted">Font:</span>
-                <button type="button" class="btn-font-size" data-size="small">A-</button>
-                <button type="button" class="btn-font-size active" data-size="normal">A</button>
-                <button type="button" class="btn-font-size" data-size="large">A+</button>
+            <div>
+                <button type="button" id="btn-finish-modal" class="btn btn-sm btn-danger font-bold" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                    SELESAIKAN UJIAN
+                </button>
             </div>
         </div>
 
-        <!-- Kontainer Butir Pertanyaan -->
-        <div class="question-content font-normal" id="question-text-box">
-            <div id="soal-image-container" class="question-image mb-3" style="display: none;">
-                <img id="soal-image" src="" alt="Gambar Soal" style="max-height: 250px; border-radius: var(--radius-sm); border: 1px solid var(--gray-300);">
+        <!-- Isi Pertanyaan & Opsi -->
+        <div class="soal-content">
+            <div id="soal-pertanyaan" class="mb-3"></div>
+
+            <div id="soal-image-container" style="display: none;">
+                <img id="soal-img-tag" src="" alt="Gambar Soal" class="soal-image">
             </div>
-            <div id="soal-text" class="question-text">
-                Memuat butir pertanyaan...
-            </div>
+
+            <!-- Opsi Pilihan Ganda -->
+            <div id="opsi-list-container" class="opsi-list"></div>
         </div>
 
-        <!-- Kontainer Pilihan Jawaban (Radio Kustom) -->
-        <div class="question-options" id="options-container">
-            <!-- Diisi secara dinamis oleh JavaScript -->
+        <!-- Navigasi Bawah (Touch Friendly) -->
+        <div class="soal-nav-bar app-safe-bottom">
+            <button type="button" id="btn-prev" class="btn btn-outline touch-btn">
+                ◄ SEBELUMNYA
+            </button>
+
+            <div>
+                <label class="ragu-label-touch">
+                    <input type="checkbox" id="chk-ragu" style="transform: scale(1.3); accent-color: #f59e0b; cursor: pointer;">
+                    <span>RAGU - RAGU</span>
+                </label>
+            </div>
+
+            <button type="button" id="btn-next" class="btn btn-primary touch-btn">
+                SELANJUTNYA ►
+            </button>
         </div>
+    </div>
 
-        <!-- Bottom Navigation Controls -->
-        <footer class="question-nav-footer">
-            <button type="button" id="btn-prev" class="btn btn-outline btn-nav">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                <span>Sebelumnya</span>
-            </button>
-
-            <!-- Checkbox Ragu-ragu -->
-            <label class="checkbox-ragu" id="label-ragu" title="Tandai jika masih ragu dengan jawaban ini">
-                <input type="checkbox" id="check-ragu">
-                <span class="ragu-indicator"></span>
-                <span>Ragu-ragu</span>
-            </label>
-
-            <button type="button" id="btn-next" class="btn btn-primary btn-nav">
-                <span>Berikutnya</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
-
-            <button type="button" id="btn-finish" class="btn btn-danger btn-nav" style="display: none;">
-                <span>Selesai Ujian</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            </button>
-        </footer>
-    </section>
-
-    <!-- Drawer Navigasi Nomor Soal (Kanan) -->
-    <aside class="cbt-grid-sidebar" id="cbt-grid-sidebar">
-        <div class="sidebar-header">
-            <h2 class="sidebar-title">Daftar Nomor Soal</h2>
-            <button type="button" id="btn-close-grid" class="btn-close-sidebar" aria-label="Tutup Menu">&times;</button>
+    <!-- Kolom Kanan / Mobile Drawer: Grid Nomor Soal -->
+    <aside id="cbt-grid-sidebar" class="grid-box">
+        <div class="grid-header">
+            <span>DAFTAR NOMOR SOAL</span>
+            <div class="flex gap-2" style="align-items: center;">
+                <span class="text-xs text-muted"><?= count($soalClean) ?> Butir</span>
+                <button type="button" id="btn-close-grid" class="btn btn-sm btn-outline webview-grid-close" aria-label="Tutup">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
         </div>
 
         <div id="soal-grid-container" class="soal-grid"></div>

@@ -6,6 +6,14 @@
 
 require_once __DIR__ . '/../middleware/auth.php';
 
+// Fallback routing untuk request file script langsung / clean URL (mendukung Apache & dev server php -S)
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$fileBase = basename($requestPath);
+if ($fileBase !== 'index' && $fileBase !== 'siswa' && file_exists(__DIR__ . '/' . $fileBase . '.php')) {
+    require __DIR__ . '/' . $fileBase . '.php';
+    exit;
+}
+
 // Pastikan pengguna terautentikasi sebagai Siswa
 $currentUser = auth_check(['siswa']);
 $db = get_db();

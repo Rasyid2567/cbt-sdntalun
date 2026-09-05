@@ -6,6 +6,14 @@
 
 require_once __DIR__ . '/config/database.php';
 
+// Fallback routing untuk request clean URL / file langsung (mendukung Apache & dev server php -S)
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$fileBase = basename($requestPath);
+if ($fileBase !== 'index' && $fileBase !== '' && file_exists(__DIR__ . '/' . $fileBase . '.php')) {
+    require __DIR__ . '/' . $fileBase . '.php';
+    exit;
+}
+
 // Jika pengguna sudah login, alihkan langsung ke dashboard masing-masing
 if (!empty($_SESSION['user_id']) && !empty($_SESSION['role'])) {
     switch ($_SESSION['role']) {
