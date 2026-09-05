@@ -24,13 +24,11 @@ try {
 
     // Ambil alert terbaru yang ID-nya lebih besar dari last_id
     // dan targetnya adalah 'semua' atau sesuai peran pengguna saat ini
-    // serta hanya alert dalam rentang 12 jam terakhir
     $stmt = $db->prepare("
         SELECT id, judul, pesan, target, created_at
         FROM server_alerts
         WHERE id > :last_id
-          AND (target = 'semua' OR target = :target)
-          AND created_at >= NOW() - INTERVAL '12 HOUR'
+          AND (LOWER(target) = 'semua' OR LOWER(target) = LOWER(:target))
         ORDER BY id DESC
         LIMIT 1
     ");
