@@ -3,11 +3,13 @@
  * Modul Bank Soal Guru (Daftar & Kelola Paket Soal Terkelompok)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
+$page = 'bank_soal';
+$pageTitle = 'Bank Soal Ujian';
 
 // Tangani Export CSV per Paket
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
@@ -38,7 +40,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 
     if (!$paket) {
         flash_set('danger', 'Paket soal tidak ditemukan.');
-        redirect(base_url('guru/bank_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=bank_soal'));
     }
 
     $stmtExp = $db->prepare("
@@ -78,7 +80,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('guru/bank_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=bank_soal'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -97,8 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtImg->execute([':id' => $idSoal, ':g' => $idGuru]);
             $soalImg = $stmtImg->fetchColumn();
 
-            if ($soalImg && file_exists(__DIR__ . '/../' . ltrim($soalImg, '/'))) {
-                unlink(__DIR__ . '/../' . ltrim($soalImg, '/'));
+            if ($soalImg && file_exists(__DIR__ . '/../../' . ltrim($soalImg, '/'))) {
+                unlink(__DIR__ . '/../../' . ltrim($soalImg, '/'));
             }
 
             $del = $db->prepare("
@@ -108,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->execute([':id' => $idSoal, ':g' => $idGuru]);
             flash_set('danger', 'Butir soal berhasil dihapus.');
         }
-        redirect(base_url('guru/bank_soal.php' . (!empty($_POST['redirect_mapel']) ? '?id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
+        redirect(base_url('guru/dashboard.php?page=bank_soal' . (!empty($_POST['redirect_mapel']) ? '&id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
     }
 
     // Rename Nama Paket
@@ -125,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->execute([':new' => $newJudul, ':id' => $idPaket, ':g' => $idGuru]);
             flash_set('success', "Nama paket soal berhasil diubah menjadi '{$newJudul}'.");
         }
-        redirect(base_url('guru/bank_soal.php' . (!empty($_POST['id_mapel']) ? '?id_mapel=' . (int)$_POST['id_mapel'] : '')));
+        redirect(base_url('guru/dashboard.php?page=bank_soal' . (!empty($_POST['id_mapel']) ? '&id_mapel=' . (int)$_POST['id_mapel'] : '')));
     }
 
     // Hapus Seluruh Paket Soal (Cascade Butir Soal & Gambar)
@@ -134,7 +136,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idMapel = (int)($_POST['id_mapel'] ?? 0);
 
         if ($idPaket > 0) {
-            // Ambil nama paket & hapus gambar-gambar terkait
             $stmtP = $db->prepare("SELECT nama_paket, id_mapel FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
             $stmtP->execute([':id' => $idPaket, ':g' => $idGuru]);
             $pInfo = $stmtP->fetch();
@@ -148,8 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtImgs->execute([':p' => $idPaket]);
                 $imgs = $stmtImgs->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($imgs as $img) {
-                    if ($img && file_exists(__DIR__ . '/../' . ltrim($img, '/'))) {
-                        @unlink(__DIR__ . '/../' . ltrim($img, '/'));
+                    if ($img && file_exists(__DIR__ . '/../../' . ltrim($img, '/'))) {
+                        @unlink(__DIR__ . '/../../' . ltrim($img, '/'));
                     }
                 }
 
@@ -158,17 +159,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('danger', "Seluruh butir soal dalam paket '{$namaPaket}' berhasil dihapus.");
             }
         }
-        redirect(base_url('guru/bank_soal.php' . ($idMapel > 0 ? '?id_mapel=' . $idMapel : '')));
+        redirect(base_url('guru/dashboard.php?page=bank_soal' . ($idMapel > 0 ? '&id_mapel=' . $idMapel : '')));
     }
 }
 
-// Helper format nama mapel agar tidak double code seperti (IPAS) (IPAS)
-function format_mapel_name($nama, $kode) {
-    if (empty($kode)) return $nama;
-    if (stripos($nama, "({$kode})") !== false || strcasecmp($nama, $kode) === 0) {
-        return $nama;
+// Helper format nama mapel
+if (!function_exists('format_mapel_name')) {
+    function format_mapel_name($nama, $kode) {
+        if (empty($kode)) return $nama;
+        if (stripos($nama, "({$kode})") !== false || strcasecmp($nama, $kode) === 0) {
+            return $nama;
+        }
+        return $nama . " ({$kode})";
     }
-    return $nama . " ({$kode})";
 }
 
 // Filter Mapel & Pencarian
@@ -224,45 +227,9 @@ $stmtPaket->execute($params);
 $paketList = $stmtPaket->fetchAll();
 
 $flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Bank Soal - CBT Guru</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT GURU</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('guru/bank_soal.php') ?>" class="active">Bank Soal</a></li>
-            <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian & Token</a></li>
-            <li><a href="<?= base_url('guru/rekap_nilai.php') ?>">Rekap Nilai</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <?php if ($flash): ?>
@@ -276,11 +243,11 @@ $flash = flash_get();
             <h1 class="card-title">Bank Soal Ujian</h1>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
+            <a href="<?= base_url('guru/dashboard.php?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Buat Paket Soal</span>
             </a>
-            <a href="<?= base_url('guru/import_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
+            <a href="<?= base_url('guru/dashboard.php?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 <span>Import CSV</span>
             </a>
@@ -289,7 +256,8 @@ $flash = flash_get();
 
     <!-- Filter & Pencarian Cepat (Single Row) -->
     <div class="card mb-4" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('guru/bank_soal.php') ?>" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <form method="GET" action="<?= base_url('guru/dashboard.php') ?>" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="page" value="bank_soal">
             <div style="flex: 1; min-width: 220px;">
                 <input type="text" name="search" class="form-control" placeholder="Cari nama paket soal..." value="<?= sanitize($search) ?>">
             </div>
@@ -322,11 +290,11 @@ $flash = flash_get();
                 Belum Ada Paket Soal <?= $filterMapel ? 'pada Mapel Ini' : '' ?>
             </h3>
             <div class="flex gap-2 mt-3" style="justify-content: center;">
-                <a href="<?= base_url('guru/tambah_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
+                <a href="<?= base_url('guru/dashboard.php?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     <span>Buat Paket Soal</span>
                 </a>
-                <a href="<?= base_url('guru/import_soal.php' . ($filterMapel ? '?id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
+                <a href="<?= base_url('guru/dashboard.php?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     <span>Import CSV</span>
                 </a>
@@ -363,15 +331,15 @@ $flash = flash_get();
 
                         <!-- Tombol Aksi Paket -->
                         <div class="flex gap-2" style="align-items: center;">
-                            <a href="<?= base_url('guru/tambah_soal.php?id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
+                            <a href="<?= base_url('guru/dashboard.php?page=tambah_soal&id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 <span>Edit</span>
                             </a>
-                            <a href="<?= base_url('guru/bank_soal.php?action=export_csv&id_paket=' . $p['id_paket']) ?>" class="btn btn-outline btn-sm" title="Export CSV">
+                            <a href="<?= base_url('guru/dashboard.php?page=bank_soal&action=export_csv&id_paket=' . $p['id_paket']) ?>" class="btn btn-outline btn-sm" title="Export CSV">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 <span>Export</span>
                             </a>
-                            <form action="<?= base_url('guru/bank_soal.php') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['nama_paket']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
+                            <form action="<?= base_url('guru/dashboard.php?page=bank_soal') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['nama_paket']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="hapus_paket">
                                 <input type="hidden" name="id_paket" value="<?= $p['id_paket'] ?>">
@@ -389,6 +357,6 @@ $flash = flash_get();
     <?php endif; ?>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+<?php
+include __DIR__ . '/../layouts/footer.php';
+?>

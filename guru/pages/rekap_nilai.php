@@ -4,11 +4,13 @@
  * Mendukung Ekspor CSV dan Tampilan Cetak (Printable View)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
+$page = 'rekap_nilai';
+$pageTitle = 'Rekapitulasi Nilai Ujian';
 
 // Ambil Daftar Seluruh Sesi Ujian Guru
 $stmtSesiAll = $db->prepare("
@@ -44,7 +46,6 @@ if ($selectedSesiId > 0) {
     $sesiDetail = $stmtDet->fetch();
 
     if ($sesiDetail) {
-        // Hitung total butir soal, PG, dan Essai untuk paket ujian ini
         if (!empty($sesiDetail['id_paket'])) {
             $stmtStat = $db->prepare("
                 SELECT COUNT(*) as total_soal,
@@ -96,9 +97,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv' && $sesiDetail) {
     header('Content-Disposition: attachment; filename=' . $filename);
 
     $output = fopen('php://output', 'w');
-    // UTF-8 BOM untuk kompatibilitas Microsoft Excel
-    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-    // Beritahu Excel untuk memecah kolom dengan koma secara otomatis
+    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
     fwrite($output, "sep=,\n");
     fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Mulai', 'Waktu Selesai', 'Status Ujian', 'Jumlah Benar (PG)', 'Total Soal PG', 'Nilai PG', 'Total Soal Essai', 'Nilai Essai', 'Nilai Akhir']);
 
@@ -126,45 +125,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv' && $sesiDetail) {
 }
 
 $flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Rekapitulasi Nilai Ujian - CBT Guru</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar no-print">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT GURU</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('guru/bank_soal.php') ?>">Bank Soal</a></li>
-            <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian & Token</a></li>
-            <li><a href="<?= base_url('guru/rekap_nilai.php') ?>" class="active">Rekap Nilai</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container" style="max-width: 1380px;">
     <?php if ($flash): ?>
@@ -179,7 +142,7 @@ $flash = flash_get();
         </div>
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">
-                <a href="<?= base_url('guru/rekap_nilai.php?action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
+                <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
                 <button type="button" class="btn btn-primary" onclick="window.print()">Cetak Laporan</button>
             </div>
         <?php endif; ?>
@@ -187,7 +150,8 @@ $flash = flash_get();
 
     <!-- Pilih Sesi Ujian -->
     <div class="card no-print" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('guru/rekap_nilai.php') ?>" class="filter-form-responsive">
+        <form method="GET" action="<?= base_url('guru/dashboard.php') ?>" class="filter-form-responsive">
+            <input type="hidden" name="page" value="rekap_nilai">
             <label for="select_sesi" class="font-bold">Pilih Sesi Ujian:</label>
             <div class="filter-row">
                 <select name="id_sesi" id="select_sesi" class="form-control" onchange="this.form.submit()">
@@ -292,7 +256,7 @@ $flash = flash_get();
                                     </td>
                                     <td data-label="Aksi" class="no-print" style="text-align: center; white-space: nowrap;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
-                                            <a href="<?= base_url('guru/detail_jawaban.php?id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                                            <a href="<?= base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                 <span>Detail & Nilai</span>
                                             </a>
@@ -320,6 +284,6 @@ $flash = flash_get();
     <?php endif; ?>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+<?php
+include __DIR__ . '/../layouts/footer.php';
+?>

@@ -156,6 +156,16 @@ function get_db(): PDO {
                 CREATE INDEX IF NOT EXISTS idx_paket_soal_mapel ON paket_soal(id_mapel);
                 CREATE INDEX IF NOT EXISTS idx_bank_soal_paket ON bank_soal(id_paket);
                 CREATE INDEX IF NOT EXISTS idx_sesi_ujian_paket ON sesi_ujian(id_paket);
+
+                -- 6. Tabel Alert Server CLI
+                CREATE TABLE IF NOT EXISTS server_alerts (
+                    id SERIAL PRIMARY KEY,
+                    judul VARCHAR(150) DEFAULT 'Pemberitahuan Admin Server',
+                    pesan TEXT NOT NULL,
+                    target VARCHAR(50) DEFAULT 'semua',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_server_alerts_id ON server_alerts(id);
             ");
         } catch (Throwable $e) {
             // Abaikan jika tabel belum diinisialisasi

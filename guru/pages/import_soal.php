@@ -1,13 +1,14 @@
 <?php
 /**
- * Modul Import Soal CSV / Excel Sederhana
+ * Page: Import Soal CSV / Excel Sederhana
  * Mendukung Soal Pilihan Ganda & Soal Essai (Uraian)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru']);
 $db = get_db();
+
 $idGuru = $currentUser['id_user'];
 
 // Tangani Download Template CSV
@@ -78,7 +79,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan CSRF gagal.');
-        redirect(base_url('guru/import_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=import_soal'));
     }
 
     $idMapel   = (int)($_POST['id_mapel'] ?? 0);
@@ -88,19 +89,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($idMapel <= 0) {
         flash_set('danger', 'Silakan pilih Mata Pelajaran tujuan terlebih dahulu.');
-        redirect(base_url('guru/import_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=import_soal'));
     }
 
     if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         flash_set('danger', 'Gagal mengunggah file CSV. Pastikan berkas terpilih.');
-        redirect(base_url('guru/import_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=import_soal'));
     }
 
     $tmpPath = $_FILES['csv_file']['tmp_name'];
     $rawContent = file_get_contents($tmpPath);
     if ($rawContent === false || trim($rawContent) === '') {
         flash_set('danger', 'Berkas CSV kosong atau tidak dapat dibaca.');
-        redirect(base_url('guru/import_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=import_soal'));
     }
 
     // Bersihkan UTF-8 BOM jika ada
@@ -133,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $handle = fopen($tmpPath, 'r');
     if ($handle === false) {
         flash_set('danger', 'Gagal membuka berkas CSV.');
-        redirect(base_url('guru/import_soal.php'));
+        redirect(base_url('guru/dashboard.php?page=import_soal'));
     }
 
     // Cari atau Buat Paket Soal
@@ -314,7 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         flash_set('warning', "Tidak ada soal yang berhasil diimpor. Pastikan file CSV memiliki kolom dan isi yang sesuai template.");
     }
-    redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+    redirect(base_url('guru/dashboard.php?page=bank_soal' . ($idMapel ? '&id_mapel=' . $idMapel : '')));
 }
 
 // Data Mapel & Judul yang pernah ada
@@ -322,46 +323,12 @@ $mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY nama_ma
 $stmtJudul = $db->prepare("SELECT DISTINCT nama_paket FROM paket_soal WHERE id_guru = :g ORDER BY nama_paket ASC");
 $stmtJudul->execute([':g' => $idGuru]);
 $existingJudul = $stmtJudul->fetchAll(PDO::FETCH_COLUMN);
-$flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Import Soal CSV - CBT Guru</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT GURU</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('guru/bank_soal.php') ?>" class="active">Bank Soal</a></li>
-            <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian & Token</a></li>
-            <li><a href="<?= base_url('guru/rekap_nilai.php') ?>">Rekap Nilai</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+$page = 'import_soal';
+$pageTitle = 'Import Soal Ujian (CSV)';
+
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <?php if ($flash): ?>
@@ -376,7 +343,7 @@ $flash = flash_get();
                 <h1 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">Import Butir Soal (CSV)</h1>
                 <p style="font-size: 0.85rem; color: #64748b; margin: 0.25rem 0 0;">Unggah banyak soal sekaligus (Pilihan Ganda & Essai).</p>
             </div>
-            <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-sm btn-outline" style="font-size: 0.8rem;">Kembali</a>
+            <a href="<?= base_url('guru/dashboard.php?page=bank_soal') ?>" class="btn btn-sm btn-outline" style="font-size: 0.8rem;">Kembali</a>
         </div>
 
         <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
@@ -388,14 +355,14 @@ $flash = flash_get();
                 <li>Kolom 8: <code>kunci_jawaban</code> (Huruf <strong>A/B/C/D/E</strong> untuk PG, atau kata kunci untuk Essai)</li>
             </ul>
             <div style="margin-top: 0.75rem;">
-                <a href="<?= base_url('guru/import_soal.php?action=download_template') ?>" class="btn btn-sm btn-secondary" style="font-size: 0.8rem;">
+                <a href="<?= base_url('guru/dashboard.php?page=import_soal&action=download_template') ?>" class="btn btn-sm btn-secondary" style="font-size: 0.8rem;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     <span>Unduh Template CSV</span>
                 </a>
             </div>
         </div>
 
-        <form action="<?= base_url('guru/import_soal.php') ?>" method="POST" enctype="multipart/form-data">
+        <form action="<?= base_url('guru/dashboard.php?page=import_soal') ?>" method="POST" enctype="multipart/form-data">
             <?= csrf_field() ?>
 
             <div class="form-group mb-3">
@@ -430,9 +397,9 @@ $flash = flash_get();
             </div>
 
             <div class="flex gap-2" style="justify-content: flex-end;">
-                <a href="<?= base_url('guru/bank_soal.php') ?>" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.5rem 1rem;">Batal</a>
+                <a href="<?= base_url('guru/dashboard.php?page=bank_soal') ?>" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.5rem 1rem;">Batal</a>
                 <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem; font-weight: 600;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="15" x2="12" y2="15"></line></svg>
                     <span>Unggah & Impor Soal</span>
                 </button>
             </div>
@@ -440,6 +407,5 @@ $flash = flash_get();
     </div>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+<?php
+include __DIR__ . '/../layouts/footer.php';

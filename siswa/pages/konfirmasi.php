@@ -1,9 +1,9 @@
 <?php
 /**
- * Halaman Konfirmasi Tes & Masukkan Token Ujian (Siswa Peserta)
+ * Page: Halaman Konfirmasi Tes & Masukkan Token Ujian (Siswa Peserta)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['siswa']);
 $db = get_db();
@@ -43,7 +43,7 @@ $sesiTersedia = $stmtSesiTersedia->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     $idSesiInput = (int)($_POST['id_sesi'] ?? 0);
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($idSesiInput <= 0 || $tokenInput === '') {
         flash_set('danger', 'Silakan pilih sesi ujian dan masukkan token.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     // Validasi token dan sesi beserta sisa waktu global
@@ -66,17 +66,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$sesi) {
         flash_set('danger', 'Sesi ujian tidak valid atau sudah nonaktif.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     if ($sesi['token_ujian'] !== $tokenInput) {
         flash_set('danger', 'Token ujian yang Anda masukkan SALAH.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     if ((int)$sesi['sisa_detik_sesi'] <= 0) {
         flash_set('danger', 'Waktu pengerjaan sesi ujian ini telah berakhir.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     // Cek apakah sudah pernah menyelesaikan
@@ -87,10 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($existingUs) {
         if ($existingUs['status'] === 'selesai') {
             flash_set('warning', 'Anda telah menyelesaikan ujian ini.');
-            redirect(base_url('siswa/hasil.php?id_ujian_siswa=' . $existingUs['id_ujian_siswa']));
+            redirect(base_url('siswa?page=hasil&id_ujian_siswa=' . $existingUs['id_ujian_siswa']));
         } elseif ($existingUs['status'] === 'sedang') {
             // Lanjutkan pengerjaan
-            redirect(base_url('siswa/ruang_ujian.php'));
+            redirect(base_url('siswa?page=ruang_ujian'));
         }
     }
 
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($soalRows)) {
         flash_set('danger', 'Belum ada butir soal yang diinput pada ujian ini. Hubungi proktor.');
-        redirect(base_url('siswa/konfirmasi.php'));
+        redirect(base_url('siswa?page=konfirmasi'));
     }
 
     // Acak Urutan Soal jika opsi diaktifkan
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtInsJwb->execute([':us' => $newUjianSiswaId, ':soal' => $sid]);
     }
 
-    redirect(base_url('siswa/ruang_ujian.php'));
+    redirect(base_url('siswa?page=ruang_ujian'));
 }
 
 $flash = flash_get();
@@ -188,7 +188,7 @@ $flash = flash_get();
                     </p>
                 </div>
                 <div>
-                    <a href="<?= base_url('siswa/ruang_ujian.php') ?>" class="btn btn-primary btn-lg" style="min-height: 48px;">Lanjutkan Ujian Sekarang</a>
+                    <a href="<?= base_url('siswa?page=ruang_ujian') ?>" class="btn btn-primary btn-lg" style="min-height: 48px;">Lanjutkan Ujian Sekarang</a>
                 </div>
             </div>
         </div>
@@ -258,10 +258,10 @@ $flash = flash_get();
                         <div class="cbt-exam-card-footer">
                             <?php if ($s['status_ujian_siswa'] === 'selesai'): ?>
                                 <span class="text-success" style="font-weight: 700; font-size: 0.88rem;">Telah Diselesaikan</span>
-                                <a href="<?= base_url('siswa/hasil.php?id_ujian_siswa=' . $s['id_ujian_siswa']) ?>" class="btn btn-sm btn-outline">Bukti Selesai</a>
+                                <a href="<?= base_url('siswa?page=hasil&id_ujian_siswa=' . $s['id_ujian_siswa']) ?>" class="btn btn-sm btn-outline">Bukti Selesai</a>
                             <?php elseif ($s['status_ujian_siswa'] === 'sedang'): ?>
                                 <span class="text-primary" style="font-weight: 700; font-size: 0.88rem;">Sedang Dikerjakan</span>
-                                <a href="<?= base_url('siswa/ruang_ujian.php') ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
+                                <a href="<?= base_url('siswa?page=ruang_ujian') ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
                             <?php elseif ($s['sisa_detik_sesi'] <= 0): ?>
                                 <span class="text-danger" style="font-size: 0.85rem; font-weight: 700;">Waktu Sesi Berakhir</span>
                                 <button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.6; cursor: not-allowed;">
@@ -299,7 +299,7 @@ $flash = flash_get();
             <button type="button" class="btn btn-sm btn-outline" onclick="closeModal('modal-konfirmasi-tes')" style="padding: 0.2rem 0.5rem; font-size: 1.2rem; line-height: 1; border: none; cursor: pointer;">&times;</button>
         </div>
 
-        <form action="<?= base_url('siswa/konfirmasi.php') ?>" method="POST">
+        <form action="<?= base_url('siswa?page=konfirmasi') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="id_sesi" id="modal_id_sesi" value="">
 
@@ -340,6 +340,7 @@ $flash = flash_get();
 </div>
 
 <script src="<?= base_url('assets/js/app.js') ?>"></script>
+<script src="<?= base_url('assets/js/server-alert.js') ?>"></script>
 <script>
 function bukaKonfirmasi(data) {
     document.getElementById('modal_id_sesi').value = data.id_sesi;

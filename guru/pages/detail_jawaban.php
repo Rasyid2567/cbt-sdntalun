@@ -1,10 +1,10 @@
 <?php
 /**
- * Modul Detail Jawaban Siswa
+ * Page: Detail Jawaban Siswa
  * Menampilkan hasil pengerjaan siswa dan koreksi butir soal.
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
@@ -14,7 +14,7 @@ $backSesiId   = (int)($_GET['id_sesi'] ?? $_POST['id_sesi'] ?? 0);
 
 if ($idUjianSiswa <= 0) {
     flash_set('danger', 'Data ujian tidak valid.');
-    redirect(base_url('guru/rekap_nilai.php' . ($backSesiId > 0 ? '?id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru/dashboard.php?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 // 1. Ambil Data Ujian Siswa
@@ -40,19 +40,19 @@ $detailUjian = $stmtUjian->fetch();
 
 if (!$detailUjian) {
     flash_set('danger', 'Data ujian siswa tidak ditemukan.');
-    redirect(base_url('guru/rekap_nilai.php' . ($backSesiId > 0 ? '?id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru/dashboard.php?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$currentUser['id_user']) {
     flash_set('danger', 'Anda tidak memiliki akses ke data ini.');
-    redirect(base_url('guru/rekap_nilai.php'));
+    redirect(base_url('guru/dashboard.php?page=rekap_nilai'));
 }
 
 // 2. Simpan Nilai Essai
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi keamanan gagal.');
-        redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+        redirect(base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
     }
 
     $inputNilai = $_POST['nilai_soal'] ?? [];
@@ -144,11 +144,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     ]);
 
     flash_set('success', "Nilai essai berhasil disimpan. Nilai Akhir: {$nilaiAkhirBaru}");
-    redirect(base_url('guru/detail_jawaban.php?id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 // 3. Urutan Soal
-$urutanIds = json_decode($detailUjian['urutan_soal'], true);
+$urutanIds = json_decode($detailUjian['urutan_soal'] ?? '[]', true);
 if (empty($urutanIds) || !is_array($urutanIds)) {
     if (!empty($detailUjian['id_paket'])) {
         $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
@@ -257,185 +257,147 @@ $calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 
 $nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
 $nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
 
-$flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detail Jawaban: <?= sanitize($detailUjian['nama_siswa']) ?></title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-    <style>
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        .info-panel {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1.25rem;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-        }
-        @media (max-width: 768px) {
-            .info-panel { grid-template-columns: 1fr; gap: 0.75rem; }
-        }
-        .info-row {
-            display: flex;
-            margin-bottom: 0.35rem;
-            font-size: 0.9rem;
-        }
-        .info-label {
-            width: 130px;
-            color: #64748b;
-            font-weight: 500;
-        }
-        .info-val {
-            color: #0f172a;
-            font-weight: 600;
-        }
-        .scores-panel {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-        .score-card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 0.75rem 1.25rem;
-            min-width: 140px;
-            flex: 1;
-        }
-        .score-card .title {
-            font-size: 0.75rem;
-            color: #64748b;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        .score-card .number {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: #0f172a;
-            margin-top: 0.15rem;
-        }
-        .item-card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .item-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.75rem;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.9rem;
-        }
-        .item-question {
-            font-size: 0.95rem;
-            line-height: 1.55;
-            color: #1e293b;
-            margin-bottom: 0.85rem;
-        }
-        .opt-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.35rem;
-            margin-bottom: 0.75rem;
-        }
-        .opt-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            background: #fff;
-        }
-        .opt-item.is-correct-choice {
-            background: #f0fdf4;
-            border-color: #86efac;
-            color: #166534;
-            font-weight: 600;
-        }
-        .opt-item.is-wrong-choice {
-            background: #fef2f2;
-            border-color: #fca5a5;
-            color: #991b1b;
-        }
-        .opt-item.is-key-target {
-            background: #f0fdf4;
-            border: 1px dashed #22c55e;
-            color: #166534;
-        }
-        .badge-status {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .badge-status.benar { background: #dcfce7; color: #166534; }
-        .badge-status.salah { background: #fee2e2; color: #991b1b; }
-        .badge-status.kosong { background: #f1f5f9; color: #64748b; }
-        .badge-status.essai { background: #f3e8ff; color: #6b21a8; }
-        .essay-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            padding: 0.75rem 1rem;
-            margin-top: 0.5rem;
-        }
-    </style>
-</head>
-<body>
+$page = 'detail_jawaban';
+$pageTitle = 'Detail Jawaban: ' . $detailUjian['nama_siswa'];
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT <?= strtoupper($currentUser['role']) ?></span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <?php if ($currentUser['role'] === 'guru'): ?>
-                <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-                <li><a href="<?= base_url('guru/bank_soal.php') ?>">Bank Soal</a></li>
-                <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian</a></li>
-                <li><a href="<?= base_url('guru/rekap_nilai.php') ?>" class="active">Rekap Nilai</a></li>
-            <?php else: ?>
-                <li><a href="<?= base_url('operator/dashboard.php') ?>">Dashboard</a></li>
-                <li><a href="<?= base_url('operator/siswa_crud.php') ?>">Siswa</a></li>
-                <li><a href="<?= base_url('operator/guru_crud.php') ?>">Guru</a></li>
-            <?php endif; ?>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+$extraCss = '
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .info-panel {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 768px) {
+        .info-panel { grid-template-columns: 1fr; gap: 0.75rem; }
+    }
+    .info-row {
+        display: flex;
+        margin-bottom: 0.35rem;
+        font-size: 0.9rem;
+    }
+    .info-label {
+        width: 130px;
+        color: #64748b;
+        font-weight: 500;
+    }
+    .info-val {
+        color: #0f172a;
+        font-weight: 600;
+    }
+    .scores-panel {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .score-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.75rem 1.25rem;
+        min-width: 140px;
+        flex: 1;
+    }
+    .score-card .title {
+        font-size: 0.75rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+    .score-card .number {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-top: 0.15rem;
+    }
+    .item-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .item-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.9rem;
+    }
+    .item-question {
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: #1e293b;
+        margin-bottom: 0.85rem;
+    }
+    .opt-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 0.75rem;
+    }
+    .opt-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .opt-item.is-correct-choice {
+        background: #f0fdf4;
+        border-color: #86efac;
+        color: #166534;
+        font-weight: 600;
+    }
+    .opt-item.is-wrong-choice {
+        background: #fef2f2;
+        border-color: #fca5a5;
+        color: #991b1b;
+    }
+    .opt-item.is-key-target {
+        background: #f0fdf4;
+        border: 1px dashed #22c55e;
+        color: #166534;
+    }
+    .badge-status {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .badge-status.benar { background: #dcfce7; color: #166534; }
+    .badge-status.salah { background: #fee2e2; color: #991b1b; }
+    .badge-status.kosong { background: #f1f5f9; color: #64748b; }
+    .badge-status.essai { background: #f3e8ff; color: #6b21a8; }
+    .essay-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        margin-top: 0.5rem;
+    }
+</style>
+';
+
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container" style="max-width: 1100px;">
     <?php if ($flash): ?>
@@ -454,7 +416,7 @@ $flash = flash_get();
             </span>
         </div>
         <div>
-            <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+            <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
                 Kembali
             </a>
         </div>
@@ -524,7 +486,7 @@ $flash = flash_get();
     </div>
 
     <!-- Form Daftar Soal -->
-    <form action="<?= base_url('guru/detail_jawaban.php') ?>" method="POST">
+    <form action="<?= base_url('guru/dashboard.php?page=detail_jawaban') ?>" method="POST">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="simpan_nilai_essai">
         <input type="hidden" name="id_ujian_siswa" value="<?= $idUjianSiswa ?>">
@@ -654,12 +616,11 @@ $flash = flash_get();
     </form>
 
     <div style="margin: 1.5rem 0 3rem 0;">
-        <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+        <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
             Kembali ke Rekap Nilai
         </a>
     </div>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+<?php
+include __DIR__ . '/../layouts/footer.php';

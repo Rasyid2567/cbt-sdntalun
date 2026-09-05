@@ -1,14 +1,12 @@
 <?php
 /**
- * Modul Manajemen Data Siswa (CRUD & CSV Import)
+ * Page: Manajemen Data Siswa (CRUD & CSV Import)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['operator']);
 $db = get_db();
-
-$error = null;
 
 // Tangani Export Template CSV
 if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
@@ -31,7 +29,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('operator/siswa_crud.php'));
+        redirect(base_url('operator?page=siswa_crud'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -68,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Data siswa berhasil ditambahkan.');
             }
         }
-        redirect(base_url('operator/siswa_crud.php'));
+        redirect(base_url('operator?page=siswa_crud'));
     }
 
     // EDIT SISWA
@@ -108,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Data siswa berhasil diperbarui.');
             }
         }
-        redirect(base_url('operator/siswa_crud.php'));
+        redirect(base_url('operator?page=siswa_crud'));
     }
 
     // HAPUS SISWA
@@ -119,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->execute([':id' => $id_user]);
             flash_set('danger', 'Data siswa berhasil dihapus.');
         }
-        redirect(base_url('operator/siswa_crud.php'));
+        redirect(base_url('operator?page=siswa_crud'));
     }
 
     // IMPORT CSV
@@ -218,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', "Proses import selesai. Berhasil diimpor: {$imported} siswa. Dilewati: {$skipped}.");
             }
         }
-        redirect(base_url('operator/siswa_crud.php'));
+        redirect(base_url('operator?page=siswa_crud'));
     }
 }
 
@@ -252,43 +250,12 @@ $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $siswaList = $stmt->fetchAll();
 
+$page = 'siswa_crud';
+$pageTitle = 'Manajemen Siswa';
 $flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Manajemen Siswa - CBT Operator</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('operator/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            <span>CBT OPERATOR</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('operator/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('operator/siswa_crud.php') ?>" class="active">Data Siswa</a></li>
-            <li><a href="<?= base_url('operator/guru_crud.php') ?>">Guru & Mapel</a></li>
-            <li><a href="<?= base_url('operator/reset_login.php') ?>">Monitoring & Reset</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <?php if ($flash): ?>
@@ -310,7 +277,7 @@ $flash = flash_get();
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 <span>Import CSV</span>
             </button>
-            <a href="<?= base_url('operator/siswa_crud.php?action=download_template') ?>" class="btn btn-outline">
+            <a href="<?= base_url('operator?page=siswa_crud&action=download_template') ?>" class="btn btn-outline">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 <span>Unduh Template</span>
             </a>
@@ -319,7 +286,8 @@ $flash = flash_get();
 
     <!-- Filter & Pencarian -->
     <div class="card" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('operator/siswa_crud.php') ?>" class="filter-form-responsive">
+        <form method="GET" action="<?= base_url('operator') ?>" class="filter-form-responsive">
+            <input type="hidden" name="page" value="siswa_crud">
             <input type="text" name="search" class="form-control" placeholder="Cari NIS, Username, atau Nama Siswa..." value="<?= sanitize($search) ?>">
             <div class="filter-row">
                 <select name="filter_kelas" class="form-control">
@@ -378,7 +346,7 @@ $flash = flash_get();
                                         <button type="button" class="btn btn-sm btn-outline" 
                                             onclick='openEditModal(<?= json_encode($s) ?>)'>Edit</button>
                                         
-                                        <form action="<?= base_url('operator/siswa_crud.php') ?>" method="POST" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
@@ -399,7 +367,7 @@ $flash = flash_get();
 <div id="modal-tambah" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Tambah Siswa Baru</h2>
-        <form action="<?= base_url('operator/siswa_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah">
 
@@ -441,7 +409,7 @@ $flash = flash_get();
 <div id="modal-edit" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Edit Data Siswa</h2>
-        <form action="<?= base_url('operator/siswa_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" id="edit-id-user" name="id_user" value="">
@@ -486,7 +454,7 @@ $flash = flash_get();
         <h2 class="card-title mb-2">Import Data Siswa via CSV</h2>
         <p class="text-sm text-muted mb-3">Format kolom CSV: <code>nis, username, nama_lengkap, password, nama_kelas</code></p>
         
-        <form action="<?= base_url('operator/siswa_crud.php') ?>" method="POST" enctype="multipart/form-data">
+        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="import_csv">
 
@@ -503,16 +471,18 @@ $flash = flash_get();
     </div>
 </div>
 
+<?php
+$extraJs = '
 <script>
 function openEditModal(data) {
-    document.getElementById('edit-id-user').value = data.id_user;
-    document.getElementById('edit-nis').value = data.nis || '';
-    document.getElementById('edit-username').value = data.username;
-    document.getElementById('edit-nama').value = data.nama_lengkap;
-    document.getElementById('edit-kelas').value = data.id_kelas || '';
-    openModal('modal-edit');
+    document.getElementById("edit-id-user").value = data.id_user;
+    document.getElementById("edit-nis").value = data.nis || "";
+    document.getElementById("edit-username").value = data.username;
+    document.getElementById("edit-nama").value = data.nama_lengkap;
+    document.getElementById("edit-kelas").value = data.id_kelas || "";
+    openModal("modal-edit");
 }
 </script>
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+';
+
+include __DIR__ . '/../layouts/footer.php';

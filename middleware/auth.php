@@ -41,13 +41,13 @@ function auth_check(array $allowed_roles = []): array {
         // Alihkan ke halaman yang sesuai dengan perannya
         switch ($user['role']) {
             case 'operator':
-                redirect(base_url('operator/dashboard.php'));
+                redirect(base_url('operator'));
                 break;
             case 'guru':
-                redirect(base_url('guru/dashboard.php'));
+                redirect(base_url('guru'));
                 break;
             case 'siswa':
-                redirect(base_url('siswa/konfirmasi.php'));
+                redirect(base_url('siswa'));
                 break;
             default:
                 redirect(base_url('login'));

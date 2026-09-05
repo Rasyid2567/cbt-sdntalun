@@ -10,13 +10,13 @@ require_once __DIR__ . '/config/database.php';
 if (!empty($_SESSION['user_id']) && !empty($_SESSION['role'])) {
     switch ($_SESSION['role']) {
         case 'operator':
-            redirect(base_url('operator/dashboard.php'));
+            redirect(base_url('operator'));
             break;
         case 'guru':
-            redirect(base_url('guru/dashboard.php'));
+            redirect(base_url('guru'));
             break;
         case 'siswa':
-            redirect(base_url('siswa/konfirmasi.php'));
+            redirect(base_url('siswa'));
             break;
     }
 }
@@ -61,11 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Alihkan berdasarkan Role
                     if ($user['role'] === 'operator') {
-                        redirect(base_url('operator/dashboard.php'));
+                        redirect(base_url('operator'));
                     } elseif ($user['role'] === 'guru') {
-                        redirect(base_url('guru/dashboard.php'));
+                        redirect(base_url('guru'));
                     } else {
-                        redirect(base_url('siswa/konfirmasi.php'));
+                        redirect(base_url('siswa'));
                     }
                 }
             } else {
@@ -134,5 +134,6 @@ $flash = flash_get();
 </div>
 
 <script src="<?= base_url('assets/js/app.js') ?>"></script>
+<script src="<?= base_url('assets/js/server-alert.js') ?>"></script>
 </body>
 </html>

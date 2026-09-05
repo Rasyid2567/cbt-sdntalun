@@ -1,9 +1,9 @@
 <?php
 /**
- * Halaman Rekap & Bukti Selesai Ujian (Siswa Peserta)
+ * Page: Halaman Rekap & Bukti Selesai Ujian (Siswa Peserta)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['siswa']);
 $db = get_db();
@@ -24,7 +24,7 @@ if ($idUjianSiswa <= 0) {
 
 if ($idUjianSiswa <= 0) {
     flash_set('info', 'Belum ada rekaman ujian yang selesai.');
-    redirect(base_url('siswa/konfirmasi.php'));
+    redirect(base_url('siswa?page=konfirmasi'));
 }
 
 // Ambil Detail Hasil
@@ -43,7 +43,7 @@ $hasil = $stmtHasil->fetch();
 
 if (!$hasil) {
     flash_set('danger', 'Data bukti ujian tidak ditemukan.');
-    redirect(base_url('siswa/konfirmasi.php'));
+    redirect(base_url('siswa?page=konfirmasi'));
 }
 
 $flash = flash_get();
@@ -124,12 +124,13 @@ $flash = flash_get();
         </div>
 
         <div class="flex gap-2" style="justify-content: center;">
-            <a href="<?= base_url('siswa/konfirmasi.php') ?>" class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">Kembali ke Beranda</a>
+            <a href="<?= base_url('siswa?page=konfirmasi') ?>" class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">Kembali ke Beranda</a>
             <a href="<?= base_url('logout.php') ?>" class="btn btn-danger" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">Keluar dari Sesi</a>
         </div>
     </div>
 </div>
 
 <script src="<?= base_url('assets/js/app.js') ?>"></script>
+<script src="<?= base_url('assets/js/server-alert.js') ?>"></script>
 </body>
 </html>

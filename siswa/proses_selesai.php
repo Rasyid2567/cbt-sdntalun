@@ -21,7 +21,7 @@ if ($idUjianSiswa <= 0) {
 
 if ($idUjianSiswa <= 0) {
     flash_set('danger', 'Sesi ujian tidak valid.');
-    redirect(base_url('siswa/konfirmasi.php'));
+    redirect(base_url('siswa?page=konfirmasi'));
 }
 
 // 1. Ambil Data Ujian Siswa
@@ -36,12 +36,12 @@ $ujian = $stmtUs->fetch();
 
 if (!$ujian) {
     flash_set('danger', 'Data ujian siswa tidak ditemukan.');
-    redirect(base_url('siswa/konfirmasi.php'));
+    redirect(base_url('siswa?page=konfirmasi'));
 }
 
 // Jika sudah berstatus selesai sebelumnya, langsung arahkan ke halaman hasil
 if ($ujian['status'] === 'selesai') {
-    redirect(base_url('siswa/hasil.php?id_ujian_siswa=' . $idUjianSiswa));
+    redirect(base_url('siswa?page=hasil&id_ujian_siswa=' . $idUjianSiswa));
 }
 
 // 2. Evaluasi Jawaban Terhadap Kunci Bank Soal
@@ -130,4 +130,4 @@ $stmtUpdate->execute([
 ]);
 
 flash_set('success', 'Ujian Anda telah berhasil dikumpulkan dan diproses oleh sistem.');
-redirect(base_url('siswa/hasil.php?id_ujian_siswa=' . $idUjianSiswa));
+redirect(base_url('siswa?page=hasil&id_ujian_siswa=' . $idUjianSiswa));

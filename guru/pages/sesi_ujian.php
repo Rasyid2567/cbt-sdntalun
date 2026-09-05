@@ -3,27 +3,31 @@
  * Modul Manajemen Sesi Ujian & Distribusi Token CBT Guru
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
+$page = 'sesi_ujian';
+$pageTitle = 'Sesi Ujian & Token';
 
 // Helper Generate Token Random 5 Karakter Huruf Kapital
-function generate_token_cbt(): string {
-    $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $res = '';
-    for ($i = 0; $i < 5; $i++) {
-        $res .= $chars[random_int(0, strlen($chars) - 1)];
+if (!function_exists('generate_token_cbt')) {
+    function generate_token_cbt(): string {
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $res = '';
+        for ($i = 0; $i < 5; $i++) {
+            $res .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $res;
     }
-    return $res;
 }
 
 // Tangani Form POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -37,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acakSoal    = !empty($_POST['acak_soal']) ? 'true' : 'false';
         $acakOpsi    = 'false';
         
-        // Custom Token atau Acak Otomatis
         $customToken = strtoupper(trim($_POST['token_ujian'] ?? ''));
         $token       = preg_replace('/[^A-Z0-9]/', '', $customToken);
         if (strlen($token) < 3 || strlen($token) > 15) {
@@ -55,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Fallback kelas jika akun guru belum diset kelasnya
         if ($idKelas <= 0) {
             $idKelas = 6;
         }
@@ -80,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             flash_set('success', "Sesi ujian '{$namaUjian}' berhasil dibuat dan aktif dengan Token: {$token}");
         }
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 
     // 2. REFRESH / GENERATE ULANG TOKEN
@@ -91,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd = $db->prepare("UPDATE sesi_ujian SET token_ujian = :t WHERE id_sesi = :id AND id_guru = :g");
         $upd->execute([':t' => $newToken, ':id' => $idSesi, ':g' => $idGuru]);
         flash_set('info', "Token ujian berhasil diperbarui menjadi: {$newToken}");
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 
     // 2B. EDIT TOKEN SECARA CUSTOM
@@ -110,10 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('danger', "Token harus berupa 3-15 karakter huruf/angka.");
         }
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 
-    // 3. UBAH STATUS SESI (aktif, nonaktif, selesai)
+    // 3. UBAH STATUS SESI
     if ($action === 'update_status') {
         $idSesi    = (int)($_POST['id_sesi'] ?? 0);
         $newStatus = $_POST['status'] ?? '';
@@ -128,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             flash_set('success', "Status sesi ujian berhasil diubah menjadi: {$newStatus}");
         }
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 
     // 4. HAPUS SESI
@@ -137,90 +139,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $del = $db->prepare("DELETE FROM sesi_ujian WHERE id_sesi = :id AND id_guru = :g");
         $del->execute([':id' => $idSesi, ':g' => $idGuru]);
         flash_set('danger', 'Sesi ujian berhasil dihapus.');
-        redirect(base_url('guru/sesi_ujian.php'));
+        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
     }
 }
 
-// Ambil Data Sesi Ujian Guru (beserta sisa waktu sesi global live)
-$stmt = $db->prepare("
-    SELECT s.*, m.nama_mapel, m.kode_mapel, k.nama_kelas, p.nama_paket,
-           (SELECT COUNT(*) FROM bank_soal WHERE id_paket = s.id_paket) as total_soal,
-           COUNT(us.id_ujian_siswa) as total_peserta,
-           COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
-           COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
-           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
-    FROM sesi_ujian s
-    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
-    JOIN mapel m ON s.id_mapel = m.id_mapel
-    JOIN kelas k ON s.id_kelas = k.id_kelas
-    LEFT JOIN ujian_siswa us ON s.id_sesi = us.id_sesi
-    WHERE s.id_guru = :g
-    GROUP BY s.id_sesi, m.nama_mapel, m.kode_mapel, k.nama_kelas, p.nama_paket
-    ORDER BY s.created_at DESC
-");
-$stmt->execute([':g' => $idGuru]);
-$sesiList = $stmt->fetchAll();
-
-// Ambil info kelas guru yang login
+// Data Kelas Guru
 $idKelasGuru = !empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : 6;
-$namaKelasGuru = 'Kelas ' . $idKelasGuru;
-$stmtGK = $db->prepare("SELECT nama_kelas FROM kelas WHERE id_kelas = :k");
-$stmtGK->execute([':k' => $idKelasGuru]);
-$namaKelasGuru = $stmtGK->fetchColumn() ?: $namaKelasGuru;
+$stmtKelas = $db->prepare("SELECT nama_kelas FROM kelas WHERE id_kelas = :k");
+$stmtKelas->execute([':k' => $idKelasGuru]);
+$namaKelasGuru = $stmtKelas->fetchColumn() ?: 'Kelas 6';
 
-// Ambil paket-paket soal milik guru beserta mapelnya
+// Ambil Paket Soal Guru
 $stmtPaket = $db->prepare("
-    SELECT p.id_paket, p.nama_paket, p.id_mapel, m.nama_mapel, m.kode_mapel, COUNT(b.id_soal) as total_soal
+    SELECT p.id_paket, p.nama_paket, p.id_mapel, m.nama_mapel, m.kode_mapel,
+           COUNT(b.id_soal) AS total_soal
     FROM paket_soal p
     JOIN mapel m ON p.id_mapel = m.id_mapel
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
     WHERE p.id_guru = :g
     GROUP BY p.id_paket, p.nama_paket, p.id_mapel, m.nama_mapel, m.kode_mapel
-    ORDER BY p.nama_paket ASC
+    ORDER BY p.created_at DESC
 ");
 $stmtPaket->execute([':g' => $idGuru]);
 $paketList = $stmtPaket->fetchAll();
 
-$flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sesi Ujian & Token - CBT Guru</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
+// Ambil Seluruh Sesi Ujian Guru
+$stmtSesi = $db->prepare("
+    SELECT su.*, m.nama_mapel, k.nama_kelas, p.nama_paket,
+           (SELECT COUNT(*) FROM bank_soal WHERE id_paket = su.id_paket) as total_soal,
+           COUNT(us.id_ujian_siswa) as total_peserta,
+           COUNT(CASE WHEN us.status = 'sedang' THEN 1 END) as peserta_sedang,
+           COUNT(CASE WHEN us.status = 'selesai' THEN 1 END) as peserta_selesai,
+           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (su.created_at + (su.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
+    FROM sesi_ujian su
+    LEFT JOIN paket_soal p ON su.id_paket = p.id_paket
+    JOIN mapel m ON su.id_mapel = m.id_mapel
+    JOIN kelas k ON su.id_kelas = k.id_kelas
+    LEFT JOIN ujian_siswa us ON su.id_sesi = us.id_sesi
+    WHERE su.id_guru = :g
+    GROUP BY su.id_sesi, m.nama_mapel, k.nama_kelas, p.nama_paket
+    ORDER BY su.created_at DESC
+");
+$stmtSesi->execute([':g' => $idGuru]);
+$sesiList = $stmtSesi->fetchAll();
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT GURU</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('guru/bank_soal.php') ?>">Bank Soal</a></li>
-            <li><a href="<?= base_url('guru/sesi_ujian.php') ?>" class="active">Sesi Ujian & Token</a></li>
-            <li><a href="<?= base_url('guru/rekap_nilai.php') ?>">Rekap Nilai</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+$flash = flash_get();
+
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <div class="card-header mb-4">
@@ -279,12 +245,10 @@ $flash = flash_get();
                                         <span style="font-family: monospace; font-size: 1.15rem; font-weight: 800; color: #1e40af; letter-spacing: 1.5px;">
                                             <?= sanitize($s['token_ujian']) ?>
                                         </span>
-                                        <!-- Tombol Edit Token Custom -->
                                         <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>')">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
-                                        <!-- Tombol Acak Ulang Cepat -->
-                                        <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST" style="display:inline;" data-confirm="Generate ulang token ujian ini secara acak?" data-confirm-title="Perbarui Token Ujian" data-confirm-type="warning" data-confirm-btn="Generate Acak">
+                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Generate ulang token ujian ini secara acak?" data-confirm-title="Perbarui Token Ujian" data-confirm-type="warning" data-confirm-btn="Generate Acak">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="refresh_token">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -322,14 +286,13 @@ $flash = flash_get();
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Peserta">
-                                    <a href="<?= base_url('guru/rekap_nilai.php?id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline">
+                                    <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline">
                                         <?= $s['total_peserta'] ?> Siswa
                                     </a>
                                 </td>
                                 <td data-label="Aksi">
                                     <div class="flex gap-2" style="justify-content: center;">
-                                        <!-- Form Ubah Status -->
-                                        <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST" style="display:inline;">
+                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -342,8 +305,7 @@ $flash = flash_get();
                                             <?php endif; ?>
                                         </form>
 
-                                        <!-- Hapus Sesi -->
-                                        <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST" style="display:inline;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
+                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus_sesi">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -360,24 +322,23 @@ $flash = flash_get();
     </div>
 </main>
 
-<!-- Modal Tambah Sesi Ujian (Otomatis Mapel & Kelas dari Paket Soal) -->
+<!-- Modal Tambah Sesi Ujian -->
 <div id="modal-tambah-sesi" class="modal-overlay">
     <div class="modal-box" style="max-width: 520px;">
         <h2 class="card-title mb-3">Rilis Sesi Ujian Baru</h2>
 
-        <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST">
+        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_sesi">
             <input type="hidden" name="id_kelas" value="<?= $idKelasGuru ?>">
             <input type="hidden" name="id_mapel" id="hidden_id_mapel" value="">
             <input type="hidden" name="id_paket" id="hidden_id_paket" value="">
 
-            <!-- 1. PILIH PAKET SOAL -->
             <div class="form-group">
                 <label for="select_paket_soal">Pilih Paket Soal <span class="text-danger">*</span></label>
                 <?php if (empty($paketList)): ?>
                     <div class="alert alert-warning" style="font-size: 0.85rem; padding: 0.75rem 0.95rem; margin-top: 0.25rem;">
-                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru/tambah_soal.php') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
+                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru/dashboard.php?page=tambah_soal') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
                     </div>
                 <?php else: ?>
                     <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)">
@@ -398,7 +359,6 @@ $flash = flash_get();
                 <?php endif; ?>
             </div>
 
-            <!-- PREVIEW OTOMATIS MAPEL & KELAS PESERTA -->
             <div id="info_otomatis" style="display: none; background: #f8fafc; border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem; border: 1px solid var(--gray-300);">
                 <div style="margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px dashed var(--gray-200);">
                     <span class="text-muted" style="display:block; font-size: 0.72rem; text-transform: uppercase; font-weight: 700;">Nama / Judul Ujian:</span>
@@ -416,13 +376,11 @@ $flash = flash_get();
                 </div>
             </div>
 
-            <!-- DURASI PENGERJAAN -->
             <div class="form-group">
                 <label for="durasi_menit">Durasi Pengerjaan (Menit) <span class="text-danger">*</span></label>
                 <input type="number" name="durasi_menit" id="durasi_menit" class="form-control" min="5" max="300" value="60" required>
             </div>
 
-            <!-- TOKEN UJIAN (OPSIONAL / AUTO) -->
             <div class="form-group">
                 <label for="input_token_tambah">Token Ujian <small class="text-muted">(Kosongkan jika ingin token acak otomatis)</small></label>
                 <div style="display: flex; gap: 0.5rem;">
@@ -433,7 +391,6 @@ $flash = flash_get();
                 </div>
             </div>
 
-            <!-- OPSI ACAK SOAL -->
             <div class="form-group" style="margin-top: 1rem;">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input type="checkbox" name="acak_soal" value="1" checked style="width: 18px; height: 18px;">
@@ -455,7 +412,7 @@ $flash = flash_get();
         <h2 class="card-title mb-1">Ubah Token Ujian</h2>
         <p class="text-xs text-muted mb-3" id="edit_token_subtitle">Sesuaikan kode token ujian untuk peserta</p>
 
-        <form action="<?= base_url('guru/sesi_ujian.php') ?>" method="POST">
+        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="edit_token">
             <input type="hidden" name="id_sesi" id="edit_token_id_sesi" value="">
@@ -585,6 +542,7 @@ function updateDashboardCountdowns() {
 setInterval(updateDashboardCountdowns, 1000);
 updateDashboardCountdowns();
 </script>
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+
+<?php
+include __DIR__ . '/../layouts/footer.php';
+?>

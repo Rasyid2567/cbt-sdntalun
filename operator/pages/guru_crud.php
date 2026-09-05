@@ -1,9 +1,9 @@
 <?php
 /**
- * Modul Manajemen Data Guru, Mata Pelajaran & Kelas
+ * Page: Manajemen Data Guru, Mata Pelajaran & Kelas
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['operator']);
 $db = get_db();
@@ -12,7 +12,7 @@ $db = get_db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('operator/guru_crud.php'));
+        redirect(base_url('operator?page=guru_crud'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Guru berhasil ditambahkan.');
             }
         }
-        redirect(base_url('operator/guru_crud.php?tab=guru'));
+        redirect(base_url('operator?page=guru_crud&tab=guru'));
     }
 
     // GURU: EDIT
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Data guru berhasil diperbarui.');
             }
         }
-        redirect(base_url('operator/guru_crud.php?tab=guru'));
+        redirect(base_url('operator?page=guru_crud&tab=guru'));
     }
 
     // GURU: HAPUS
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->execute([':id' => $id]);
             flash_set('danger', 'Data guru berhasil dihapus.');
         }
-        redirect(base_url('operator/guru_crud.php?tab=guru'));
+        redirect(base_url('operator?page=guru_crud&tab=guru'));
     }
 
     // 2. MAPEL: TAMBAH
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Mata pelajaran berhasil ditambahkan.');
             }
         }
-        redirect(base_url('operator/guru_crud.php?tab=mapel'));
+        redirect(base_url('operator?page=guru_crud&tab=mapel'));
     }
 
     // MAPEL: HAPUS
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->execute([':id' => $id]);
             flash_set('danger', 'Mata pelajaran berhasil dihapus.');
         }
-        redirect(base_url('operator/guru_crud.php?tab=mapel'));
+        redirect(base_url('operator?page=guru_crud&tab=mapel'));
     }
 
     // 3. KELAS: TAMBAH
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->execute([':k' => $nama_kelas]);
             flash_set('success', 'Kelas berhasil ditambahkan.');
         }
-        redirect(base_url('operator/guru_crud.php?tab=kelas'));
+        redirect(base_url('operator?page=guru_crud&tab=kelas'));
     }
 
     // KELAS: HAPUS
@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->execute([':id' => $id]);
             flash_set('danger', 'Kelas berhasil dihapus.');
         }
-        redirect(base_url('operator/guru_crud.php?tab=kelas'));
+        redirect(base_url('operator?page=guru_crud&tab=kelas'));
     }
 }
 
@@ -156,43 +156,12 @@ $guruList   = $db->query("
 $mapelList  = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY nama_mapel ASC")->fetchAll();
 $kelasList  = $db->query("SELECT id_kelas, nama_kelas FROM kelas ORDER BY nama_kelas ASC")->fetchAll();
 
+$page = 'guru_crud';
+$pageTitle = 'Guru, Mapel & Kelas';
 $flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guru, Mapel & Kelas - CBT Operator</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('operator/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            <span>CBT OPERATOR</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('operator/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('operator/siswa_crud.php') ?>">Data Siswa</a></li>
-            <li><a href="<?= base_url('operator/guru_crud.php') ?>" class="active">Guru & Mapel</a></li>
-            <li><a href="<?= base_url('operator/reset_login.php') ?>">Monitoring & Reset</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <?php if ($flash): ?>
@@ -206,9 +175,9 @@ $flash = flash_get();
             <h1 class="card-title">Master Data Guru, Mapel & Kelas</h1>
         </div>
         <div class="card-header-actions">
-            <a href="?tab=guru" class="btn <?= ($activeTab === 'guru') ? 'btn-primary' : 'btn-outline' ?>">Data Guru</a>
-            <a href="?tab=mapel" class="btn <?= ($activeTab === 'mapel') ? 'btn-primary' : 'btn-outline' ?>">Mata Pelajaran</a>
-            <a href="?tab=kelas" class="btn <?= ($activeTab === 'kelas') ? 'btn-primary' : 'btn-outline' ?>">Daftar Kelas</a>
+            <a href="<?= base_url('operator?page=guru_crud&tab=guru') ?>" class="btn <?= ($activeTab === 'guru') ? 'btn-primary' : 'btn-outline' ?>">Data Guru</a>
+            <a href="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" class="btn <?= ($activeTab === 'mapel') ? 'btn-primary' : 'btn-outline' ?>">Mata Pelajaran</a>
+            <a href="<?= base_url('operator?page=guru_crud&tab=kelas') ?>" class="btn <?= ($activeTab === 'kelas') ? 'btn-primary' : 'btn-outline' ?>">Daftar Kelas</a>
         </div>
     </div>
 
@@ -251,7 +220,7 @@ $flash = flash_get();
                                     <td data-label="Aksi">
                                         <div class="flex gap-2">
                                             <button type="button" class="btn btn-sm btn-outline" onclick='openEditGuruModal(<?= json_encode($g) ?>)'>Edit</button>
-                                            <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="hapus_guru">
                                                 <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">
@@ -295,7 +264,7 @@ $flash = flash_get();
                                     <td><span class="badge badge-role"><?= sanitize($m['kode_mapel']) ?></span></td>
                                     <td><strong><?= sanitize($m['nama_mapel']) ?></strong></td>
                                     <td style="text-align: center;">
-                                        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST" style="display:inline;" data-confirm="Hapus mata pelajaran <?= sanitize($m['nama_mapel']) ?>?" data-confirm-title="Hapus Mata Pelajaran" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="Hapus mata pelajaran <?= sanitize($m['nama_mapel']) ?>?" data-confirm-title="Hapus Mata Pelajaran" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus_mapel">
                                             <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
@@ -336,7 +305,7 @@ $flash = flash_get();
                                     <td><?= $idx + 1 ?></td>
                                     <td><strong><?= sanitize($k['nama_kelas']) ?></strong></td>
                                     <td style="text-align: center;">
-                                        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST" style="display:inline;" data-confirm="Hapus kelas <?= sanitize($k['nama_kelas']) ?>? Siswa di kelas ini akan menjadi tanpa kelas." data-confirm-title="Hapus Kelas" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="Hapus kelas <?= sanitize($k['nama_kelas']) ?>? Siswa di kelas ini akan menjadi tanpa kelas." data-confirm-title="Hapus Kelas" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus_kelas">
                                             <input type="hidden" name="id_kelas" value="<?= $k['id_kelas'] ?>">
@@ -357,7 +326,7 @@ $flash = flash_get();
 <div id="modal-tambah-guru" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Tambah Guru Penguji / Guru Kelas</h2>
-        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_guru">
             <div class="form-group">
@@ -393,7 +362,7 @@ $flash = flash_get();
 <div id="modal-edit-guru" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Edit Data Guru / Penugasan Kelas</h2>
-        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="edit_guru">
             <input type="hidden" id="edit-guru-id" name="id_user" value="">
@@ -431,7 +400,7 @@ $flash = flash_get();
 <div id="modal-tambah-mapel" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Tambah Mata Pelajaran</h2>
-        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_mapel">
             <div class="form-group">
@@ -454,7 +423,7 @@ $flash = flash_get();
 <div id="modal-tambah-kelas" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-3">Tambah Kelas Baru</h2>
-        <form action="<?= base_url('operator/guru_crud.php') ?>" method="POST">
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_kelas">
             <div class="form-group">
@@ -469,15 +438,17 @@ $flash = flash_get();
     </div>
 </div>
 
+<?php
+$extraJs = '
 <script>
 function openEditGuruModal(data) {
-    document.getElementById('edit-guru-id').value = data.id_user;
-    document.getElementById('edit-guru-username').value = data.username;
-    document.getElementById('edit-guru-nama').value = data.nama_lengkap;
-    document.getElementById('edit-guru-kelas').value = data.id_kelas || '';
-    openModal('modal-edit-guru');
+    document.getElementById("edit-guru-id").value = data.id_user;
+    document.getElementById("edit-guru-username").value = data.username;
+    document.getElementById("edit-guru-nama").value = data.nama_lengkap;
+    document.getElementById("edit-guru-kelas").value = data.id_kelas || "";
+    openModal("modal-edit-guru");
 }
 </script>
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+';
+
+include __DIR__ . '/../layouts/footer.php';

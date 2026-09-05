@@ -1,9 +1,9 @@
 <?php
 /**
- * Modul Monitoring Sesi & Reset Login Siswa / Pengguna
+ * Page: Monitoring Sesi & Reset Login Siswa / Pengguna
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['operator']);
 $db = get_db();
@@ -12,7 +12,7 @@ $db = get_db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('operator/reset_login.php'));
+        redirect(base_url('operator?page=reset_login'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -25,14 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->execute([':id' => $id_user]);
             flash_set('success', 'Sesi pengguna berhasil di-reset menjadi offline.');
         }
-        redirect(base_url('operator/reset_login.php'));
+        redirect(base_url('operator?page=reset_login'));
     }
 
     // RESET SEMUA SESI SISWA SEKALIGUS
     if ($action === 'reset_all_siswa') {
         $upd = $db->query("UPDATE users SET status_login = 'offline' WHERE role = 'siswa'");
         flash_set('success', 'Seluruh sesi akun siswa berhasil di-reset.');
-        redirect(base_url('operator/reset_login.php'));
+        redirect(base_url('operator?page=reset_login'));
     }
 }
 
@@ -71,42 +71,12 @@ $users = $stmt->fetchAll();
 
 $kelasList = $db->query("SELECT id_kelas, nama_kelas FROM kelas ORDER BY nama_kelas ASC")->fetchAll();
 $flash = flash_get();
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Monitoring & Reset Login - CBT Operator</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('operator/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            <span>CBT OPERATOR</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('operator/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('operator/siswa_crud.php') ?>">Data Siswa</a></li>
-            <li><a href="<?= base_url('operator/guru_crud.php') ?>">Guru & Mapel</a></li>
-            <li><a href="<?= base_url('operator/reset_login.php') ?>" class="active">Monitoring & Reset</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+$page = 'reset_login';
+$pageTitle = 'Monitoring & Reset Sesi';
+
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <?php if ($flash): ?>
@@ -120,7 +90,7 @@ $flash = flash_get();
             <h1 class="card-title">Monitoring & Reset Sesi Login</h1>
         </div>
         <div class="card-header-actions">
-            <form action="<?= base_url('operator/reset_login.php') ?>" method="POST" data-confirm="Apakah Anda yakin ingin me-reset SEMUA sesi siswa yang sedang aktif menjadi offline?" data-confirm-title="Reset Semua Sesi Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Reset Semua" style="width: 100%;">
+            <form action="<?= base_url('operator?page=reset_login') ?>" method="POST" data-confirm="Apakah Anda yakin ingin me-reset SEMUA sesi siswa yang sedang aktif menjadi offline?" data-confirm-title="Reset Semua Sesi Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Reset Semua" style="width: 100%;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="reset_all_siswa">
                 <button type="submit" class="btn btn-danger" style="width: 100%;">Reset Semua Sesi Siswa</button>
@@ -130,7 +100,8 @@ $flash = flash_get();
 
     <!-- Filter & Pencarian -->
     <div class="card" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('operator/reset_login.php') ?>" class="filter-form-responsive">
+        <form method="GET" action="<?= base_url('operator') ?>" class="filter-form-responsive">
+            <input type="hidden" name="page" value="reset_login">
             <input type="text" name="search" class="form-control" placeholder="Cari NIS, username, atau nama..." value="<?= sanitize($search) ?>">
             <div class="filter-row">
                 <select name="role" class="form-control">
@@ -192,7 +163,7 @@ $flash = flash_get();
                                 <td data-label="Aksi">
                                     <?php if ($u['id_user'] != $currentUser['id_user']): ?>
                                         <?php if ($u['status_login'] === 'online'): ?>
-                                            <form action="<?= base_url('operator/reset_login.php') ?>" method="POST">
+                                            <form action="<?= base_url('operator?page=reset_login') ?>" method="POST">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="reset_single">
                                                 <input type="hidden" name="id_user" value="<?= $u['id_user'] ?>">
@@ -214,6 +185,5 @@ $flash = flash_get();
     </div>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-</body>
-</html>
+<?php
+include __DIR__ . '/../layouts/footer.php';

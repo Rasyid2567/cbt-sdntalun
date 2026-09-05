@@ -1,12 +1,13 @@
 <?php
 /**
- * Modul Tambah & Edit Paket Soal (Dukungan Semua Butir Soal, Pilihan Ganda & Essai)
+ * Page: Tambah & Edit Paket Soal (Dukungan Semua Butir Soal, Pilihan Ganda & Essai)
  */
 
-require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 $currentUser = auth_check(['guru']);
 $db = get_db();
+
 $idGuru = $currentUser['id_user'];
 
 // Tangani parameter inisialisasi
@@ -72,7 +73,7 @@ $isEditMode = !empty($existingQuestions);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
-        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     $idPaket   = (int)($_POST['id_paket'] ?? 0);
@@ -86,12 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($idMapel <= 0) {
         flash_set('danger', 'Silakan pilih Mata Pelajaran terlebih dahulu.');
-        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     if (empty($soalItems) || !is_array($soalItems)) {
         flash_set('danger', 'Minimal harus ada 1 butir pertanyaan.');
-        redirect(base_url('guru/tambah_soal.php' . ($initPaketId ? '?id_paket=' . $initPaketId : ($initMapel ? '?id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     $db->beginTransaction();
@@ -139,8 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($oldRows as $oldR) {
             if (!in_array((int)$oldR['id_soal'], $submittedIds, true)) {
                 // Hapus gambar jika ada
-                if (!empty($oldR['gambar']) && file_exists(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'))) {
-                    @unlink(__DIR__ . '/../' . ltrim($oldR['gambar'], '/'));
+                if (!empty($oldR['gambar']) && file_exists(__DIR__ . '/../../' . ltrim($oldR['gambar'], '/'))) {
+                    @unlink(__DIR__ . '/../../' . ltrim($oldR['gambar'], '/'));
                 }
                 $delStmt = $db->prepare("DELETE FROM bank_soal WHERE id_soal = :id AND id_paket = :p");
                 $delStmt->execute([':id' => $oldR['id_soal'], ':p' => $idPaket]);
@@ -176,8 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Jika ada request hapus gambar lama
             if (!empty($item['hapus_gambar']) && $gambarPath) {
-                if (file_exists(__DIR__ . '/../' . ltrim($gambarPath, '/'))) {
-                    @unlink(__DIR__ . '/../' . ltrim($gambarPath, '/'));
+                if (file_exists(__DIR__ . '/../../' . ltrim($gambarPath, '/'))) {
+                    @unlink(__DIR__ . '/../../' . ltrim($gambarPath, '/'));
                 }
                 $gambarPath = null;
             }
@@ -192,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                 if (in_array($ext, $allowedExts, true) && $fileSize <= 5 * 1024 * 1024) {
-                    $baseRootDir = dirname(__DIR__);
+                    $baseRootDir = dirname(__DIR__, 2);
                     $uploadDir   = $baseRootDir . '/assets/uploads/';
                     if (!is_dir($uploadDir)) {
                         @mkdir($uploadDir, 0777, true);
@@ -281,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('danger', 'Gagal menyimpan paket soal: ' . $e->getMessage());
     }
 
-    redirect(base_url('guru/bank_soal.php?id_mapel=' . $idMapel));
+    redirect(base_url('guru/dashboard.php?page=bank_soal' . ($idMapel ? '&id_mapel=' . $idMapel : '')));
 }
 
 // Ambil Daftar Mapel
@@ -308,45 +309,12 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
         'kunci_jawaban' => ''
     ]
 ];
-?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru' ?> - CBT SDN Talun 01</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
-    <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
-</head>
-<body>
 
-<header class="cbt-navbar">
-    <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT GURU</span>
-        </a>
-        <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-            </svg>
-        </button>
-    </div>
-    <nav class="cbt-nav" id="cbt-nav-menu">
-        <ul class="cbt-nav-links">
-            <li><a href="<?= base_url('guru/dashboard.php') ?>">Dashboard</a></li>
-            <li><a href="<?= base_url('guru/bank_soal.php') ?>" class="active">Bank Soal</a></li>
-            <li><a href="<?= base_url('guru/sesi_ujian.php') ?>">Sesi Ujian & Token</a></li>
-            <li><a href="<?= base_url('guru/rekap_nilai.php') ?>">Rekap Nilai</a></li>
-            <li><a href="<?= base_url('logout.php') ?>" class="btn-danger">Keluar</a></li>
-        </ul>
-    </nav>
-</header>
+$page = 'tambah_soal';
+$pageTitle = $isEditMode ? 'Edit Paket Soal' : 'Buat Paket Soal Baru';
+
+include __DIR__ . '/../layouts/header.php';
+?>
 
 <main class="container">
     <div class="card-header mb-4">
@@ -357,19 +325,19 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
             </p>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">
+            <a href="<?= base_url('guru/dashboard.php?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">
                 Kembali
             </a>
         </div>
     </div>
 
-    <?php if ($flash = flash_get()): ?>
+    <?php if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <form action="<?= base_url('guru/tambah_soal.php') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
+    <form action="<?= base_url('guru/dashboard.php?page=tambah_soal') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
         <?= csrf_field() ?>
         <input type="hidden" name="id_paket" value="<?= $initPaketId ?>">
 
@@ -538,7 +506,7 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
 
         <!-- TOMBOL SIMPAN -->
         <div class="flex gap-2" style="justify-content: flex-end; margin-bottom: 3rem;">
-            <a href="<?= base_url('guru/bank_soal.php' . ($initMapel ? '?id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Batal</a>
+            <a href="<?= base_url('guru/dashboard.php?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Batal</a>
             <button type="submit" class="btn btn-primary btn-lg" style="min-width: 240px; font-weight: 800;">
                 <?= $isEditMode ? 'Simpan Perubahan Paket Soal' : 'Simpan Semua Pertanyaan' ?>
             </button>
@@ -546,77 +514,78 @@ $cardsToRender = !empty($existingQuestions) ? $existingQuestions : [
     </form>
 </main>
 
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
+<?php
+$extraJs = '
 <script>
 function updateQuestionNumbers() {
-    const cards = document.querySelectorAll('.pertanyaan-card');
+    const cards = document.querySelectorAll(".pertanyaan-card");
     cards.forEach((card, i) => {
         const num = i + 1;
-        card.setAttribute('data-index', i);
+        card.setAttribute("data-index", i);
         
         // Update label nomor
-        const numEl = card.querySelector('.nomor-pertanyaan');
+        const numEl = card.querySelector(".nomor-pertanyaan");
         if (numEl) numEl.textContent = num;
 
         // Update id_soal input
-        const idInput = card.querySelector('.field-id-soal');
+        const idInput = card.querySelector(".field-id-soal");
         if (idInput) idInput.name = `soal[${i}][id_soal]`;
 
         // Update jenis soal input
-        const jenisInput = card.querySelector('.field-jenis-soal');
+        const jenisInput = card.querySelector(".field-jenis-soal");
         if (jenisInput) jenisInput.name = `soal[${i}][jenis_soal]`;
 
         // Update existing gambar input jika ada
-        const existImg = card.querySelector('input[name*="[existing_gambar]"]');
+        const existImg = card.querySelector(\'input[name*="[existing_gambar]"]\');
         if (existImg) existImg.name = `soal[${i}][existing_gambar]`;
 
-        const hapusImg = card.querySelector('input[name*="[hapus_gambar]"]');
+        const hapusImg = card.querySelector(\'input[name*="[hapus_gambar]"]\');
         if (hapusImg) hapusImg.name = `soal[${i}][hapus_gambar]`;
 
         // Update attribute name form elements
-        const ta = card.querySelector('.field-pertanyaan, textarea');
+        const ta = card.querySelector(".field-pertanyaan, textarea");
         if (ta) ta.name = `soal[${i}][pertanyaan]`;
 
-        const fi = card.querySelector('input[type="file"]');
+        const fi = card.querySelector(\'input[type="file"]\');
         if (fi) fi.name = `gambar_${i}`;
 
-        const isEssai = card.getAttribute('data-type') === 'essai';
+        const isEssai = card.getAttribute("data-type") === "essai";
         if (isEssai) {
-            const kunciEssai = card.querySelector('.field-kunci-essai');
+            const kunciEssai = card.querySelector(".field-kunci-essai");
             if (kunciEssai) kunciEssai.name = `soal[${i}][kunci_jawaban]`;
         } else {
-            const inputs = card.querySelectorAll('.field-opsi');
+            const inputs = card.querySelectorAll(".field-opsi");
             if (inputs[0]) inputs[0].name = `soal[${i}][opsi_a]`;
             if (inputs[1]) inputs[1].name = `soal[${i}][opsi_b]`;
             if (inputs[2]) inputs[2].name = `soal[${i}][opsi_c]`;
             if (inputs[3]) inputs[3].name = `soal[${i}][opsi_d]`;
             if (inputs[4]) inputs[4].name = `soal[${i}][opsi_e]`;
 
-            const checkboxes = card.querySelectorAll('.field-kunci-cb, input[type="checkbox"][value]');
+            const checkboxes = card.querySelectorAll(\'.field-kunci-cb, input[type="checkbox"][value]\');
             checkboxes.forEach(cb => {
                 cb.name = `soal[${i}][kunci][]`;
             });
         }
 
         // Tampilkan tombol hapus jika jumlah kartu > 1
-        const btnHapus = card.querySelector('.btn-hapus-pertanyaan');
+        const btnHapus = card.querySelector(".btn-hapus-pertanyaan");
         if (btnHapus) {
-            btnHapus.style.display = (cards.length > 1) ? 'inline-flex' : 'none';
+            btnHapus.style.display = (cards.length > 1) ? "inline-flex" : "none";
         }
     });
 }
 
 function tambahPertanyaan(tipe) {
-    const container = document.getElementById('container-pertanyaan');
-    const newIndex = container.querySelectorAll('.pertanyaan-card').length;
+    const container = document.getElementById("container-pertanyaan");
+    const newIndex = container.querySelectorAll(".pertanyaan-card").length;
     const newNum = newIndex + 1;
 
-    const newCard = document.createElement('div');
-    newCard.className = 'card pertanyaan-card mb-4';
-    newCard.setAttribute('data-type', tipe);
-    newCard.setAttribute('data-index', newIndex);
+    const newCard = document.createElement("div");
+    newCard.className = "card pertanyaan-card mb-4";
+    newCard.setAttribute("data-type", tipe);
+    newCard.setAttribute("data-index", newIndex);
 
-    if (tipe === 'essai') {
+    if (tipe === "essai") {
         newCard.innerHTML = `
             <input type="hidden" name="soal[${newIndex}][id_soal]" value="0" class="field-id-soal">
             <input type="hidden" name="soal[${newIndex}][jenis_soal]" value="essai" class="field-jenis-soal">
@@ -736,24 +705,24 @@ function tambahPertanyaan(tipe) {
     updateQuestionNumbers();
 
     // Scroll otomatis ke kartu pertanyaan baru
-    newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newCard.scrollIntoView({ behavior: "smooth", block: "center" });
     
     // Auto focus ke textarea baru
-    const newTextarea = newCard.querySelector('textarea');
+    const newTextarea = newCard.querySelector("textarea");
     if (newTextarea) {
         setTimeout(() => newTextarea.focus(), 250);
     }
 }
 
 function hapusPertanyaan(btn) {
-    const card = btn.closest('.pertanyaan-card');
-    const total = document.querySelectorAll('.pertanyaan-card').length;
+    const card = btn.closest(".pertanyaan-card");
+    const total = document.querySelectorAll(".pertanyaan-card").length;
     if (total > 1) {
         cbtConfirm({
-            title: 'Hapus Pertanyaan',
-            message: 'Apakah Anda yakin ingin menghapus butir pertanyaan ini dari paket?',
-            type: 'danger',
-            confirmText: 'Ya, Hapus'
+            title: "Hapus Pertanyaan",
+            message: "Apakah Anda yakin ingin menghapus butir pertanyaan ini dari paket?",
+            type: "danger",
+            confirmText: "Ya, Hapus"
         }).then(ok => {
             if (ok) {
                 card.remove();
@@ -763,5 +732,6 @@ function hapusPertanyaan(btn) {
     }
 }
 </script>
-</body>
-</html>
+';
+
+include __DIR__ . '/../layouts/footer.php';
