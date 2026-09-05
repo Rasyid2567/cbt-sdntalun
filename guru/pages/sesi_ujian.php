@@ -27,7 +27,7 @@ if (!function_exists('generate_token_cbt')) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             flash_set('success', "Sesi ujian '{$namaUjian}' berhasil dibuat dan aktif dengan Token: {$token}");
         }
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 
     // 2. REFRESH / GENERATE ULANG TOKEN
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd = $db->prepare("UPDATE sesi_ujian SET token_ujian = :t WHERE id_sesi = :id AND id_guru = :g");
         $upd->execute([':t' => $newToken, ':id' => $idSesi, ':g' => $idGuru]);
         flash_set('info', "Token ujian berhasil diperbarui menjadi: {$newToken}");
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 
     // 2B. EDIT TOKEN SECARA CUSTOM
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('danger', "Token harus berupa 3-15 karakter huruf/angka.");
         }
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 
     // 3. UBAH STATUS SESI
@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             flash_set('success', "Status sesi ujian berhasil diubah menjadi: {$newStatus}");
         }
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 
     // 4. HAPUS SESI
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $del = $db->prepare("DELETE FROM sesi_ujian WHERE id_sesi = :id AND id_guru = :g");
         $del->execute([':id' => $idSesi, ':g' => $idGuru]);
         flash_set('danger', 'Sesi ujian berhasil dihapus.');
-        redirect(base_url('guru/dashboard.php?page=sesi_ujian'));
+        redirect(base_url('guru?page=sesi_ujian'));
     }
 }
 
@@ -248,7 +248,7 @@ include __DIR__ . '/../layouts/header.php';
                                         <button type="button" class="btn btn-sm btn-outline" title="Ubah Token / Custom" style="padding: 0.15rem 0.45rem; font-size: 0.78rem;" onclick="openModalEditToken(<?= $s['id_sesi'] ?>, '<?= sanitize($s['token_ujian']) ?>', '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>')">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
-                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Generate ulang token ujian ini secara acak?" data-confirm-title="Perbarui Token Ujian" data-confirm-type="warning" data-confirm-btn="Generate Acak">
+                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Generate ulang token ujian ini secara acak?" data-confirm-title="Perbarui Token Ujian" data-confirm-type="warning" data-confirm-btn="Generate Acak">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="refresh_token">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -286,13 +286,13 @@ include __DIR__ . '/../layouts/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Peserta">
-                                    <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline">
+                                    <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline">
                                         <?= $s['total_peserta'] ?> Siswa
                                     </a>
                                 </td>
                                 <td data-label="Aksi">
                                     <div class="flex gap-2" style="justify-content: center;">
-                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;">
+                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display:inline;">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -305,7 +305,7 @@ include __DIR__ . '/../layouts/header.php';
                                             <?php endif; ?>
                                         </form>
 
-                                        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
+                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus_sesi">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
@@ -327,7 +327,7 @@ include __DIR__ . '/../layouts/header.php';
     <div class="modal-box" style="max-width: 520px;">
         <h2 class="card-title mb-3">Rilis Sesi Ujian Baru</h2>
 
-        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST">
+        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_sesi">
             <input type="hidden" name="id_kelas" value="<?= $idKelasGuru ?>">
@@ -338,7 +338,7 @@ include __DIR__ . '/../layouts/header.php';
                 <label for="select_paket_soal">Pilih Paket Soal <span class="text-danger">*</span></label>
                 <?php if (empty($paketList)): ?>
                     <div class="alert alert-warning" style="font-size: 0.85rem; padding: 0.75rem 0.95rem; margin-top: 0.25rem;">
-                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru/dashboard.php?page=tambah_soal') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
+                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru?page=tambah_soal') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
                     </div>
                 <?php else: ?>
                     <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)">
@@ -412,7 +412,7 @@ include __DIR__ . '/../layouts/header.php';
         <h2 class="card-title mb-1">Ubah Token Ujian</h2>
         <p class="text-xs text-muted mb-3" id="edit_token_subtitle">Sesuaikan kode token ujian untuk peserta</p>
 
-        <form action="<?= base_url('guru/dashboard.php?page=sesi_ujian') ?>" method="POST">
+        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="edit_token">
             <input type="hidden" name="id_sesi" id="edit_token_id_sesi" value="">

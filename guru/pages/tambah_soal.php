@@ -73,7 +73,7 @@ $isEditMode = !empty($existingQuestions);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
-        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     $idPaket   = (int)($_POST['id_paket'] ?? 0);
@@ -87,12 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($idMapel <= 0) {
         flash_set('danger', 'Silakan pilih Mata Pelajaran terlebih dahulu.');
-        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     if (empty($soalItems) || !is_array($soalItems)) {
         flash_set('danger', 'Minimal harus ada 1 butir pertanyaan.');
-        redirect(base_url('guru/dashboard.php?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
+        redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
     $db->beginTransaction();
@@ -282,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('danger', 'Gagal menyimpan paket soal: ' . $e->getMessage());
     }
 
-    redirect(base_url('guru/dashboard.php?page=bank_soal' . ($idMapel ? '&id_mapel=' . $idMapel : '')));
+    redirect(base_url('guru?page=bank_soal' . ($idMapel ? '&id_mapel=' . $idMapel : '')));
 }
 
 // Ambil Daftar Mapel
@@ -325,7 +325,7 @@ include __DIR__ . '/../layouts/header.php';
             </p>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/dashboard.php?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">
+            <a href="<?= base_url('guru?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">
                 Kembali
             </a>
         </div>
@@ -337,7 +337,7 @@ include __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <form action="<?= base_url('guru/dashboard.php?page=tambah_soal') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
+    <form action="<?= base_url('guru?page=tambah_soal') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
         <?= csrf_field() ?>
         <input type="hidden" name="id_paket" value="<?= $initPaketId ?>">
 
@@ -506,7 +506,7 @@ include __DIR__ . '/../layouts/header.php';
 
         <!-- TOMBOL SIMPAN -->
         <div class="flex gap-2" style="justify-content: flex-end; margin-bottom: 3rem;">
-            <a href="<?= base_url('guru/dashboard.php?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Batal</a>
+            <a href="<?= base_url('guru?page=bank_soal' . ($initMapel ? '&id_mapel=' . $initMapel : '')) ?>" class="btn btn-outline">Batal</a>
             <button type="submit" class="btn btn-primary btn-lg" style="min-width: 240px; font-weight: 800;">
                 <?= $isEditMode ? 'Simpan Perubahan Paket Soal' : 'Simpan Semua Pertanyaan' ?>
             </button>

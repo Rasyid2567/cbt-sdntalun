@@ -10,8 +10,18 @@ $db = get_db();
 
 // Tangani Export Template CSV
 if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    $filename = 'template_import_siswa.csv';
+    header('Content-Description: File Transfer');
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename=template_import_siswa.csv');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    header('Pragma: public');
+
     $output = fopen('php://output', 'w');
     // UTF-8 BOM untuk kompatibilitas Microsoft Excel
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));

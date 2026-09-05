@@ -5,7 +5,7 @@
 
 require_once __DIR__ . '/../../middleware/auth.php';
 
-$currentUser = auth_check(['guru']);
+$currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 $page = 'bank_soal';
@@ -19,28 +19,40 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 
     $paket = null;
     if ($idPaket > 0) {
-        $stmtP = $db->prepare("
+        $sql = "
             SELECT p.*, m.nama_mapel 
             FROM paket_soal p
             JOIN mapel m ON p.id_mapel = m.id_mapel
-            WHERE p.id_paket = :p AND p.id_guru = :g
-        ");
-        $stmtP->execute([':p' => $idPaket, ':g' => $idGuru]);
+            WHERE p.id_paket = :p
+        ";
+        $params = [':p' => $idPaket];
+        if ($currentUser['role'] === 'guru') {
+            $sql .= " AND p.id_guru = :g";
+            $params[':g'] = $idGuru;
+        }
+        $stmtP = $db->prepare($sql);
+        $stmtP->execute($params);
         $paket = $stmtP->fetch();
     } elseif ($expMapel > 0 && $expJudul !== '') {
-        $stmtP = $db->prepare("
+        $sql = "
             SELECT p.*, m.nama_mapel 
             FROM paket_soal p
             JOIN mapel m ON p.id_mapel = m.id_mapel
-            WHERE p.id_mapel = :m AND p.nama_paket = :j AND p.id_guru = :g
-        ");
-        $stmtP->execute([':m' => $expMapel, ':j' => $expJudul, ':g' => $idGuru]);
+            WHERE p.id_mapel = :m AND p.nama_paket = :j
+        ";
+        $params = [':m' => $expMapel, ':j' => $expJudul];
+        if ($currentUser['role'] === 'guru') {
+            $sql .= " AND p.id_guru = :g";
+            $params[':g'] = $idGuru;
+        }
+        $stmtP = $db->prepare($sql);
+        $stmtP->execute($params);
         $paket = $stmtP->fetch();
     }
 
     if (!$paket) {
         flash_set('danger', 'Paket soal tidak ditemukan.');
-        redirect(base_url('guru/dashboard.php?page=bank_soal'));
+        redirect(base_url('guru?page=bank_soal'));
     }
 
     $stmtExp = $db->prepare("
@@ -51,9 +63,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     $stmtExp->execute([':p' => $paket['id_paket']]);
     $rows = $stmtExp->fetchAll();
 
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     $filename = 'paket_soal_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $paket['nama_paket']) . '.csv';
+    header('Content-Description: File Transfer');
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename=' . $filename);
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    header('Pragma: public');
 
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
@@ -80,7 +100,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi token keamanan gagal.');
-        redirect(base_url('guru/dashboard.php?page=bank_soal'));
+        redirect(base_url('guru?page=bank_soal'));
     }
 
     $action = $_POST['action'] ?? '';
@@ -90,27 +110,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idSoal = (int)($_POST['id_soal'] ?? 0);
         if ($idSoal > 0) {
             // Ambil info gambar untuk dihapus dari server
-            $stmtImg = $db->prepare("
+            $sqlImg = "
                 SELECT b.gambar 
                 FROM bank_soal b
                 JOIN paket_soal p ON b.id_paket = p.id_paket
-                WHERE b.id_soal = :id AND p.id_guru = :g
-            ");
-            $stmtImg->execute([':id' => $idSoal, ':g' => $idGuru]);
+                WHERE b.id_soal = :id
+            ";
+            $pImg = [':id' => $idSoal];
+            if ($currentUser['role'] === 'guru') {
+                $sqlImg .= " AND p.id_guru = :g";
+                $pImg[':g'] = $idGuru;
+            }
+            $stmtImg = $db->prepare($sqlImg);
+            $stmtImg->execute($pImg);
             $soalImg = $stmtImg->fetchColumn();
 
             if ($soalImg && file_exists(__DIR__ . '/../../' . ltrim($soalImg, '/'))) {
                 unlink(__DIR__ . '/../../' . ltrim($soalImg, '/'));
             }
 
-            $del = $db->prepare("
-                DELETE FROM bank_soal 
-                WHERE id_soal = :id AND id_paket IN (SELECT id_paket FROM paket_soal WHERE id_guru = :g)
-            ");
-            $del->execute([':id' => $idSoal, ':g' => $idGuru]);
+            $sqlDel = "DELETE FROM bank_soal WHERE id_soal = :id";
+            $pDel = [':id' => $idSoal];
+            if ($currentUser['role'] === 'guru') {
+                $sqlDel .= " AND id_paket IN (SELECT id_paket FROM paket_soal WHERE id_guru = :g)";
+                $pDel[':g'] = $idGuru;
+            }
+            $del = $db->prepare($sqlDel);
+            $del->execute($pDel);
             flash_set('danger', 'Butir soal berhasil dihapus.');
         }
-        redirect(base_url('guru/dashboard.php?page=bank_soal' . (!empty($_POST['redirect_mapel']) ? '&id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
+        redirect(base_url('guru?page=bank_soal' . (!empty($_POST['redirect_mapel']) ? '&id_mapel=' . (int)$_POST['redirect_mapel'] : '')));
     }
 
     // Rename Nama Paket
@@ -119,15 +148,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newJudul = trim($_POST['new_judul'] ?? '');
 
         if ($idPaket > 0 && $newJudul !== '') {
-            $upd = $db->prepare("
-                UPDATE paket_soal 
-                SET nama_paket = :new 
-                WHERE id_paket = :id AND id_guru = :g
-            ");
-            $upd->execute([':new' => $newJudul, ':id' => $idPaket, ':g' => $idGuru]);
+            $sqlUpd = "UPDATE paket_soal SET nama_paket = :new WHERE id_paket = :id";
+            $pUpd = [':new' => $newJudul, ':id' => $idPaket];
+            if ($currentUser['role'] === 'guru') {
+                $sqlUpd .= " AND id_guru = :g";
+                $pUpd[':g'] = $idGuru;
+            }
+            $upd = $db->prepare($sqlUpd);
+            $upd->execute($pUpd);
             flash_set('success', "Nama paket soal berhasil diubah menjadi '{$newJudul}'.");
         }
-        redirect(base_url('guru/dashboard.php?page=bank_soal' . (!empty($_POST['id_mapel']) ? '&id_mapel=' . (int)$_POST['id_mapel'] : '')));
+        redirect(base_url('guru?page=bank_soal' . (!empty($_POST['id_mapel']) ? '&id_mapel=' . (int)$_POST['id_mapel'] : '')));
     }
 
     // Hapus Seluruh Paket Soal (Cascade Butir Soal & Gambar)
@@ -136,8 +167,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idMapel = (int)($_POST['id_mapel'] ?? 0);
 
         if ($idPaket > 0) {
-            $stmtP = $db->prepare("SELECT nama_paket, id_mapel FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
-            $stmtP->execute([':id' => $idPaket, ':g' => $idGuru]);
+            $sqlP = "SELECT nama_paket, id_mapel FROM paket_soal WHERE id_paket = :id";
+            $pP = [':id' => $idPaket];
+            if ($currentUser['role'] === 'guru') {
+                $sqlP .= " AND id_guru = :g";
+                $pP[':g'] = $idGuru;
+            }
+            $stmtP = $db->prepare($sqlP);
+            $stmtP->execute($pP);
             $pInfo = $stmtP->fetch();
 
             if ($pInfo) {
@@ -154,12 +191,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $del = $db->prepare("DELETE FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
-                $del->execute([':id' => $idPaket, ':g' => $idGuru]);
+                $sqlDelP = "DELETE FROM paket_soal WHERE id_paket = :id";
+                $pDelP = [':id' => $idPaket];
+                if ($currentUser['role'] === 'guru') {
+                    $sqlDelP .= " AND id_guru = :g";
+                    $pDelP[':g'] = $idGuru;
+                }
+                $del = $db->prepare($sqlDelP);
+                $del->execute($pDelP);
                 flash_set('danger', "Seluruh butir soal dalam paket '{$namaPaket}' berhasil dihapus.");
             }
         }
-        redirect(base_url('guru/dashboard.php?page=bank_soal' . ($idMapel > 0 ? '&id_mapel=' . $idMapel : '')));
+        redirect(base_url('guru?page=bank_soal' . ($idMapel > 0 ? '&id_mapel=' . $idMapel : '')));
     }
 }
 
@@ -178,18 +221,19 @@ if (!function_exists('format_mapel_name')) {
 $filterMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : null;
 $search      = trim($_GET['search'] ?? '');
 
-// Ambil Statistik Paket per Mapel untuk Guru ini
-$stmtMapel = $db->prepare("
+// Ambil Statistik Paket per Mapel untuk Guru/Operator ini
+$sqlMapel = "
     SELECT m.id_mapel, m.nama_mapel, m.kode_mapel,
            COUNT(b.id_soal) AS total_soal,
            COUNT(DISTINCT p.id_paket) AS total_paket
     FROM mapel m
-    LEFT JOIN paket_soal p ON m.id_mapel = p.id_mapel AND p.id_guru = :g
+    LEFT JOIN paket_soal p ON m.id_mapel = p.id_mapel" . ($currentUser['role'] === 'guru' ? " AND p.id_guru = :g" : "") . "
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
     GROUP BY m.id_mapel, m.nama_mapel, m.kode_mapel
     ORDER BY m.id_mapel ASC
-");
-$stmtMapel->execute([':g' => $idGuru]);
+";
+$stmtMapel = $db->prepare($sqlMapel);
+$stmtMapel->execute($currentUser['role'] === 'guru' ? [':g' => $idGuru] : []);
 $mapelList = $stmtMapel->fetchAll();
 
 $totalSemuaPaket = 0;
@@ -197,7 +241,7 @@ foreach ($mapelList as $m) {
     $totalSemuaPaket += (int)$m['total_paket'];
 }
 
-// Query Ambil Seluruh Paket Soal Guru Ini
+// Query Ambil Seluruh Paket Soal (Guru terfilter, Operator melihat semua)
 $sql = "
     SELECT p.id_paket, p.nama_paket, p.id_mapel, p.created_at,
            m.nama_mapel, m.kode_mapel,
@@ -207,9 +251,13 @@ $sql = "
     FROM paket_soal p
     JOIN mapel m ON p.id_mapel = m.id_mapel
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
-    WHERE p.id_guru = :g
+    WHERE 1=1
 ";
-$params = [':g' => $idGuru];
+$params = [];
+if ($currentUser['role'] === 'guru') {
+    $sql .= " AND p.id_guru = :g";
+    $params[':g'] = $idGuru;
+}
 
 if ($filterMapel) {
     $sql .= " AND p.id_mapel = :m";
@@ -243,11 +291,11 @@ include __DIR__ . '/../layouts/header.php';
             <h1 class="card-title">Bank Soal Ujian</h1>
         </div>
         <div class="card-header-actions">
-            <a href="<?= base_url('guru/dashboard.php?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
+            <a href="<?= base_url('guru?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Buat Paket Soal</span>
             </a>
-            <a href="<?= base_url('guru/dashboard.php?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
+            <a href="<?= base_url('guru?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 <span>Import CSV</span>
             </a>
@@ -256,7 +304,7 @@ include __DIR__ . '/../layouts/header.php';
 
     <!-- Filter & Pencarian Cepat (Single Row) -->
     <div class="card mb-4" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('guru/dashboard.php') ?>" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <form method="GET" action="<?= base_url('guru') ?>" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
             <input type="hidden" name="page" value="bank_soal">
             <div style="flex: 1; min-width: 220px;">
                 <input type="text" name="search" class="form-control" placeholder="Cari nama paket soal..." value="<?= sanitize($search) ?>">
@@ -290,11 +338,11 @@ include __DIR__ . '/../layouts/header.php';
                 Belum Ada Paket Soal <?= $filterMapel ? 'pada Mapel Ini' : '' ?>
             </h3>
             <div class="flex gap-2 mt-3" style="justify-content: center;">
-                <a href="<?= base_url('guru/dashboard.php?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
+                <a href="<?= base_url('guru?page=tambah_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-primary">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     <span>Buat Paket Soal</span>
                 </a>
-                <a href="<?= base_url('guru/dashboard.php?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
+                <a href="<?= base_url('guru?page=import_soal' . ($filterMapel ? '&id_mapel=' . $filterMapel : '')) ?>" class="btn btn-secondary">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     <span>Import CSV</span>
                 </a>
@@ -331,15 +379,15 @@ include __DIR__ . '/../layouts/header.php';
 
                         <!-- Tombol Aksi Paket -->
                         <div class="flex gap-2" style="align-items: center;">
-                            <a href="<?= base_url('guru/dashboard.php?page=tambah_soal&id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
+                            <a href="<?= base_url('guru?page=tambah_soal&id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 <span>Edit</span>
                             </a>
-                            <a href="<?= base_url('guru/dashboard.php?page=bank_soal&action=export_csv&id_paket=' . $p['id_paket']) ?>" class="btn btn-outline btn-sm" title="Export CSV">
+                            <a href="<?= base_url('guru?page=bank_soal&action=export_csv&id_paket=' . $p['id_paket']) ?>" class="btn btn-outline btn-sm" title="Export CSV">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 <span>Export</span>
                             </a>
-                            <form action="<?= base_url('guru/dashboard.php?page=bank_soal') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['nama_paket']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
+                            <form action="<?= base_url('guru?page=bank_soal') ?>" method="POST" style="display:inline;" data-confirm="Apakah Anda yakin ingin menghapus SELURUH butir pertanyaan dalam paket '<?= sanitize($p['nama_paket']) ?>'?" data-confirm-title="Hapus Paket Soal" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Paket">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="hapus_paket">
                                 <input type="hidden" name="id_paket" value="<?= $p['id_paket'] ?>">

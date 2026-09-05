@@ -6,23 +6,28 @@
 
 require_once __DIR__ . '/../../middleware/auth.php';
 
-$currentUser = auth_check(['guru']);
+$currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
 $idGuru = $currentUser['id_user'];
 $page = 'rekap_nilai';
 $pageTitle = 'Rekapitulasi Nilai Ujian';
 
-// Ambil Daftar Seluruh Sesi Ujian Guru
-$stmtSesiAll = $db->prepare("
+// Ambil Daftar Seluruh Sesi Ujian (Guru terfilter, Operator melihat semua)
+$sqlSesiAll = "
     SELECT s.id_sesi, s.nama_ujian, s.token_ujian, s.status, s.id_mapel, m.nama_mapel, k.nama_kelas, p.nama_paket
     FROM sesi_ujian s
     LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
     JOIN mapel m ON s.id_mapel = m.id_mapel
     JOIN kelas k ON s.id_kelas = k.id_kelas
-    WHERE s.id_guru = :g
-    ORDER BY s.created_at DESC
-");
-$stmtSesiAll->execute([':g' => $idGuru]);
+";
+$paramsSesi = [];
+if ($currentUser['role'] === 'guru') {
+    $sqlSesiAll .= " WHERE s.id_guru = :g";
+    $paramsSesi[':g'] = $idGuru;
+}
+$sqlSesiAll .= " ORDER BY s.created_at DESC";
+$stmtSesiAll = $db->prepare($sqlSesiAll);
+$stmtSesiAll->execute($paramsSesi);
 $allSessions = $stmtSesiAll->fetchAll();
 
 // Tentukan Sesi Terpilih
@@ -34,15 +39,21 @@ $totalSoalUjian = 0;
 
 if ($selectedSesiId > 0) {
     // Detail Sesi
-    $stmtDet = $db->prepare("
+    $sqlDet = "
         SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas, p.nama_paket
         FROM sesi_ujian s
         LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
         JOIN mapel m ON s.id_mapel = m.id_mapel
         JOIN kelas k ON s.id_kelas = k.id_kelas
-        WHERE s.id_sesi = :id AND s.id_guru = :g
-    ");
-    $stmtDet->execute([':id' => $selectedSesiId, ':g' => $idGuru]);
+        WHERE s.id_sesi = :id
+    ";
+    $paramsDet = [':id' => $selectedSesiId];
+    if ($currentUser['role'] === 'guru') {
+        $sqlDet .= " AND s.id_guru = :g";
+        $paramsDet[':g'] = $idGuru;
+    }
+    $stmtDet = $db->prepare($sqlDet);
+    $stmtDet->execute($paramsDet);
     $sesiDetail = $stmtDet->fetch();
 
     if ($sesiDetail) {
@@ -91,10 +102,23 @@ if ($selectedSesiId > 0) {
 }
 
 // Tangani Export CSV
-if (isset($_GET['action']) && $_GET['action'] === 'export_csv' && $sesiDetail) {
+if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
+    if (!$sesiDetail) {
+        flash_set('danger', 'Sesi ujian tidak ditemukan untuk diekspor.');
+        redirect(base_url('guru?page=rekap_nilai'));
+    }
+
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     $filename = 'rekap_nilai_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $sesiDetail['nama_ujian']) . '.csv';
+    header('Content-Description: File Transfer');
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename=' . $filename);
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    header('Pragma: public');
 
     $output = fopen('php://output', 'w');
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
@@ -142,7 +166,7 @@ include __DIR__ . '/../layouts/header.php';
         </div>
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">
-                <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
+                <a href="<?= base_url('guru?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
                 <button type="button" class="btn btn-primary" onclick="window.print()">Cetak Laporan</button>
             </div>
         <?php endif; ?>
@@ -150,7 +174,7 @@ include __DIR__ . '/../layouts/header.php';
 
     <!-- Pilih Sesi Ujian -->
     <div class="card no-print" style="padding: 1rem 1.25rem;">
-        <form method="GET" action="<?= base_url('guru/dashboard.php') ?>" class="filter-form-responsive">
+        <form method="GET" action="<?= base_url('guru') ?>" class="filter-form-responsive">
             <input type="hidden" name="page" value="rekap_nilai">
             <label for="select_sesi" class="font-bold">Pilih Sesi Ujian:</label>
             <div class="filter-row">
@@ -256,7 +280,7 @@ include __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td data-label="Aksi" class="no-print" style="text-align: center; white-space: nowrap;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
-                                            <a href="<?= base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                                            <a href="<?= base_url('guru?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                 <span>Detail & Nilai</span>
                                             </a>

@@ -26,7 +26,7 @@ $flash = $flash ?? flash_get();
 
 <header class="cbt-navbar no-print">
     <div class="cbt-navbar-header">
-        <a href="<?= base_url('guru/dashboard.php') ?>" class="cbt-navbar-brand">
+        <a href="<?= base_url('guru') ?>" class="cbt-navbar-brand">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
                 <path d="M6 12v5c3 3 9 3 12 0v-5"></path>

@@ -14,7 +14,7 @@ $backSesiId   = (int)($_GET['id_sesi'] ?? $_POST['id_sesi'] ?? 0);
 
 if ($idUjianSiswa <= 0) {
     flash_set('danger', 'Data ujian tidak valid.');
-    redirect(base_url('guru/dashboard.php?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 // 1. Ambil Data Ujian Siswa
@@ -40,19 +40,19 @@ $detailUjian = $stmtUjian->fetch();
 
 if (!$detailUjian) {
     flash_set('danger', 'Data ujian siswa tidak ditemukan.');
-    redirect(base_url('guru/dashboard.php?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$currentUser['id_user']) {
     flash_set('danger', 'Anda tidak memiliki akses ke data ini.');
-    redirect(base_url('guru/dashboard.php?page=rekap_nilai'));
+    redirect(base_url('guru?page=rekap_nilai'));
 }
 
 // 2. Simpan Nilai Essai
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi keamanan gagal.');
-        redirect(base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+        redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
     }
 
     $inputNilai = $_POST['nilai_soal'] ?? [];
@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     ]);
 
     flash_set('success', "Nilai essai berhasil disimpan. Nilai Akhir: {$nilaiAkhirBaru}");
-    redirect(base_url('guru/dashboard.php?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
 // 3. Urutan Soal
@@ -416,7 +416,7 @@ include __DIR__ . '/../layouts/header.php';
             </span>
         </div>
         <div>
-            <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+            <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
                 Kembali
             </a>
         </div>
@@ -486,7 +486,7 @@ include __DIR__ . '/../layouts/header.php';
     </div>
 
     <!-- Form Daftar Soal -->
-    <form action="<?= base_url('guru/dashboard.php?page=detail_jawaban') ?>" method="POST">
+    <form action="<?= base_url('guru?page=detail_jawaban') ?>" method="POST">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="simpan_nilai_essai">
         <input type="hidden" name="id_ujian_siswa" value="<?= $idUjianSiswa ?>">
@@ -616,7 +616,7 @@ include __DIR__ . '/../layouts/header.php';
     </form>
 
     <div style="margin: 1.5rem 0 3rem 0;">
-        <a href="<?= base_url('guru/dashboard.php?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
+        <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
             Kembali ke Rekap Nilai
         </a>
     </div>

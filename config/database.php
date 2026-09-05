@@ -296,8 +296,22 @@ function base_url(string $path = ''): string {
     $scriptDir = rtrim($scriptDir, '/\\');
 
     $cleanPath = ltrim($path, '/');
-    // Normalisasi direktori modul agar selalu memiliki trailing slash sebelum query string (mencegah 301 redirect POST dari Apache)
-    $cleanPath = preg_replace('/^(operator|guru|siswa)(\?|$)/', '$1/$2', $cleanPath);
+
+    // Pisahkan query string dan hash jika ada agar tidak mengganggu pembersihan ekstensi .php
+    $query = '';
+    if (($pos = strpos($cleanPath, '?')) !== false) {
+        $query = substr($cleanPath, $pos);
+        $cleanPath = substr($cleanPath, 0, $pos);
+    } elseif (($pos = strpos($cleanPath, '#')) !== false) {
+        $query = substr($cleanPath, $pos);
+        $cleanPath = substr($cleanPath, 0, $pos);
+    }
+
+    // Normalisasi alias modul dashboard (misal guru/dashboard.php atau guru/dashboard -> guru)
+    $cleanPath = preg_replace('/^(operator|guru|siswa)\/dashboard(\.php)?$/', '$1', $cleanPath);
+
+    // Normalisasi direktori modul utama agar selalu memiliki trailing slash (mencegah 301 redirect POST dari Apache)
+    $cleanPath = preg_replace('/^(operator|guru|siswa)$/', '$1/', $cleanPath);
 
     // Jika path menuju file .php (dan bukan asset statis css/js/gambar), buang ekstensi .php
     if (str_ends_with($cleanPath, '.php')) {
@@ -309,9 +323,9 @@ function base_url(string $path = ''): string {
         // Auto Cache-Busting: Tambahkan timestamp versi agar Tunnel/CDN & Browser langsung memuat update terbaru
         $localFilePath = dirname(__DIR__) . '/' . $cleanPath;
         if (file_exists($localFilePath)) {
-            $cleanPath .= '?v=' . filemtime($localFilePath);
+            $query = ($query === '' ? '?' : $query . '&') . 'v=' . filemtime($localFilePath);
         }
     }
 
-    return ($scriptDir === '' ? '' : $scriptDir) . '/' . $cleanPath;
+    return ($scriptDir === '' ? '' : $scriptDir) . '/' . $cleanPath . $query;
 }

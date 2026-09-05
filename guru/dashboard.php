@@ -26,7 +26,7 @@ $pageKey = $_GET['page'] ?? 'home';
 
 if (!isset($routes[$pageKey])) {
     flash_set('warning', 'Halaman yang diminta tidak ditemukan.');
-    redirect(base_url('guru/dashboard.php?page=home'));
+    redirect(base_url('guru?page=home'));
 }
 
 // Muat controller / view untuk halaman yang diminta
