@@ -2,7 +2,12 @@
     RewriteEngine On
     DirectoryIndex index.php
 
-    # 1. Redirect akses GET /index.php atau /index langsung ke /login
+    # 1. Pastikan routing modul (operator, guru, siswa) langsung dilayani oleh index.php
+    # tanpa memicu 301 redirect DirectorySlash dari mod_dir yang dapat merusak method POST.
+    RewriteRule ^(operator|guru|siswa)$ $1/index.php [L,QSA]
+    RewriteRule ^(operator|guru|siswa)/$ $1/index.php [L,QSA]
+
+    # 2. Redirect akses GET /index.php atau /index langsung ke /login
     RewriteCond %{REQUEST_METHOD} =GET
     RewriteCond %{THE_REQUEST} ^GET\s+/(index\.php|index)(\?[^\s]*)?\s [NC]
     RewriteRule ^ /login [R=301,L]

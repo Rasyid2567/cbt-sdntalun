@@ -296,6 +296,9 @@ function base_url(string $path = ''): string {
     $scriptDir = rtrim($scriptDir, '/\\');
 
     $cleanPath = ltrim($path, '/');
+    // Normalisasi direktori modul agar selalu memiliki trailing slash sebelum query string (mencegah 301 redirect POST dari Apache)
+    $cleanPath = preg_replace('/^(operator|guru|siswa)(\?|$)/', '$1/$2', $cleanPath);
+
     // Jika path menuju file .php (dan bukan asset statis css/js/gambar), buang ekstensi .php
     if (str_ends_with($cleanPath, '.php')) {
         $cleanPath = substr($cleanPath, 0, -4);
