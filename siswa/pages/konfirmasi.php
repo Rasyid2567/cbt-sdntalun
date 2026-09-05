@@ -159,14 +159,17 @@ $flash = flash_get();
 </head>
 <body class="app-webview-body">
 
-<header class="cbt-navbar flex-between">
+<header class="cbt-navbar cbt-navbar-student flex-between">
     <div class="cbt-navbar-brand">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
         <span>CBT PESERTA</span>
     </div>
-    <div class="flex gap-2" style="align-items: center;">
+    <div class="flex gap-2" style="align-items: center; flex-shrink: 0;">
         <span class="user-badge"><?= sanitize($currentUser['nama_lengkap']) ?></span>
-        <a href="<?= base_url('logout.php') ?>" class="btn btn-sm btn-danger">Keluar</a>
+        <a href="<?= base_url('logout.php') ?>" class="btn btn-sm btn-danger btn-logout" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Keluar</span>
+        </a>
     </div>
 </header>
 

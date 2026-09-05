@@ -183,30 +183,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gambarPath = null;
             }
 
-            // Upload gambar baru jika ada
-            $fileKey = 'gambar_' . $idx;
-            if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
-                $fileTmp  = $_FILES[$fileKey]['tmp_name'];
-                $fileName = $_FILES[$fileKey]['name'];
-                $fileSize = $_FILES[$fileKey]['size'];
-                $ext      = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            // Upload gambar baru jika ada (dukung base64 canvas kompresi & multipart file)
+            $baseRootDir = dirname(__DIR__, 2);
+            $uploadDir   = $baseRootDir . '/assets/uploads/';
+            if (!is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0777, true);
+                @chmod($uploadDir, 0777);
+            }
 
-                $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                if (in_array($ext, $allowedExts, true) && $fileSize <= 5 * 1024 * 1024) {
-                    $baseRootDir = dirname(__DIR__, 2);
-                    $uploadDir   = $baseRootDir . '/assets/uploads/';
-                    if (!is_dir($uploadDir)) {
-                        @mkdir($uploadDir, 0777, true);
-                        @chmod($uploadDir, 0777);
-                    }
+            // 1. Cek gambar dari Canvas Base64 (Kompresi browser client-side)
+            $base64Gbr = trim($item['gambar_base64'] ?? '');
+            if (!empty($base64Gbr) && preg_match('/^data:image\/(\w+);base64,/', $base64Gbr, $matches)) {
+                $imgData = substr($base64Gbr, strpos($base64Gbr, ',') + 1);
+                $decodedData = base64_decode($imgData);
+                if ($decodedData !== false && strlen($decodedData) > 0) {
+                    $ext = strtolower($matches[1]);
+                    if ($ext === 'jpeg') $ext = 'jpg';
                     $newFileName = 'soal_' . time() . '_' . $idx . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
                     $destPath    = $uploadDir . $newFileName;
-                    if (@move_uploaded_file($fileTmp, $destPath)) {
-                        // Hapus file lama jika ditimpa
+                    if (file_put_contents($destPath, $decodedData)) {
                         if ($gambarPath && file_exists($baseRootDir . '/' . ltrim($gambarPath, '/'))) {
                             @unlink($baseRootDir . '/' . ltrim($gambarPath, '/'));
                         }
                         $gambarPath = 'assets/uploads/' . $newFileName;
+                    }
+                }
+            }
+            // 2. Upload multipart file standar jika ada
+            else {
+                $fileKey = 'gambar_' . $idx;
+                if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
+                    $fileTmp  = $_FILES[$fileKey]['tmp_name'];
+                    $fileName = $_FILES[$fileKey]['name'];
+                    $fileSize = $_FILES[$fileKey]['size'];
+                    $ext      = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+                    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif'];
+                    if (in_array($ext, $allowedExts, true) && $fileSize <= 10 * 1024 * 1024) {
+                        $newFileName = 'soal_' . time() . '_' . $idx . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+                        $destPath    = $uploadDir . $newFileName;
+                        if (@move_uploaded_file($fileTmp, $destPath)) {
+                            // Hapus file lama jika ditimpa
+                            if ($gambarPath && file_exists($baseRootDir . '/' . ltrim($gambarPath, '/'))) {
+                                @unlink($baseRootDir . '/' . ltrim($gambarPath, '/'));
+                            }
+                            $gambarPath = 'assets/uploads/' . $newFileName;
+                        }
                     }
                 }
             }
@@ -411,7 +433,7 @@ include __DIR__ . '/../layouts/header.php';
                     <div class="form-group mt-3">
                         <label>Lampiran Gambar (Opsional)</label>
                         <?php if (!empty($q['gambar'])): ?>
-                            <div class="mb-2 flex gap-3" style="align-items: center;">
+                            <div class="mb-2 flex gap-3 existing-img-box" style="align-items: center;">
                                 <img src="<?= base_url(sanitize($q['gambar'])) ?>" alt="Gambar Soal" style="max-height: 90px; border-radius: 4px; border: 1px solid var(--gray-300);">
                                 <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--danger); cursor: pointer;">
                                     <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1">
@@ -420,7 +442,18 @@ include __DIR__ . '/../layouts/header.php';
                                 <input type="hidden" name="soal[<?= $idx ?>][existing_gambar]" value="<?= sanitize($q['gambar']) ?>">
                             </div>
                         <?php endif; ?>
-                        <input type="file" name="gambar_<?= $idx ?>" class="form-control" accept="image/*">
+                        <div class="preview-gambar-container mb-2" style="display: none; align-items: center; gap: 0.75rem;">
+                            <img class="img-preview" src="" alt="Preview" style="max-height: 100px; border-radius: 6px; border: 1px solid var(--gray-300); box-shadow: var(--shadow-sm);">
+                            <button type="button" class="btn btn-sm btn-outline text-danger" onclick="hapusPreviewGambar(this)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <span>Batal Gambar</span>
+                            </button>
+                        </div>
+                        <input type="hidden" name="soal[<?= $idx ?>][gambar_base64]" class="field-gambar-base64" value="">
+                        <input type="file" name="gambar_<?= $idx ?>" class="form-control field-file-gambar" accept="image/*" onchange="previewDanKompresGambar(this)">
+                        <small style="color: var(--gray-500); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                            Format didukung: JPG, PNG, GIF, WebP. Gambar otomatis dikompresi agar cepat dimuat dan tidak gagal upload.
+                        </small>
                     </div>
 
                     <!-- Input Jawaban Berdasarkan Tipe -->
@@ -515,7 +548,7 @@ include __DIR__ . '/../layouts/header.php';
 </main>
 
 <?php
-$extraJs = '
+$extraJs = <<<'JS'
 <script>
 function updateQuestionNumbers() {
     const cards = document.querySelectorAll(".pertanyaan-card");
@@ -536,18 +569,24 @@ function updateQuestionNumbers() {
         if (jenisInput) jenisInput.name = `soal[${i}][jenis_soal]`;
 
         // Update existing gambar input jika ada
-        const existImg = card.querySelector(\'input[name*="[existing_gambar]"]\');
+        const existImg = card.querySelector('input[name*="[existing_gambar]"]');
         if (existImg) existImg.name = `soal[${i}][existing_gambar]`;
 
-        const hapusImg = card.querySelector(\'input[name*="[hapus_gambar]"]\');
+        const hapusImg = card.querySelector('input[name*="[hapus_gambar]"]');
         if (hapusImg) hapusImg.name = `soal[${i}][hapus_gambar]`;
+
+        // Update input hidden base64
+        const bg64 = card.querySelector(".field-gambar-base64");
+        if (bg64) bg64.name = `soal[${i}][gambar_base64]`;
 
         // Update attribute name form elements
         const ta = card.querySelector(".field-pertanyaan, textarea");
         if (ta) ta.name = `soal[${i}][pertanyaan]`;
 
-        const fi = card.querySelector(\'input[type="file"]\');
-        if (fi) fi.name = `gambar_${i}`;
+        const fi = card.querySelector('.field-file-gambar, input[type="file"]');
+        if (fi && (!fi.files || fi.files.length === 0)) {
+            fi.name = `gambar_${i}`;
+        }
 
         const isEssai = card.getAttribute("data-type") === "essai";
         if (isEssai) {
@@ -561,7 +600,7 @@ function updateQuestionNumbers() {
             if (inputs[3]) inputs[3].name = `soal[${i}][opsi_d]`;
             if (inputs[4]) inputs[4].name = `soal[${i}][opsi_e]`;
 
-            const checkboxes = card.querySelectorAll(\'.field-kunci-cb, input[type="checkbox"][value]\');
+            const checkboxes = card.querySelectorAll('.field-kunci-cb, input[type="checkbox"][value]');
             checkboxes.forEach(cb => {
                 cb.name = `soal[${i}][kunci][]`;
             });
@@ -573,6 +612,74 @@ function updateQuestionNumbers() {
             btnHapus.style.display = (cards.length > 1) ? "inline-flex" : "none";
         }
     });
+}
+
+function previewDanKompresGambar(input) {
+    const card = input.closest(".pertanyaan-card");
+    if (!card) return;
+    const previewContainer = card.querySelector(".preview-gambar-container");
+    const previewImg = card.querySelector(".img-preview");
+    const base64Input = card.querySelector(".field-gambar-base64");
+    
+    if (!input.files || !input.files[0]) {
+        return;
+    }
+    
+    const file = input.files[0];
+    if (!file.type.match("image.*")) {
+        alert("Pilih file gambar yang valid (JPG, PNG, GIF, WebP).");
+        input.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Resize / kompres via canvas (max 1600px width/height)
+            const maxDim = 1600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                    height = Math.round((height * maxDim) / width);
+                    width = maxDim;
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Export ke JPEG quality 0.85
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            if (base64Input) base64Input.value = dataUrl;
+            if (previewImg) previewImg.src = dataUrl;
+            if (previewContainer) previewContainer.style.display = "flex";
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function hapusPreviewGambar(btn) {
+    const card = btn.closest(".pertanyaan-card");
+    if (!card) return;
+    const previewContainer = card.querySelector(".preview-gambar-container");
+    const previewImg = card.querySelector(".img-preview");
+    const base64Input = card.querySelector(".field-gambar-base64");
+    const fileInput = card.querySelector(".field-file-gambar, input[type='file']");
+
+    if (previewContainer) previewContainer.style.display = "none";
+    if (previewImg) previewImg.src = "";
+    if (base64Input) base64Input.value = "";
+    if (fileInput) fileInput.value = "";
 }
 
 function tambahPertanyaan(tipe) {
@@ -610,7 +717,18 @@ function tambahPertanyaan(tipe) {
 
             <div class="form-group mt-3">
                 <label>Lampiran Gambar (Opsional)</label>
-                <input type="file" name="gambar_${newIndex}" class="form-control" accept="image/*">
+                <div class="preview-gambar-container mb-2" style="display: none; align-items: center; gap: 0.75rem;">
+                    <img class="img-preview" src="" alt="Preview" style="max-height: 100px; border-radius: 6px; border: 1px solid var(--gray-300); box-shadow: var(--shadow-sm);">
+                    <button type="button" class="btn btn-sm btn-outline text-danger" onclick="hapusPreviewGambar(this)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <span>Batal Gambar</span>
+                    </button>
+                </div>
+                <input type="hidden" name="soal[${newIndex}][gambar_base64]" class="field-gambar-base64" value="">
+                <input type="file" name="gambar_${newIndex}" class="form-control field-file-gambar" accept="image/*" onchange="previewDanKompresGambar(this)">
+                <small style="color: var(--gray-500); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                    Format didukung: JPG, PNG, GIF, WebP. Gambar otomatis dikompresi agar cepat dimuat dan tidak gagal upload.
+                </small>
             </div>
 
             <div class="area-essai">
@@ -646,7 +764,18 @@ function tambahPertanyaan(tipe) {
 
             <div class="form-group mt-3">
                 <label>Lampiran Gambar (Opsional)</label>
-                <input type="file" name="gambar_${newIndex}" class="form-control" accept="image/*">
+                <div class="preview-gambar-container mb-2" style="display: none; align-items: center; gap: 0.75rem;">
+                    <img class="img-preview" src="" alt="Preview" style="max-height: 100px; border-radius: 6px; border: 1px solid var(--gray-300); box-shadow: var(--shadow-sm);">
+                    <button type="button" class="btn btn-sm btn-outline text-danger" onclick="hapusPreviewGambar(this)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <span>Batal Gambar</span>
+                    </button>
+                </div>
+                <input type="hidden" name="soal[${newIndex}][gambar_base64]" class="field-gambar-base64" value="">
+                <input type="file" name="gambar_${newIndex}" class="form-control field-file-gambar" accept="image/*" onchange="previewDanKompresGambar(this)">
+                <small style="color: var(--gray-500); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                    Format didukung: JPG, PNG, GIF, WebP. Gambar otomatis dikompresi agar cepat dimuat dan tidak gagal upload.
+                </small>
             </div>
 
             <div class="area-pilihan-ganda">
@@ -732,6 +861,6 @@ function hapusPertanyaan(btn) {
     }
 }
 </script>
-';
+JS;
 
 include __DIR__ . '/../layouts/footer.php';

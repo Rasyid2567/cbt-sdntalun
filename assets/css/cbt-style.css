@@ -1574,7 +1574,7 @@ body.page-login #cbt-toast-container {
     padding: 1rem 1.15rem;
 }
 
-.cbt-exam-title {
+.cbt-exam-card .cbt-exam-title {
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--gray-900);
@@ -1755,12 +1755,54 @@ body.app-webview-body {
 
     /* 2. Navigation Bar: 3-Line Hamburger Menu for Mobile */
     /* 2. Navigation Bar: 3-Line Hamburger Menu with Floating Overlay for Mobile */
-    .cbt-navbar {
+    .cbt-navbar:not(.cbt-navbar-student):not(.flex-between) {
         padding: 0.75rem 1rem;
         display: block;
         position: sticky;
         top: 0;
         z-index: 200;
+    }
+
+    .cbt-navbar-student,
+    .cbt-navbar.cbt-navbar-student,
+    .cbt-navbar.flex-between {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        padding: 0.65rem 0.85rem !important;
+        gap: 0.5rem !important;
+        width: 100%;
+        box-sizing: border-box;
+        position: sticky;
+        top: 0;
+        z-index: 200;
+    }
+
+    .cbt-navbar-student .cbt-navbar-brand,
+    .cbt-navbar.flex-between .cbt-navbar-brand {
+        font-size: 1rem !important;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .cbt-navbar-student .user-badge,
+    .cbt-navbar.flex-between .user-badge {
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.78rem !important;
+        padding: 0.3rem 0.55rem !important;
+    }
+
+    .cbt-navbar-student .btn-logout,
+    .cbt-navbar.flex-between .btn-danger {
+        padding: 0.3rem 0.6rem !important;
+        font-size: 0.78rem !important;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
     .cbt-navbar-header {
@@ -2217,9 +2259,8 @@ body.app-webview-body {
         font-size: 0.7rem;
     }
 
-    .webview-grid-toggle,
     .webview-grid-close {
-        display: none !important;
+        display: none;
     }
 
     .soal-box {
