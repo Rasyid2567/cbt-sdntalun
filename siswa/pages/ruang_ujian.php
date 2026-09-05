@@ -60,7 +60,7 @@ if (empty($urutanIds)) {
 $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
 
 $stmtSoal = $db->prepare("
-    SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e,
+    SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban,
            COALESCE(j.jawaban_terpilih, '') as jawaban_terpilih,
            COALESCE(j.status_ragu, false) as status_ragu
     FROM bank_soal b
@@ -84,6 +84,11 @@ foreach ($urutanIds as $index => $sid) {
     if (!isset($soalMap[$sid])) continue;
     $item = $soalMap[$sid];
 
+    // Deteksi jika soal merupakan Pilihan Ganda Kompleks (kunci jawaban > 1 opsi atau jenis_soal)
+    $isEssai    = ($item['jenis_soal'] ?? 'pilihan_ganda') === 'essai';
+    $kunciArr   = array_filter(array_map('trim', explode(',', $item['kunci_jawaban'] ?? '')));
+    $isKompleks = !$isEssai && ((count($kunciArr) > 1) || (($item['jenis_soal'] ?? '') === 'pilihan_ganda_kompleks'));
+
     // Persiapkan Opsi jika pilihan ganda
     $opsiArray = [
         ['code' => 'A', 'text' => $item['opsi_a']],
@@ -99,6 +104,7 @@ foreach ($urutanIds as $index => $sid) {
         'index'            => $index,
         'id_soal'          => (int)$item['id_soal'],
         'jenis_soal'       => $item['jenis_soal'] ?? 'pilihan_ganda',
+        'is_kompleks'      => (bool)$isKompleks,
         'pertanyaan'       => $item['pertanyaan'],
         'gambar'           => !empty($item['gambar']) ? base_url(ltrim($item['gambar'], '/')) : null,
         'opsi'             => $opsiArray,
@@ -126,20 +132,20 @@ foreach ($urutanIds as $index => $sid) {
             <span class="cbt-exam-title" style="color: #ffffff !important; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.3px;"><?= sanitize($ujianSiswa['nama_ujian']) ?></span>
             <span class="badge" style="background: rgba(59, 130, 246, 0.25); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.35); font-weight: 700; font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 999px;"><?= sanitize($ujianSiswa['nama_mapel']) ?></span>
         </div>
-        <div class="cbt-student-info" style="color: #94a3b8; font-size: 0.8rem; margin-top: 0.25rem;">
-            <strong style="color: #f1f5f9;"><?= sanitize($currentUser['nama_lengkap']) ?></strong> | NIS: <code style="color: #93c5fd; background: rgba(15, 23, 42, 0.7); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85rem;"><?= sanitize($currentUser['nis'] ?? '-') ?></code>
+        <div class="cbt-student-info" style="display: inline-flex; align-items: center; gap: 0.5rem; color: #94a3b8; font-size: 0.8rem; margin-top: 0.35rem; background: rgba(15, 23, 42, 0.65); border: 1px solid #334155; padding: 0.25rem 0.65rem; border-radius: 6px; width: fit-content;">
+            <strong style="color: #f1f5f9; font-weight: 700;"><?= sanitize($currentUser['nama_lengkap']) ?></strong>
+            <span style="color: #475569;">|</span>
+            <span>NIS: <code style="color: #93c5fd; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85rem; font-weight: 700;"><?= sanitize($currentUser['nis'] ?? '-') ?></code></span>
         </div>
     </div>
     <div class="flex gap-2 cbt-header-actions" style="align-items: center;">
-        <span id="status-sync" class="sync-badge saved">Tersinkron</span>
         <div class="timer-container" style="background: #090d1a; border: 1px solid #334155; border-radius: 8px; padding: 0.4rem 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             <span id="timer-display" class="timer-display" style="font-family: monospace; font-size: 1.25rem; font-weight: 800; color: #38bdf8; letter-spacing: 1px;">00:00:00</span>
         </div>
-        <button type="button" id="btn-toggle-grid" class="btn btn-sm btn-outline webview-grid-toggle" title="Daftar Soal" style="display: inline-flex; align-items: center; gap: 0.45rem; border-color: #475569; color: #f1f5f9; background: rgba(30, 41, 59, 0.6); padding: 0.4rem 0.75rem;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            <span>Daftar Soal</span>
-        </button>
+        <a href="<?= base_url('siswa?page=konfirmasi') ?>" class="btn-back-square" title="Kembali ke Halaman Utama" onclick="return confirm('Kembali ke halaman utama? (Jawaban Anda yang sudah dipilih telah tersimpan dan ujian dapat dilanjutkan kembali selama waktu masih ada)');">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </a>
     </div>
 </header>
 
@@ -149,8 +155,11 @@ foreach ($urutanIds as $index => $sid) {
     <div class="soal-box">
         <!-- Top Bar Soal -->
         <div class="soal-top-bar">
-            <div id="soal-nomor-badge" class="soal-nomor-badge">
-                SOAL NO. 1 DARI <?= count($soalClean) ?>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <div id="soal-nomor-badge" class="soal-nomor-badge">
+                    SOAL NO. 1 DARI <?= count($soalClean) ?>
+                </div>
+                <span id="soal-tipe-badge" class="badge" style="display: none; font-size: 0.75rem; padding: 0.25rem 0.65rem; border-radius: 9999px; font-weight: 700;"></span>
             </div>
             <div>
                 <button type="button" id="btn-finish-modal" class="btn btn-sm btn-danger font-bold" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">

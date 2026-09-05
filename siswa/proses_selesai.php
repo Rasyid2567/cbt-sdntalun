@@ -88,7 +88,7 @@ if ($totalSoal > 0) {
     foreach ($urutanIds as $sid) {
         $jenis = $jenisMap[$sid] ?? 'pilihan_ganda';
 
-        if ($jenis === 'pilihan_ganda') {
+        if ($jenis !== 'essai') {
             $totalPG++;
             $kunciStr = strtoupper(trim($kunciMap[$sid] ?? ''));
             $jwbStr   = strtoupper(trim($jwbMap[$sid] ?? ''));

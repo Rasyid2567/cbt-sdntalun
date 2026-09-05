@@ -1271,11 +1271,30 @@ body.page-login #cbt-toast-container {
     background-color: #eff6ff;
 }
 
-.opsi-radio {
+.opsi-item.kompleks.selected {
+    border-color: #4f46e5;
+    background-color: #f5f3ff;
+}
+
+.opsi-item.kompleks.selected .opsi-code {
+    color: #4338ca;
+}
+
+.opsi-radio,
+.opsi-checkbox {
     margin: 0 0.65rem 0 0;
-    transform: scale(1.05);
-    accent-color: var(--primary);
+    transform: scale(1.15);
     cursor: pointer;
+    pointer-events: none;
+}
+
+.opsi-radio {
+    accent-color: var(--primary);
+}
+
+.opsi-checkbox {
+    accent-color: #4f46e5;
+    border-radius: 4px;
 }
 
 .opsi-code {
@@ -1726,6 +1745,39 @@ body.app-webview-body {
 .opsi-item:active {
     background-color: #dbeafe;
     transform: scale(0.99);
+}
+
+.btn-back-square {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    aspect-ratio: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #dc2626;
+    border: 1px solid #b91c1c;
+    border-radius: 8px;
+    color: #ffffff;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(220, 38, 38, 0.3);
+}
+
+.btn-back-square:hover {
+    background: #b91c1c;
+    border-color: #991b1b;
+    color: #ffffff;
+    transform: scale(1.05);
+    box-shadow: 0 2px 6px rgba(185, 28, 28, 0.45);
+}
+
+.btn-back-square:active {
+    background: #991b1b;
+    transform: scale(0.95);
 }
 
 .webview-grid-toggle {

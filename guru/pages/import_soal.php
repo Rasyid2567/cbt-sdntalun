@@ -281,19 +281,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $kunciDb = ($kunci !== '') ? $kunci : null;
             $importedEssai++;
         } else {
-            // Soal Pilihan Ganda
+            // Soal Pilihan Ganda (Biasa atau Kompleks)
             $jenisDb = 'pilihan_ganda';
-            $kunciUpper = strtoupper($kunci);
-            if ($oa === '' || $ob === '' || $oc === '' || $od === '' || !in_array($kunciUpper, ['A', 'B', 'C', 'D', 'E'], true)) {
+            $kunciUpper = strtoupper(trim($kunci));
+            $kunciParts = array_filter(array_map('trim', explode(',', $kunciUpper)));
+            
+            $validKeys = true;
+            foreach ($kunciParts as $kp) {
+                if (!in_array($kp, ['A', 'B', 'C', 'D', 'E'], true)) {
+                    $validKeys = false;
+                    break;
+                }
+            }
+
+            if ($oa === '' || $ob === '' || $oc === '' || $od === '' || empty($kunciParts) || !$validKeys) {
                 $skipped++;
                 continue;
             }
+            sort($kunciParts);
             $oaDb = $oa;
             $obDb = $ob;
             $ocDb = $oc;
             $odDb = $od;
             $oeDb = ($oe !== '' ? $oe : null);
-            $kunciDb = $kunciUpper;
+            $kunciDb = implode(',', $kunciParts);
             $importedPG++;
         }
 

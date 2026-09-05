@@ -124,8 +124,7 @@ $flash = flash_get();
         </div>
 
         <div class="flex gap-2" style="justify-content: center;">
-            <a href="<?= base_url('siswa?page=konfirmasi') ?>" class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">Kembali ke Beranda</a>
-            <a href="<?= base_url('logout.php') ?>" class="btn btn-danger" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">Keluar dari Sesi</a>
+            <a href="<?= base_url('siswa?page=konfirmasi') ?>" class="btn btn-outline" style="padding: 0.45rem 1.5rem; font-size: 0.85rem; font-weight: 600;">Kembali</a>
         </div>
     </div>
 </div>

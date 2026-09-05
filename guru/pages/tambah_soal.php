@@ -413,8 +413,11 @@ include __DIR__ . '/../layouts/header.php';
                             <h3 class="font-bold" style="font-size: 1.25rem; color: <?= $isEssai ? '#7c3aed' : 'var(--primary)' ?>; margin: 0; min-width: 28px;">
                                 <span class="nomor-pertanyaan"><?= $idx + 1 ?></span>.
                             </h3>
-                            <span class="badge badge-jenis" style="<?= $isEssai ? 'background: #ede9fe; color: #6d28d9;' : 'background: #e0f2fe; color: #0369a1;' ?> font-weight: 700;">
-                                <?= $isEssai ? 'Soal Essai' : 'Pilihan Ganda' ?>
+                            <?php 
+                            $isKompleks = !$isEssai && count(array_filter($kunciSelected)) > 1;
+                            ?>
+                            <span class="badge badge-jenis" style="<?= $isEssai ? 'background: #ede9fe; color: #6d28d9;' : ($isKompleks ? 'background: #e0e7ff; color: #4338ca;' : 'background: #e0f2fe; color: #0369a1;') ?> font-weight: 700;">
+                                <?= $isEssai ? 'Soal Essai' : ($isKompleks ? 'Pilihan Ganda Kompleks' : 'Pilihan Ganda') ?>
                             </span>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline text-danger btn-hapus-pertanyaan" onclick="hapusPertanyaan(this)" style="<?= count($cardsToRender) > 1 ? '' : 'display: none;' ?>">
@@ -433,12 +436,19 @@ include __DIR__ . '/../layouts/header.php';
                     <div class="form-group mt-3">
                         <label>Lampiran Gambar (Opsional)</label>
                         <?php if (!empty($q['gambar'])): ?>
-                            <div class="mb-2 flex gap-3 existing-img-box" style="align-items: center;">
-                                <img src="<?= base_url(sanitize($q['gambar'])) ?>" alt="Gambar Soal" style="max-height: 90px; border-radius: 4px; border: 1px solid var(--gray-300);">
-                                <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--danger); cursor: pointer;">
-                                    <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1">
-                                    <span>Hapus Gambar Ini</span>
-                                </label>
+                            <div class="mb-2 flex gap-3 existing-img-box" style="align-items: center; background: #f8fafc; padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); width: fit-content;">
+                                <img src="<?= base_url(sanitize($q['gambar'])) ?>" alt="Gambar Soal" style="max-height: 80px; border-radius: 4px; border: 1px solid var(--gray-300);">
+                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                                    <span style="font-size: 0.8rem; font-weight: 700; color: #15803d; display: flex; align-items: center; gap: 0.25rem;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        Foto Soal Tersimpan
+                                    </span>
+                                    <span class="replace-hint" style="display: none; font-size: 0.75rem; color: #b45309; font-weight: 600;">(Akan diganti foto baru)</span>
+                                    <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--danger); cursor: pointer; margin-top: 0.15rem;">
+                                        <input type="checkbox" name="soal[<?= $idx ?>][hapus_gambar]" value="1" onchange="this.closest('.existing-img-box').style.opacity = this.checked ? '0.4' : '1';">
+                                        <span>Hapus Gambar Ini</span>
+                                    </label>
+                                </div>
                                 <input type="hidden" name="soal[<?= $idx ?>][existing_gambar]" value="<?= sanitize($q['gambar']) ?>">
                             </div>
                         <?php endif; ?>
@@ -662,6 +672,14 @@ function previewDanKompresGambar(input) {
             if (base64Input) base64Input.value = dataUrl;
             if (previewImg) previewImg.src = dataUrl;
             if (previewContainer) previewContainer.style.display = "flex";
+
+            // Visual hint jika ada gambar lama yang akan diganti
+            const existingBox = card.querySelector(".existing-img-box");
+            if (existingBox) {
+                existingBox.style.opacity = "0.4";
+                const replaceHint = existingBox.querySelector(".replace-hint");
+                if (replaceHint) replaceHint.style.display = "inline";
+            }
         };
         img.src = e.target.result;
     };
@@ -680,6 +698,13 @@ function hapusPreviewGambar(btn) {
     if (previewImg) previewImg.src = "";
     if (base64Input) base64Input.value = "";
     if (fileInput) fileInput.value = "";
+
+    const existingBox = card.querySelector(".existing-img-box");
+    if (existingBox) {
+        existingBox.style.opacity = "1";
+        const replaceHint = existingBox.querySelector(".replace-hint");
+        if (replaceHint) replaceHint.style.display = "none";
+    }
 }
 
 function tambahPertanyaan(tipe) {
@@ -860,6 +885,45 @@ function hapusPertanyaan(btn) {
         });
     }
 }
+function updateBadgeJenis(card) {
+    if (!card || card.getAttribute("data-type") === "essai") return;
+    const checked = card.querySelectorAll(".field-kunci-cb:checked").length;
+    const badge = card.querySelector(".badge-jenis");
+    if (badge) {
+        if (checked > 1) {
+            badge.textContent = "Pilihan Ganda Kompleks";
+            badge.style.background = "#e0e7ff";
+            badge.style.color = "#4338ca";
+        } else {
+            badge.textContent = "Pilihan Ganda";
+            badge.style.background = "#e0f2fe";
+            badge.style.color = "#0369a1";
+        }
+    }
+}
+
+document.addEventListener("change", function(e) {
+    if (e.target && e.target.classList.contains("field-kunci-cb")) {
+        const card = e.target.closest(".pertanyaan-card");
+        if (card) updateBadgeJenis(card);
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function() {
+    const form = document.getElementById("form-paket-soal");
+    if (form) {
+        form.addEventListener("submit", function() {
+            // Jika base64 sudah terisi, kosongkan file input agar browser tidak mengirim file mentah multi-MB
+            document.querySelectorAll(".pertanyaan-card").forEach(card => {
+                const bg64 = card.querySelector(".field-gambar-base64");
+                const fi = card.querySelector(".field-file-gambar, input[type='file']");
+                if (bg64 && bg64.value && fi) {
+                    fi.value = "";
+                }
+            });
+        });
+    }
+});
 </script>
 JS;
 

@@ -27,6 +27,7 @@ class CBTExamManager {
         // Elemen DOM
         this.dom = {
             nomorBadge:    document.getElementById('soal-nomor-badge'),
+            tipeBadge:     document.getElementById('soal-tipe-badge'),
             pertanyaanBox: document.getElementById('soal-pertanyaan'),
             imageBox:      document.getElementById('soal-image-container'),
             soalImg:       document.getElementById('soal-img-tag'),
@@ -119,9 +120,30 @@ class CBTExamManager {
 
         const currentSoal = this.soalData[index];
 
-        // 1. Update Nomor Badge
+        // 1. Update Nomor Badge & Tipe Soal
         if (this.dom.nomorBadge) {
             this.dom.nomorBadge.textContent = `SOAL NO. ${index + 1} DARI ${this.soalData.length}`;
+        }
+        if (this.dom.tipeBadge) {
+            if (currentSoal.jenis_soal === 'essai') {
+                this.dom.tipeBadge.textContent = 'Essai / Uraian';
+                this.dom.tipeBadge.style.display = 'inline-block';
+                this.dom.tipeBadge.style.background = '#ede9fe';
+                this.dom.tipeBadge.style.color = '#6d28d9';
+                this.dom.tipeBadge.style.border = '1px solid #ddd6fe';
+            } else if (currentSoal.is_kompleks) {
+                this.dom.tipeBadge.textContent = 'Pilihan Ganda Kompleks (Bisa pilih lebih dari 1)';
+                this.dom.tipeBadge.style.display = 'inline-block';
+                this.dom.tipeBadge.style.background = '#e0e7ff';
+                this.dom.tipeBadge.style.color = '#3730a3';
+                this.dom.tipeBadge.style.border = '1px solid #c7d2fe';
+            } else {
+                this.dom.tipeBadge.textContent = 'Pilihan Ganda';
+                this.dom.tipeBadge.style.display = 'inline-block';
+                this.dom.tipeBadge.style.background = '#e0f2fe';
+                this.dom.tipeBadge.style.color = '#0369a1';
+                this.dom.tipeBadge.style.border = '1px solid #bae6fd';
+            }
         }
 
         // 2. Pertanyaan
@@ -175,21 +197,35 @@ class CBTExamManager {
                     }
                 });
             } else {
-                // Pilihan Ganda (Single / Multi)
+                // Pilihan Ganda (Single atau Kompleks / Multi-Select)
+                const isKompleks = Boolean(currentSoal.is_kompleks);
+                const selectedCodes = (currentSoal.jawaban_terpilih || '')
+                    .split(',')
+                    .map(s => s.trim().toUpperCase())
+                    .filter(Boolean);
+
                 currentSoal.opsi.forEach(opt => {
                     if (!opt.text || opt.text.trim() === '') return; // Lewati jika opsi E kosong
 
-                    const isSelected = (currentSoal.jawaban_terpilih === opt.code);
+                    const isSelected = selectedCodes.includes(opt.code.toUpperCase());
 
                     const itemDiv = document.createElement('div');
-                    itemDiv.className = `opsi-item ${isSelected ? 'selected' : ''}`;
+                    itemDiv.className = `opsi-item ${isSelected ? 'selected' : ''} ${isKompleks ? 'kompleks' : ''}`;
                     itemDiv.dataset.code = opt.code;
 
-                    itemDiv.innerHTML = `
-                        <input type="radio" name="pilihan_jawaban" value="${opt.code}" class="opsi-radio" ${isSelected ? 'checked' : ''}>
-                        <div class="opsi-code">${opt.code}.</div>
-                        <div class="opsi-text">${opt.text}</div>
-                    `;
+                    if (isKompleks) {
+                        itemDiv.innerHTML = `
+                            <input type="checkbox" name="pilihan_jawaban" value="${opt.code}" class="opsi-checkbox" ${isSelected ? 'checked' : ''} style="pointer-events: none;">
+                            <div class="opsi-code">${opt.code}.</div>
+                            <div class="opsi-text">${opt.text}</div>
+                        `;
+                    } else {
+                        itemDiv.innerHTML = `
+                            <input type="radio" name="pilihan_jawaban" value="${opt.code}" class="opsi-radio" ${isSelected ? 'checked' : ''} style="pointer-events: none;">
+                            <div class="opsi-code">${opt.code}.</div>
+                            <div class="opsi-text">${opt.text}</div>
+                        `;
+                    }
 
                     itemDiv.addEventListener('click', () => {
                         this.handleSelectOpsi(opt.code);
@@ -223,29 +259,68 @@ class CBTExamManager {
     }
 
     /**
-     * Memilih Opsi Jawaban
+     * Memilih Opsi Jawaban (Mendukung Single Radio dan Pilihan Ganda Kompleks)
      * @param {string} code 
      */
     handleSelectOpsi(code) {
         const currentSoal = this.soalData[this.currentIndex];
         if (!currentSoal) return;
 
-        currentSoal.jawaban_terpilih = code;
+        if (currentSoal.is_kompleks) {
+            // Multi-select toggle untuk Pilihan Ganda Kompleks
+            let currentArray = (currentSoal.jawaban_terpilih || '')
+                .split(',')
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
 
-        // Update UI Opsi
-        const allItems = this.dom.opsiList.querySelectorAll('.opsi-item');
-        allItems.forEach(el => {
-            const isMatch = (el.dataset.code === code);
-            el.classList.toggle('selected', isMatch);
-            const radio = el.querySelector('.opsi-radio');
-            if (radio) radio.checked = isMatch;
-        });
+            const targetCode = code.toUpperCase();
+            const idx = currentArray.indexOf(targetCode);
+            if (idx > -1) {
+                // Hapus jika sudah dipilih
+                currentArray.splice(idx, 1);
+            } else {
+                // Tambahkan jika belum dipilih
+                currentArray.push(targetCode);
+            }
 
-        // Update Grid
-        this.updateGridClasses();
+            // Urutkan abjad A, B, C, D, E
+            currentArray.sort();
+            const joined = currentArray.join(',');
+            currentSoal.jawaban_terpilih = joined;
 
-        // Kirim ke server via AJAX
-        this.saveJawabanToServer(currentSoal.id_soal, code);
+            // Update UI Opsi Checkbox
+            const allItems = this.dom.opsiList.querySelectorAll('.opsi-item');
+            allItems.forEach(el => {
+                const isMatch = currentArray.includes(el.dataset.code);
+                el.classList.toggle('selected', isMatch);
+                const chk = el.querySelector('.opsi-checkbox');
+                if (chk) chk.checked = isMatch;
+            });
+
+            // Update Grid
+            this.updateGridClasses();
+
+            // Kirim ke server via AJAX
+            this.saveJawabanToServer(currentSoal.id_soal, joined);
+        } else {
+            // Single Radio Pilihan Ganda Biasa
+            currentSoal.jawaban_terpilih = code;
+
+            // Update UI Opsi Radio
+            const allItems = this.dom.opsiList.querySelectorAll('.opsi-item');
+            allItems.forEach(el => {
+                const isMatch = (el.dataset.code === code);
+                el.classList.toggle('selected', isMatch);
+                const radio = el.querySelector('.opsi-radio');
+                if (radio) radio.checked = isMatch;
+            });
+
+            // Update Grid
+            this.updateGridClasses();
+
+            // Kirim ke server via AJAX
+            this.saveJawabanToServer(currentSoal.id_soal, code);
+        }
     }
 
     /**

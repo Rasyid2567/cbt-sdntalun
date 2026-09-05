@@ -502,8 +502,12 @@ include __DIR__ . '/../layouts/header.php';
                     <div class="item-head">
                         <div>
                             <strong>Soal No. <?= $s['nomor'] ?></strong>
-                            <span style="color: #64748b; font-size: 0.8rem; margin-left: 0.35rem;">
-                                (<?= $s['jenis_soal'] === 'essai' ? 'Essai / Uraian' : 'Pilihan Ganda' ?>)
+                            <?php 
+                            $isKompleks = ($s['jenis_soal'] !== 'essai') && (count(array_filter(explode(',', $s['kunci_jawaban'] ?? ''))) > 1);
+                            $labelTipe  = ($s['jenis_soal'] === 'essai') ? 'Essai / Uraian' : ($isKompleks ? 'Pilihan Ganda Kompleks' : 'Pilihan Ganda');
+                            ?>
+                            <span style="color: <?= $isKompleks ? '#4338ca' : '#64748b' ?>; font-size: 0.8rem; margin-left: 0.35rem; font-weight: <?= $isKompleks ? '700' : 'normal' ?>;">
+                                (<?= $labelTipe ?>)
                             </span>
                         </div>
                         <div>
@@ -538,12 +542,16 @@ include __DIR__ . '/../layouts/header.php';
 
                     <?php if ($s['jenis_soal'] !== 'essai'): ?>
                         <div class="opt-list">
+                            <?php 
+                            $jwbArr   = array_filter(array_map('trim', explode(',', $s['jawaban_terpilih'] ?? '')));
+                            $kunciArr = array_filter(array_map('trim', explode(',', $s['kunci_jawaban'] ?? '')));
+                            ?>
                             <?php foreach ($s['opsi'] as $opt): ?>
                                 <?php
                                     if (empty($opt['text']) && $opt['text'] !== '0') continue;
 
-                                    $isChoice = ($s['jawaban_terpilih'] === $opt['code']);
-                                    $isKey    = ($s['kunci_jawaban'] === $opt['code']);
+                                    $isChoice = in_array($opt['code'], $jwbArr, true);
+                                    $isKey    = in_array($opt['code'], $kunciArr, true);
 
                                     $cls = '';
                                     $tag = '';
