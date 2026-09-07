@@ -257,8 +257,345 @@ $calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 
 $nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
 $nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
 
-// 5. Ekspor Lembar Jawaban Siswa ke CSV
-if (isset($_GET['action']) && in_array($_GET['action'], ['export_jawaban', 'export_csv'], true)) {
+// 5. Ekspor Lembar Jawaban Siswa ke Dokumen Word (.doc)
+if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_dokumen', 'export_jawaban'], true)) {
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    $rawNamaSiswa = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_siswa']);
+    $rawNis       = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($detailUjian['nis'] ?: $detailUjian['username']));
+    $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
+    $filename     = "Lembar_Jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}.doc";
+
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/vnd.ms-word; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    header('Pragma: public');
+
+    ?>
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>Lembar Jawaban Siswa - <?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></title>
+<!--[if gte mso 9]>
+<xml>
+<w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  @page Section1 {
+    size: 21.0cm 29.7cm; /* A4 */
+    margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+    mso-header-margin: 1.0cm;
+    mso-footer-margin: 1.0cm;
+  }
+  div.Section1 { page: Section1; }
+  body {
+    font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
+    font-size: 11pt;
+    color: #111;
+    line-height: 1.4;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }
+  .kop {
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .kop-instansi {
+    font-size: 12pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .kop-sekolah {
+    font-size: 15pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 3px;
+  }
+  .kop-alamat {
+    font-size: 9.5pt;
+    color: #333;
+  }
+  .kop-judul {
+    font-size: 12.5pt;
+    font-weight: bold;
+    margin-top: 8px;
+    text-decoration: underline;
+    letter-spacing: 0.5px;
+  }
+  .kop-border {
+    border-top: 1.5px solid #000;
+    border-bottom: 3.5px solid #000;
+    height: 4px;
+    margin: 6px 0 16px 0;
+  }
+  .tbl-info {
+    margin-bottom: 12px;
+  }
+  .tbl-info td {
+    padding: 3px 6px;
+    font-size: 10.5pt;
+    vertical-align: top;
+    border: none;
+  }
+  .tbl-score {
+    margin: 12px 0 18px 0;
+    border: 1.5px solid #334155;
+    text-align: center;
+  }
+  .tbl-score th {
+    background-color: #f1f5f9;
+    border: 1px solid #64748b;
+    padding: 6px 8px;
+    font-size: 10pt;
+    font-weight: bold;
+  }
+  .tbl-score td {
+    border: 1px solid #64748b;
+    padding: 8px 10px;
+    font-weight: bold;
+  }
+  .tbl-soal {
+    border: 1.5px solid #334155;
+    margin-top: 10px;
+  }
+  .tbl-soal th {
+    background-color: #f1f5f9;
+    border: 1px solid #475569;
+    padding: 8px 6px;
+    font-size: 10pt;
+    font-weight: bold;
+    text-align: center;
+  }
+  .tbl-soal td {
+    border: 1px solid #94a3b8;
+    padding: 8px 10px;
+    vertical-align: top;
+    font-size: 10.5pt;
+  }
+  .opt-list {
+    margin-top: 6px;
+    padding-left: 6px;
+  }
+  .opt-row {
+    margin-top: 3px;
+    font-size: 10pt;
+    color: #222;
+  }
+  .jawaban-box {
+    font-weight: bold;
+    color: #0f172a;
+    word-break: break-word;
+  }
+  .essay-ans {
+    font-size: 10pt;
+    color: #1e293b;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #f8fafc;
+    padding: 6px 8px;
+    border-left: 3px solid #64748b;
+  }
+</style>
+</head>
+<body>
+<div class="Section1">
+  <!-- Kop Dokumen -->
+  <div class="kop">
+    <div class="kop-instansi">DINAS PENDIDIKAN KABUPATEN BLITAR</div>
+    <div class="kop-sekolah">SD NEGERI TALUN 01</div>
+    <div class="kop-alamat">Kecamatan Talun, Kabupaten Blitar, Jawa Timur</div>
+    <div class="kop-judul">LEMBAR HASIL &amp; JAWABAN SISWA</div>
+  </div>
+  <div class="kop-border"></div>
+
+  <!-- Identitas Siswa & Ujian -->
+  <table class="tbl-info">
+    <tr>
+      <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
+      <td style="width: 2%;">:</td>
+      <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></td>
+      <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
+      <td style="width: 2%;">:</td>
+      <td style="width: 32%;"><?= htmlspecialchars($detailUjian['nama_ujian'], ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">NIS / Akun</td>
+      <td>:</td>
+      <td><?= htmlspecialchars((string)($detailUjian['nis'] ?: $detailUjian['username']), ENT_QUOTES, 'UTF-8') ?></td>
+      <td style="font-weight: bold;">Mata Pelajaran</td>
+      <td>:</td>
+      <td><?= htmlspecialchars($detailUjian['nama_mapel'], ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Kelas</td>
+      <td>:</td>
+      <td><?= htmlspecialchars($detailUjian['nama_kelas'], ENT_QUOTES, 'UTF-8') ?></td>
+      <td style="font-weight: bold;">Guru Penguji</td>
+      <td>:</td>
+      <td><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Waktu Ujian</td>
+      <td>:</td>
+      <td>
+        <?= $detailUjian['waktu_mulai'] ? date('d/m/Y H:i', strtotime($detailUjian['waktu_mulai'])) : '-' ?>
+        <?= $detailUjian['waktu_selesai'] ? ' s/d ' . date('H:i', strtotime($detailUjian['waktu_selesai'])) : '' ?>
+      </td>
+      <td style="font-weight: bold;">Status Ujian</td>
+      <td>:</td>
+      <td style="font-weight: bold;"><?= strtoupper($detailUjian['status'] ?? 'BELUM') ?></td>
+    </tr>
+  </table>
+
+  <!-- Ringkasan Nilai -->
+  <table class="tbl-score">
+    <tr>
+      <th>Nilai Pilihan Ganda</th>
+      <?php if ($statEssai > 0): ?>
+        <th>Rata-rata Nilai Essai</th>
+      <?php endif; ?>
+      <th style="background-color: #e2e8f0;">Nilai Akhir</th>
+    </tr>
+    <tr>
+      <td style="font-size: 13pt; color: #0369a1;">
+        <?= number_format($nilaiPGDisplay, 2) ?>
+        <span style="font-size: 9.5pt; font-weight: normal; color: #475569;">(Benar <?= $statBenar ?> dari <?= $totalPG ?> butir)</span>
+      </td>
+      <?php if ($statEssai > 0): ?>
+        <td style="font-size: 13pt; color: #7c3aed;">
+          <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size:10pt;color:#b45309;font-weight:normal;">Belum Dinilai</span>' ?>
+        </td>
+      <?php endif; ?>
+      <td style="font-size: 15pt; color: #0f172a; background-color: #f8fafc;">
+        <?= number_format((float)$detailUjian['nilai_akhir'], 2) ?>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Tabel Rincian Butir Soal dan Jawaban -->
+  <table class="tbl-soal">
+    <thead>
+      <tr>
+        <th style="width: 35px;">No</th>
+        <th>Pertanyaan &amp; Pilihan Jawaban</th>
+        <th style="width: 25%;">Jawaban Siswa</th>
+        <th style="width: 10%;">Nilai</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($soalList as $s): ?>
+        <?php
+        $cleanPertanyaan = trim(strip_tags(html_entity_decode((string)$s['pertanyaan'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+        $opsiMap = [];
+        foreach ($s['opsi'] as $o) {
+            $cleanOpsi = trim(strip_tags(html_entity_decode((string)($o['text'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            $opsiMap[$o['code']] = $cleanOpsi;
+        }
+
+        $jwbSiswa = trim((string)($s['jawaban_terpilih'] ?? ''));
+
+        if ($s['jenis_soal'] === 'essai') {
+            $nilaiItem = ($s['nilai_soal'] !== null) ? (string)((float)$s['nilai_soal']) : 'Belum Dinilai';
+        } else {
+            $nilaiItem = $s['is_correct'] ? '1' : '0';
+        }
+        ?>
+        <tr>
+          <td style="text-align: center; font-weight: bold;"><?= $s['nomor'] ?></td>
+          <td>
+            <div style="font-weight: 500; margin-bottom: 4px;">
+              <?= nl2br(htmlspecialchars($cleanPertanyaan, ENT_QUOTES, 'UTF-8')) ?>
+            </div>
+            <?php if (!empty($s['gambar'])): ?>
+              <div style="margin: 6px 0;">
+                <img src="<?= htmlspecialchars($s['gambar'], ENT_QUOTES, 'UTF-8') ?>" style="max-width: 300px; max-height: 180px;">
+              </div>
+            <?php endif; ?>
+            <?php if ($s['jenis_soal'] !== 'essai'): ?>
+              <div class="opt-list">
+                <?php foreach ($s['opsi'] as $o): ?>
+                  <?php if (empty($o['text']) && $o['text'] !== '0') continue; ?>
+                  <div class="opt-row">
+                    <strong><?= $o['code'] ?>.</strong> <?= htmlspecialchars($o['text'], ENT_QUOTES, 'UTF-8') ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php else: ?>
+              <div style="font-size: 9pt; color: #64748b; font-style: italic; margin-top: 4px;">
+                (Soal Uraian / Essai)
+              </div>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if ($jwbSiswa === ''): ?>
+              <span style="color: #94a3b8; font-style: italic;">(Tidak Dijawab)</span>
+            <?php elseif ($s['jenis_soal'] === 'essai'): ?>
+              <div class="essay-ans">
+                <?= nl2br(htmlspecialchars($jwbSiswa, ENT_QUOTES, 'UTF-8')) ?>
+              </div>
+            <?php else: ?>
+              <div class="jawaban-box">
+                <strong><?= htmlspecialchars($jwbSiswa, ENT_QUOTES, 'UTF-8') ?></strong>
+                <?php
+                if (isset($opsiMap[$jwbSiswa]) && $opsiMap[$jwbSiswa] !== '') {
+                    echo '. ' . htmlspecialchars($opsiMap[$jwbSiswa], ENT_QUOTES, 'UTF-8');
+                }
+                ?>
+              </div>
+            <?php endif; ?>
+          </td>
+          <td style="text-align: center; font-weight: bold; color: <?= ($nilaiItem === '0') ? '#dc2626' : '#166534' ?>;">
+            <?= htmlspecialchars($nilaiItem, ENT_QUOTES, 'UTF-8') ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+
+  <!-- Tanda Tangan Pengesahan -->
+  <table style="border: none; margin-top: 30px; font-size: 10.5pt; page-break-inside: avoid;">
+    <tr>
+      <td style="width: 50%; text-align: center; border: none;">
+        Mengetahui,<br>
+        Kepala SD Negeri Talun 01<br><br><br><br><br>
+        <strong><u>...................................................</u></strong><br>
+        NIP. ...........................................
+      </td>
+      <td style="width: 50%; text-align: center; border: none;">
+        Talun, <?= date('d/m/Y') ?><br>
+        Guru Penguji / Pengampu<br><br><br><br><br>
+        <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
+        NIP. ...........................................
+      </td>
+    </tr>
+  </table>
+</div>
+</body>
+</html>
+    <?php
+    exit;
+}
+
+// 6. Ekspor Lembar Jawaban Siswa ke CSV
+if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     if (ob_get_level() > 0) {
         ob_end_clean();
     }
@@ -524,13 +861,17 @@ include __DIR__ . '/../layouts/header.php';
             </span>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" class="no-print">
-            <a href="<?= base_url('guru?page=detail_jawaban&action=export_jawaban&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke File CSV">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                <span>Ekspor Jawaban (CSV)</span>
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke Dokumen Word (.doc)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span>Ekspor Dokumen (Word)</span>
             </a>
-            <button type="button" class="btn btn-primary btn-sm" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Cetak Lembar Jawaban atau Simpan sebagai PDF">
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_csv&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke File CSV">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Ekspor CSV</span>
+            </a>
+            <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Cetak Lembar Jawaban atau Simpan sebagai PDF">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                <span>Cetak Lembar Jawaban</span>
+                <span>Cetak / PDF</span>
             </button>
             <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
                 Kembali
