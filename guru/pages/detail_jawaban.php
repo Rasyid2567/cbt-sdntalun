@@ -49,7 +49,7 @@ if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$cu
 }
 
 // 2. Simpan Nilai Essai
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
     if (!verify_csrf()) {
         flash_set('danger', 'Validasi keamanan gagal.');
         redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
@@ -257,6 +257,89 @@ $calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 
 $nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
 $nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
 
+// 5. Ekspor Lembar Jawaban Siswa ke CSV
+if (isset($_GET['action']) && in_array($_GET['action'], ['export_jawaban', 'export_csv'], true)) {
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    $rawNamaSiswa = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_siswa']);
+    $rawNis       = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($detailUjian['nis'] ?: $detailUjian['username']));
+    $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
+    $filename     = "jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}.csv";
+
+    header('Content-Description: File Transfer');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Expires: 0');
+    header('Pragma: public');
+
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
+    fwrite($out, "sep=,\n");
+
+    // 1. Blok Identitas Siswa & Informasi Ujian
+    fputcsv($out, ['LEMBAR JAWABAN SISWA']);
+    fputcsv($out, ['Nama Siswa', $detailUjian['nama_siswa']]);
+    fputcsv($out, ['NIS / Akun', $detailUjian['nis'] ?: $detailUjian['username']]);
+    fputcsv($out, ['Kelas', $detailUjian['nama_kelas']]);
+    fputcsv($out, ['Nama Ujian', $detailUjian['nama_ujian']]);
+    fputcsv($out, ['Mata Pelajaran', $detailUjian['nama_mapel']]);
+    fputcsv($out, ['Guru Penguji', $detailUjian['nama_guru'] ?: '-']);
+    fputcsv($out, ['Waktu Mulai', $detailUjian['waktu_mulai'] ? date('d/m/Y H:i:s', strtotime($detailUjian['waktu_mulai'])) : '-']);
+    fputcsv($out, ['Waktu Selesai', $detailUjian['waktu_selesai'] ? date('d/m/Y H:i:s', strtotime($detailUjian['waktu_selesai'])) : '-']);
+    fputcsv($out, ['Status Ujian', strtoupper($detailUjian['status'] ?? 'BELUM')]);
+    fputcsv($out, ['Nilai PG', number_format($nilaiPGDisplay, 2) . " (Benar {$statBenar} dari {$totalPG} butir)"]);
+    if ($statEssai > 0) {
+        fputcsv($out, ['Nilai Essai', $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : 'Belum Dinilai']);
+    }
+    fputcsv($out, ['Nilai Akhir', number_format((float)$detailUjian['nilai_akhir'], 2)]);
+    fputcsv($out, []); // Baris kosong pemisah
+
+    // 2. Baris Header Tabel Butir Soal (Tanpa kolom Tipe Soal dan Tanpa Kunci Jawaban)
+    fputcsv($out, ['No', 'Pertanyaan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'Pilihan E', 'Jawaban Siswa', 'Nilai Butir']);
+
+    // 3. Baris Data Butir Soal
+    foreach ($soalList as $s) {
+        $cleanPertanyaan = trim(strip_tags(html_entity_decode((string)$s['pertanyaan'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+
+        $opsiMap = [];
+        foreach ($s['opsi'] as $o) {
+            $cleanOpsi = trim(strip_tags(html_entity_decode((string)($o['text'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            $opsiMap[$o['code']] = $cleanOpsi;
+        }
+
+        $jwbSiswa = trim((string)($s['jawaban_terpilih'] ?? ''));
+        if ($jwbSiswa === '') {
+            $jwbDisplay = '(Tidak Dijawab)';
+        } else {
+            $jwbDisplay = $jwbSiswa;
+        }
+
+        if ($s['jenis_soal'] === 'essai') {
+            $nilaiItem = ($s['nilai_soal'] !== null) ? (string)((float)$s['nilai_soal']) : 'Belum Dinilai';
+        } else {
+            $nilaiItem = $s['is_correct'] ? '1' : '0';
+        }
+
+        fputcsv($out, [
+            $s['nomor'],
+            $cleanPertanyaan,
+            $opsiMap['A'] ?? '',
+            $opsiMap['B'] ?? '',
+            $opsiMap['C'] ?? '',
+            $opsiMap['D'] ?? '',
+            $opsiMap['E'] ?? '',
+            $jwbDisplay,
+            $nilaiItem
+        ]);
+    }
+
+    fclose($out);
+    exit;
+}
+
 $page = 'detail_jawaban';
 $pageTitle = 'Detail Jawaban: ' . $detailUjian['nama_siswa'];
 
@@ -393,6 +476,31 @@ $extraCss = '
         padding: 0.75rem 1rem;
         margin-top: 0.5rem;
     }
+    @media print {
+        header, nav, .navbar, .no-print, .alert, .btn, form button[type="submit"] {
+            display: none !important;
+        }
+        body {
+            background: #fff !important;
+            color: #000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        main.container {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .info-panel, .scores-panel, .item-card {
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .page-header {
+            margin-bottom: 1rem !important;
+        }
+    }
 </style>
 ';
 
@@ -401,7 +509,7 @@ include __DIR__ . '/../layouts/header.php';
 
 <main class="container" style="max-width: 1100px;">
     <?php if ($flash): ?>
-        <div class="alert alert-<?= sanitize($flash['type']) ?>">
+        <div class="alert alert-<?= sanitize($flash['type']) ?> no-print">
             <?= sanitize($flash['message']) ?>
         </div>
     <?php endif; ?>
@@ -415,7 +523,15 @@ include __DIR__ . '/../layouts/header.php';
                 Pemeriksaan detail jawaban dan penilaian ujian
             </span>
         </div>
-        <div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" class="no-print">
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_jawaban&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke File CSV">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Ekspor Jawaban (CSV)</span>
+            </a>
+            <button type="button" class="btn btn-primary btn-sm" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Cetak Lembar Jawaban atau Simpan sebagai PDF">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <span>Cetak Lembar Jawaban</span>
+            </button>
             <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
                 Kembali
             </a>
@@ -614,7 +730,7 @@ include __DIR__ . '/../layouts/header.php';
         <?php endif; ?>
 
         <?php if ($statEssai > 0): ?>
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+            <div class="no-print" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
                 <span style="font-size:0.85rem;color:#64748b;">Klik simpan setelah mengisi nilai seluruh butir soal essai.</span>
                 <button type="submit" class="btn btn-primary" style="font-weight:600;">
                     Simpan Nilai Essai
@@ -623,7 +739,7 @@ include __DIR__ . '/../layouts/header.php';
         <?php endif; ?>
     </form>
 
-    <div style="margin: 1.5rem 0 3rem 0;">
+    <div class="no-print" style="margin: 1.5rem 0 3rem 0;">
         <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
             Kembali ke Rekap Nilai
         </a>

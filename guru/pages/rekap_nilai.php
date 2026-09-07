@@ -280,10 +280,16 @@ include __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td data-label="Aksi" class="no-print" style="text-align: center; white-space: nowrap;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
-                                            <a href="<?= base_url('guru?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                                <span>Detail & Nilai</span>
-                                            </a>
+                                            <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: center;">
+                                                <a href="<?= base_url('guru?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Lihat Lembar Jawaban & Penilaian">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                    <span>Detail & Nilai</span>
+                                                </a>
+                                                <a href="<?= base_url('guru?page=detail_jawaban&action=export_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa']) ?>" class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Ekspor Lembar Jawaban Siswa ke CSV">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                                    <span>Ekspor Jawaban</span>
+                                                </a>
+                                            </div>
                                         <?php else: ?>
                                             <span class="text-muted text-xs font-bold">-</span>
                                         <?php endif; ?>
