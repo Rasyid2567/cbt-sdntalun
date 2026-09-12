@@ -5,26 +5,51 @@
  */
 
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../config/scoring.php';
 
 $currentUser = auth_check(['siswa']);
 $db = get_db();
 $idSiswa = $currentUser['id_user'];
 
 // 1. Ambil Data Ujian Siswa yang Sedang Berjalan (Waktu Sesi Global)
-$stmtUs = $db->prepare("
-    SELECT us.*, s.nama_ujian, s.durasi_menit, s.acak_opsi, m.nama_mapel,
-           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real
-    FROM ujian_siswa us
-    JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
-    JOIN mapel m ON s.id_mapel = m.id_mapel
-    WHERE us.id_siswa = :s AND us.status = 'sedang'
-    LIMIT 1
-");
-$stmtUs->execute([':s' => $idSiswa]);
-$ujianSiswa = $stmtUs->fetch();
+$reqId = (int)($_GET['id'] ?? $_GET['id_ujian_siswa'] ?? 0);
 
-if (!$ujianSiswa) {
-    flash_set('info', 'Tidak ada sesi ujian yang sedang aktif.');
+if ($reqId > 0) {
+    // Ambil ujian spesifik yang diminta jika milik siswa ini
+    $stmtUs = $db->prepare("
+        SELECT us.*, s.nama_ujian, s.durasi_menit, s.acak_opsi, m.nama_mapel, s.status as status_sesi,
+               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real
+        FROM ujian_siswa us
+        JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+        JOIN mapel m ON s.id_mapel = m.id_mapel
+        WHERE us.id_ujian_siswa = :id AND us.id_siswa = :s AND us.status = 'sedang'
+        LIMIT 1
+    ");
+    $stmtUs->execute([':id' => $reqId, ':s' => $idSiswa]);
+    $ujianSiswa = $stmtUs->fetch();
+} else {
+    // Ambil sesi ujian aktif terbaru
+    $stmtUs = $db->prepare("
+        SELECT us.*, s.nama_ujian, s.durasi_menit, s.acak_opsi, m.nama_mapel, s.status as status_sesi,
+               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real
+        FROM ujian_siswa us
+        JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+        JOIN mapel m ON s.id_mapel = m.id_mapel
+        WHERE us.id_siswa = :s AND us.status = 'sedang' AND s.status = 'aktif'
+        ORDER BY us.id_ujian_siswa DESC
+        LIMIT 1
+    ");
+    $stmtUs->execute([':s' => $idSiswa]);
+    $ujianSiswa = $stmtUs->fetch();
+}
+
+if (!$ujianSiswa || $ujianSiswa['status_sesi'] !== 'aktif') {
+    if ($ujianSiswa && $ujianSiswa['status_sesi'] !== 'aktif') {
+        // Sesi sudah ditutup oleh guru, auto-finalize status siswa
+        $updClosed = $db->prepare("UPDATE ujian_siswa SET status = 'selesai', waktu_selesai = COALESCE(waktu_selesai, CURRENT_TIMESTAMP) WHERE id_ujian_siswa = :id");
+        $updClosed->execute([':id' => $ujianSiswa['id_ujian_siswa']]);
+    }
+    flash_set('info', 'Sesi ujian ini telah ditutup atau tidak aktif.');
     redirect(base_url('siswa?page=konfirmasi'));
 }
 

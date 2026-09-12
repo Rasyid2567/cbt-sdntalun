@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../config/scoring.php';
 
 $currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
@@ -162,8 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $headerMap     = null;
 
     $stmtIns = $db->prepare("
-        INSERT INTO bank_soal (id_paket, jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban)
-        VALUES (:p, :jenis, :pert, :oa, :ob, :oc, :od, :oe, :k)
+        INSERT INTO bank_soal (id_paket, jenis_soal, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban, bobot_soal)
+        VALUES (:p, :jenis, :pert, :oa, :ob, :oc, :od, :oe, :k, :bobot)
     ");
 
     while (($row = fgetcsv($handle, 8192, $delimiter)) !== false) {

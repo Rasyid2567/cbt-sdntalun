@@ -82,11 +82,52 @@ if ($selectedSesiId > 0) {
         $totalPG        = (int)($statRow['total_pg'] ?? 0);
         $totalEssai     = (int)($statRow['total_essai'] ?? 0);
 
+        // Auto-finalize ujian siswa yang sudah melewati batas waktu sesi atau durasi pengerjaan
+        $stmtAutoClose = $db->prepare("
+            UPDATE ujian_siswa us
+            SET status = 'selesai',
+                waktu_selesai = COALESCE(
+                    us.waktu_selesai,
+                    (SELECT MAX(js.updated_at) FROM jawaban_siswa js WHERE js.id_ujian_siswa = us.id_ujian_siswa AND js.jawaban_terpilih IS NOT NULL AND js.jawaban_terpilih != ''),
+                    us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute'),
+                    CURRENT_TIMESTAMP
+                ),
+                sisa_detik = 0
+            FROM sesi_ujian s
+            WHERE us.id_sesi = s.id_sesi
+              AND us.id_sesi = :sesi
+              AND us.status = 'sedang'
+              AND (
+                  s.status != 'aktif'
+                  OR (s.created_at + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
+                  OR (us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
+              )
+        ");
+        $stmtAutoClose->execute([':sesi' => $selectedSesiId]);
+
+        // Auto-healing waktu_selesai bagi yang statusnya sudah selesai tapi waktu_selesai null
+        $stmtFixWaktu = $db->prepare("
+            UPDATE ujian_siswa us
+            SET waktu_selesai = COALESCE(
+                (SELECT MAX(js.updated_at) FROM jawaban_siswa js WHERE js.id_ujian_siswa = us.id_ujian_siswa AND js.jawaban_terpilih IS NOT NULL AND js.jawaban_terpilih != ''),
+                us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute'),
+                CURRENT_TIMESTAMP
+            )
+            FROM sesi_ujian s
+            WHERE us.id_sesi = s.id_sesi
+              AND us.id_sesi = :sesi
+              AND us.status = 'selesai'
+              AND us.waktu_selesai IS NULL
+        ");
+        $stmtFixWaktu->execute([':sesi' => $selectedSesiId]);
+
         // Ambil Siswa yang terdaftar di kelas ini dan status pengerjaannya
         $stmtRekap = $db->prepare("
             SELECT u.id_user, u.nis, u.username, u.nama_lengkap, k.nama_kelas,
                    us.id_ujian_siswa, us.waktu_mulai, us.waktu_selesai, us.status as status_ujian,
                    COALESCE(us.jumlah_benar, 0) as jumlah_benar,
+                   COALESCE(us.total_skor, us.nilai_pg, 0.00) as total_skor,
+                   us.skor_maksimal,
                    COALESCE(us.nilai_pg, us.nilai_akhir, 0.00) as nilai_pg,
                    us.nilai_essai,
                    COALESCE(us.nilai_akhir, 0.00) as nilai_akhir
@@ -123,17 +164,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     $output = fopen('php://output', 'w');
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Mulai', 'Waktu Selesai', 'Status Ujian', 'Jumlah Benar (PG)', 'Total Soal PG', 'Nilai PG', 'Total Soal Essai', 'Nilai Essai', 'Nilai Akhir']);
+    fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Pengerjaan', 'Status Ujian', 'Jumlah Benar', 'Total Butir Soal', 'Skor Diperoleh', 'Skor Maksimal', 'Nilai Akhir']);
 
     foreach ($rekapList as $idx => $r) {
+        $waktuPengerjaan = '-';
+        if (!empty($r['waktu_mulai'])) {
+            if (!empty($r['waktu_selesai'])) {
+                $diffSec = max(0, strtotime($r['waktu_selesai']) - strtotime($r['waktu_mulai']));
+                $menitKerja = floor($diffSec / 60);
+                $detikKerja = $diffSec % 60;
+                $waktuPengerjaan = "{$menitKerja}m {$detikKerja}s";
+            } elseif (($r['status_ujian'] ?? '') === 'sedang') {
+                $diffSec = max(0, time() - strtotime($r['waktu_mulai']));
+                $menitKerja = floor($diffSec / 60);
+                $detikKerja = $diffSec % 60;
+                $waktuPengerjaan = "{$menitKerja}m {$detikKerja}s (Aktif)";
+            }
+        }
+
         fputcsv($output, [
             $idx + 1,
             $r['nis'] ?? '-',
             $r['username'],
             $r['nama_lengkap'],
             $r['nama_kelas'],
-            $r['waktu_mulai'] ?? '-',
-            $r['waktu_selesai'] ?? '-',
+            $waktuPengerjaan,
             strtoupper($r['status_ujian'] ?? 'BELUM'),
             $r['jumlah_benar'],
             $totalPG,
@@ -217,10 +272,7 @@ include __DIR__ . '/../layouts/header.php';
                             <th style="width: 120px;">Waktu</th>
                             <th style="text-align: center; width: 130px;">Status</th>
                             <th style="text-align: center; width: 85px;">Benar</th>
-                            <th style="text-align: center; width: 85px;">Nilai PG</th>
-                            <?php if ($totalEssai > 0): ?>
-                                <th style="text-align: center; width: 95px;">Nilai Essai</th>
-                            <?php endif; ?>
+                            <th style="text-align: center; width: 95px;">Skor Butir</th>
                             <th style="text-align: center; width: 95px;">Nilai Akhir</th>
                             <th style="text-align: center; width: 125px;" class="no-print">Aksi</th>
                         </tr>
@@ -244,7 +296,23 @@ include __DIR__ . '/../layouts/header.php';
                                     <td data-label="Waktu">
                                         <?php if ($r['waktu_mulai']): ?>
                                             <div class="text-xs font-bold" style="color: var(--gray-800);"><?= date('H:i', strtotime($r['waktu_mulai'])) ?> - <?= $r['waktu_selesai'] ? date('H:i', strtotime($r['waktu_selesai'])) : '...' ?></div>
-                                            <div class="text-xs text-muted"><?= date('d/m/Y', strtotime($r['waktu_mulai'])) ?></div>
+                                            <div class="text-xs text-muted">
+                                                <?php
+                                                if ($r['waktu_selesai']) {
+                                                    $dSec = max(0, strtotime($r['waktu_selesai']) - strtotime($r['waktu_mulai']));
+                                                    $m = floor($dSec / 60);
+                                                    $s = $dSec % 60;
+                                                    echo "{$m}m {$s}s";
+                                                } elseif ($r['status_ujian'] === 'sedang') {
+                                                    $dSec = max(0, time() - strtotime($r['waktu_mulai']));
+                                                    $m = floor($dSec / 60);
+                                                    $s = $dSec % 60;
+                                                    echo "{$m}m {$s}s (aktif)";
+                                                } else {
+                                                    echo date('d/m/Y', strtotime($r['waktu_mulai']));
+                                                }
+                                                ?>
+                                            </div>
                                         <?php else: ?>
                                             <span class="text-muted text-xs font-bold">-</span>
                                         <?php endif; ?>
@@ -285,9 +353,9 @@ include __DIR__ . '/../layouts/header.php';
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                     <span>Detail & Nilai</span>
                                                 </a>
-                                                <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . (int)$r['id_ujian_siswa']) ?>" class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Ekspor Lembar Jawaban Siswa ke Dokumen Word (.doc)">
+                                                <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . (int)$r['id_ujian_siswa']) ?>" class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Ekspor Lembar Jawaban Siswa (.doc)">
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                                    <span>Ekspor Dokumen</span>
+                                                    <span>Ekspor Jawaban</span>
                                                 </a>
                                             </div>
                                         <?php else: ?>

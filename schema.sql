@@ -73,6 +73,8 @@ CREATE TABLE bank_soal (
     opsi_d TEXT NULL,
     opsi_e TEXT NULL,
     kunci_jawaban VARCHAR(255) NULL, -- Menyimpan 'A', 'A,B', atau pedoman essai
+    bobot_soal NUMERIC(5,2) DEFAULT NULL,
+    konten_soal JSONB NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -105,6 +107,8 @@ CREATE TABLE ujian_siswa (
     jumlah_benar INT DEFAULT 0,
     nilai_pg NUMERIC(5,2) DEFAULT 0.00,
     nilai_essai NUMERIC(5,2) DEFAULT NULL,
+    total_skor NUMERIC(6,2) DEFAULT NULL,
+    skor_maksimal NUMERIC(6,2) DEFAULT NULL,
     nilai_akhir NUMERIC(5,2) DEFAULT 0.00,
     CONSTRAINT unique_siswa_sesi UNIQUE (id_sesi, id_siswa)
 );
@@ -131,6 +135,16 @@ CREATE INDEX idx_sesi_ujian_paket ON sesi_ujian(id_paket);
 CREATE INDEX idx_sesi_status ON sesi_ujian(status);
 CREATE INDEX idx_ujian_siswa_status ON ujian_siswa(status);
 CREATE INDEX idx_jawaban_ujian ON jawaban_siswa(id_ujian_siswa);
+
+-- 11. Tabel Server Alerts (Broadcast Pesan CLI Admin)
+CREATE TABLE IF NOT EXISTS server_alerts (
+    id SERIAL PRIMARY KEY,
+    judul VARCHAR(150) DEFAULT 'Pemberitahuan Admin Server',
+    pesan TEXT NOT NULL,
+    target VARCHAR(50) DEFAULT 'semua',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_server_alerts_id ON server_alerts(id);
 
 -- Data Kelas (Tingkat Sekolah Dasar / SD: Kelas 1 - 6)
 INSERT INTO kelas (id_kelas, nama_kelas) VALUES 

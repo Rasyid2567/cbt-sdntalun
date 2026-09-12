@@ -161,6 +161,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('guru?page=bank_soal' . (!empty($_POST['id_mapel']) ? '&id_mapel=' . (int)$_POST['id_mapel'] : '')));
     }
 
+    // Ratakan Bobot Butir Soal dalam Paket agar Total = 100 Poin
+    if ($action === 'ratakan_bobot') {
+        $idPaket = (int)($_POST['id_paket'] ?? 0);
+        if ($idPaket > 0) {
+            $sqlCount = "SELECT COUNT(*) FROM bank_soal b JOIN paket_soal p ON b.id_paket = p.id_paket WHERE b.id_paket = :p";
+            $pCount   = [':p' => $idPaket];
+            if ($currentUser['role'] === 'guru') {
+                $sqlCount .= " AND p.id_guru = :g";
+                $pCount[':g'] = $idGuru;
+            }
+            $stmtCount = $db->prepare($sqlCount);
+            $stmtCount->execute($pCount);
+            $count = (int)$stmtCount->fetchColumn();
+
+            if ($count > 0) {
+                $bobotPerSoal = round(100.0 / $count, 2);
+                $sqlUpd = "UPDATE bank_soal SET bobot_soal = :b WHERE id_paket = :p";
+                $pUpd   = [':b' => $bobotPerSoal, ':p' => $idPaket];
+                $db->prepare($sqlUpd)->execute($pUpd);
+
+                flash_set('success', "Bobot {$count} butir soal pada paket ini berhasil disesuaikan menjadi @ {$bobotPerSoal} poin (Total Pas 100.0 Poin).");
+            }
+        }
+        redirect(base_url('guru?page=bank_soal' . (!empty($_POST['id_mapel']) ? '&id_mapel=' . (int)$_POST['id_mapel'] : '')));
+    }
+
     // Hapus Seluruh Paket Soal (Cascade Butir Soal & Gambar)
     if ($action === 'hapus_paket') {
         $idPaket = (int)($_POST['id_paket'] ?? 0);
@@ -246,8 +272,20 @@ $sql = "
     SELECT p.id_paket, p.nama_paket, p.id_mapel, p.created_at,
            m.nama_mapel, m.kode_mapel,
            COUNT(b.id_soal) AS total_butir,
-           COUNT(CASE WHEN b.jenis_soal = 'essai' THEN 1 END) AS total_essai,
-           COUNT(CASE WHEN b.jenis_soal != 'essai' OR b.jenis_soal IS NULL THEN 1 END) AS total_pg
+           COALESCE(SUM(COALESCE(b.bobot_soal, 
+               CASE 
+                   WHEN b.jenis_soal = 'pg_1' THEN 2.0
+                   WHEN b.jenis_soal = 'pgk_l1' THEN 3.0
+                   WHEN b.jenis_soal = 'pgk_bs_1' THEN 1.0
+                   WHEN b.jenis_soal = 'pgk_bs_l1' THEN 6.0
+                   WHEN b.jenis_soal = 'mjdk' THEN 6.0
+                   WHEN b.jenis_soal = 'ijs' THEN 5.0
+                   WHEN b.jenis_soal = 'uraian' OR b.jenis_soal = 'essai' THEN 7.0
+                   ELSE 2.0
+               END
+           )), 0.00) AS total_bobot,
+           COUNT(CASE WHEN b.jenis_soal = 'uraian' OR b.jenis_soal = 'essai' THEN 1 END) AS total_essai,
+           COUNT(CASE WHEN b.jenis_soal != 'uraian' AND b.jenis_soal != 'essai' THEN 1 END) AS total_pg
     FROM paket_soal p
     JOIN mapel m ON p.id_mapel = m.id_mapel
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
@@ -365,6 +403,18 @@ include __DIR__ . '/../layouts/header.php';
                                     <span class="badge badge-online" style="font-size: 0.75rem; font-weight: 700;">
                                         <?= (int)$p['total_butir'] ?> Butir Soal
                                     </span>
+                                    <?php 
+                                    $totBobot = (float)$p['total_bobot'];
+                                    if (abs($totBobot - 100.0) < 0.1): 
+                                    ?>
+                                        <span class="badge badge-online" style="background:#ecfdf5; color:#065f46; font-size: 0.75rem; font-weight: 700;">
+                                            Total Bobot: 100.0 Poin (Pas 100)
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge" style="background:#fef3c7; color:#92400e; font-size: 0.75rem; font-weight: 700;" title="Akumulasi bobot butir soal. Nilai akhir siswa tetap dikonversi ke skala 100 saat ujian.">
+                                            Total Bobot: <?= number_format($totBobot, 1) ?> Poin <span style="font-weight: normal; opacity: 0.85;">(Skala Nilai 100)</span>
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="flex gap-2 mt-1" style="align-items: center; flex-wrap: wrap; font-size: 0.85rem;">
                                     <span class="badge" style="background: #e2e8f0; color: #334155; font-weight: 600;">
@@ -379,6 +429,18 @@ include __DIR__ . '/../layouts/header.php';
 
                         <!-- Tombol Aksi Paket -->
                         <div class="flex gap-2" style="align-items: center;">
+                            <?php if (abs($totBobot - 100.0) >= 0.1 && (int)$p['total_butir'] > 0): ?>
+                                <form action="<?= base_url('guru?page=bank_soal') ?>" method="POST" style="display:inline;" onsubmit="return confirm('Ratakan bobot <?= (int)$p['total_butir'] ?> butir soal di paket ini agar pas berjumlah 100 Poin (@ <?= round(100.0 / (int)$p['total_butir'], 2) ?> poin per soal)?');">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="ratakan_bobot">
+                                    <input type="hidden" name="id_paket" value="<?= $p['id_paket'] ?>">
+                                    <input type="hidden" name="id_mapel" value="<?= $p['id_mapel'] ?>">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff; display: inline-flex; align-items: center; gap: 0.3rem;" title="Bagi rata bobot soal agar totalnya pas 100.0 Poin">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                        <span>Set ke 100 Poin</span>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                             <a href="<?= base_url('guru?page=tambah_soal&id_paket=' . $p['id_paket']) ?>" class="btn btn-primary btn-sm" title="Edit Paket Soal">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 <span>Edit</span>

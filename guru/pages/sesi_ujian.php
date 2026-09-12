@@ -127,6 +127,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $upd = $db->prepare("UPDATE sesi_ujian SET status = :s::session_status WHERE id_sesi = :id AND id_guru = :g");
                 $upd->execute([':s' => $newStatus, ':id' => $idSesi, ':g' => $idGuru]);
+
+                // Otomatis tandai ujian siswa yang masih 'sedang' menjadi 'selesai' agar tidak menggantung
+                $updStudents = $db->prepare("
+                    UPDATE ujian_siswa 
+                    SET status = 'selesai', 
+                        waktu_selesai = COALESCE(waktu_selesai, CURRENT_TIMESTAMP) 
+                    WHERE id_sesi = :id AND status = 'sedang'
+                ");
+                $updStudents->execute([':id' => $idSesi]);
             }
             flash_set('success', "Status sesi ujian berhasil diubah menjadi: {$newStatus}");
         }

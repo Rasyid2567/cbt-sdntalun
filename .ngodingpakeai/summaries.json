@@ -1,0 +1,143 @@
+{
+  ".gitignore": {
+    "summary": "Konfigurasi Git untuk mengabaikan file dan direktori sementara, dependensi, data upload pengguna, serta file sensitif/lokal agar tidak masuk ke version control."
+  },
+  ".htaccess": {
+    "summary": "Konfigurasi server web Apache dengan mod_rewrite untuk mendukung URL bersih (clean URLs), perutean modul (operator, guru, siswa), proteksi file sistem, dan pengalihan login."
+  },
+  ".ngodingpakeaiignore": {
+    "summary": "Daftar pola pengecualian file dan direktori untuk sinkronisasi konteks codebase oleh CLI NgodingPakeAI."
+  },
+  "AGENTS.md": {
+    "summary": "Panduan instruksi dan aturan interaksi bagi AI agent dalam membaca, mengelola, mengindeks, serta menyinkronkan status codebase dengan layer memori NgodingPakeAI."
+  },
+  "Dockerfile": {
+    "summary": "Spesifikasi kontainer Docker berbasis PHP 8.2 Apache dengan instalasi dependensi PostgreSQL (pdo_pgsql) dan konfigurasi Apache mod_rewrite untuk menjalankan sistem CBT SDN Talun."
+  },
+  "alert.php": {
+    "summary": "Skrip CLI terminal untuk administrator server dalam menyiarkan (broadcast) pesan pengumuman real-time ke seluruh pengguna atau role tertentu, yang disimpan ke tabel server_alerts."
+  },
+  "api/server_alert.php": {
+    "summary": "Endpoint REST API untuk polling pesan pengumuman server terbaru dari tabel server_alerts berdasarkan peran pengguna dan ID alert terakhir."
+  },
+  "assets/css/cbt-style.css": {
+    "summary": "Lembar gaya CSS kustom untuk seluruh antarmuka aplikasi CBT, mencakup layout ujian gaya UNBK, komponen kartu, modal dialog, formulir input, navigasi, dan indikator timer."
+  },
+  "assets/js/app.js": {
+    "summary": "Modul JavaScript frontend untuk interaktivitas antarmuka global, meliputi penanganan menu navigasi mobile, kustomisasi elemen select/dropdown, dan integrasi modal dialog konfirmasi."
+  },
+  "assets/js/server-alert.js": {
+    "summary": "Skrip JavaScript sisi klien untuk polling berkala ke endpoint server_alert.php, memainkan audio notifikasi chime, dan menampilkan modal pengumuman darurat dari admin server."
+  },
+  "assets/js/timer.js": {
+    "summary": "Modul JavaScript kelas CBTTimer untuk penghitungan mundur durasi ujian berbasis delta timestamp agar tahan terhadap pembatasan background tab dan memicu auto-submit saat waktu habis."
+  },
+  "assets/js/ujian.js": {
+    "summary": "Modul JavaScript kelas CBTExamManager untuk manajemen interaksi pengerjaan ujian siswa 1 soal per layar, auto-save jawaban via AJAX, navigasi kisi nomor, penanda ragu-ragu, dan finalisasi ujian."
+  },
+  "assets/uploads/.gitkeep": {
+    "summary": "File penanda untuk menjaga keberadaan direktori penyimpanan berkas unggahan gambar soal dan aset media di repositori Git."
+  },
+  "config/database.php": {
+    "summary": "Konfigurasi koneksi basis data PostgreSQL via PDO dengan pola Singleton, fungsi penanganan sesi aman, proteksi CSRF, sanitasi output XSS, flash message, dan pembentukan base_url."
+  },
+  "docker-compose.yml": {
+    "summary": "Konfigurasi orkestrasi Docker Compose untuk menjalankan kontainer web server CBT dengan pemetaan port 1000:80, volume mounting direktori kerja, dan variabel lingkungan koneksi database."
+  },
+  "guru/dashboard.php": {
+    "summary": "Front controller untuk modul panel guru yang memvalidasi role otentikasi dan mengarahkan navigasi halaman dinamis via parameter page ke controller yang sesuai."
+  },
+  "guru/index.php": {
+    "summary": "Titik masuk utama untuk modul guru yang mengalihkan permintaan ke controller guru/dashboard.php."
+  },
+  "guru/layouts/footer.php": {
+    "summary": "Komponen layout penutup HTML untuk antarmuka modul guru, menyertakan pemuatan file skrip JavaScript app.js dan server-alert.js."
+  },
+  "guru/layouts/header.php": {
+    "summary": "Komponen layout header HTML dan navigasi atas modul guru, menampilkan informasi profil pengguna yang login, tombol logout, serta penyertakan dependensi CSS."
+  },
+  "guru/pages/bank_soal.php": {
+    "summary": "Halaman manajemen bank soal bagi guru untuk melihat daftar paket soal, menambah atau mengganti nama paket, menghapus paket beserta butir soal, dan mengekspor butir soal ke format CSV."
+  },
+  "guru/pages/detail_jawaban.php": {
+    "summary": "Halaman peninjauan lembar jawaban siswa pada ujian tertentu, penilaian manual soal essai guru, evaluasi jawaban pilihan ganda, serta ekspor lembar jawaban ke format dokumen Word (.doc) dan CSV."
+  },
+  "guru/pages/home.php": {
+    "summary": "Halaman dasbor utama guru yang menyajikan statistik jumlah bank soal, sesi ujian aktif, rekap nilai siswa, serta aksi cepat pembaruan token ujian aktif."
+  },
+  "guru/pages/import_soal.php": {
+    "summary": "Halaman formulir impor massal butir soal dari file CSV atau Excel ke paket soal terpilih, dilengkapi pengunduhan template contoh format butir soal."
+  },
+  "guru/pages/rekap_nilai.php": {
+    "summary": "Halaman rekapitulasi nilai ujian siswa per sesi, menampilkan statistik nilai tertinggi, terendah, dan rata-rata kelas, status pengerjaan siswa, serta fitur ekspor laporan ke format CSV."
+  },
+  "guru/pages/sesi_ujian.php": {
+    "summary": "Halaman pengelolaan sesi ujian oleh guru untuk membuat jadwal sesi baru, menghasilkan dan memperbarui token ujian, mengatur durasi serta acak soal, mengubah status aktif/nonaktif, dan menghapus sesi."
+  },
+  "guru/pages/tambah_soal.php": {
+    "summary": "Halaman formulir pembuatan dan pengeditan butir soal (pilihan ganda dan essai) dalam paket soal, mencakup pengunggahan gambar soal dan penentuan kunci jawaban."
+  },
+  "index.php": {
+    "summary": "Halaman gerbang masuk (login) sistem CBT dengan validasi kredensial pengguna pada tabel users, pencegahan sesi ganda siswa, verifikasi CSRF, dan pengalihan ke dashboard role yang sesuai."
+  },
+  "logout.php": {
+    "summary": "Skrip pemutusan sesi login pengguna, memperbarui status login di tabel users menjadi offline, menghapus data sesi dan cookie autentikasi, lalu mengalihkan ke halaman login."
+  },
+  "middleware/auth.php": {
+    "summary": "Middleware autentikasi dan kontrol akses berbasis peran (RBAC) yang memeriksa sesi user_id, validasi tabel users, serta membatasi izin akses ke modul operator, guru, atau siswa."
+  },
+  "migrate.php": {
+    "summary": "Skrip CLI untuk menjalankan migrasi struktur skema basis data PostgreSQL, menambahkan tabel paket_soal, indeks, dan kolom baru untuk kompatibilitas versi sistem CBT terkini."
+  },
+  "operator/dashboard.php": {
+    "summary": "Front controller untuk modul panel operator sekolah yang memverifikasi hak akses role operator dan memetakan parameter page ke halaman manajemen yang dituju."
+  },
+  "operator/index.php": {
+    "summary": "Titik masuk utama untuk rute modul operator yang mengarahkan permintaan ke operator/dashboard.php."
+  },
+  "operator/layouts/footer.php": {
+    "summary": "Komponen layout penutup halaman modul operator, memuat skrip interaktivitas frontend app.js dan pendengar pengumuman server-alert.js."
+  },
+  "operator/layouts/header.php": {
+    "summary": "Komponen layout navigasi atas dan bilah menu untuk antarmuka operator, menyediakan tautan ke data master siswa, guru, mapel, kelas, dan fitur reset login."
+  },
+  "operator/pages/guru_crud.php": {
+    "summary": "Halaman manajemen data master oleh operator untuk mengelola akun guru di tabel users, daftar mata pelajaran di tabel mapel, dan jenjang rombel di tabel kelas."
+  },
+  "operator/pages/home.php": {
+    "summary": "Halaman dasbor analitik operator yang menampilkan ringkasan jumlah siswa, guru, rombel kelas, mapel, serta daftar siswa yang sedang login secara online."
+  },
+  "operator/pages/reset_login.php": {
+    "summary": "Halaman proktor untuk memonitor status login siswa dan melakukan reset status login dari online menjadi offline, baik perorangan maupun massal untuk mengatasi kendala sesi terkunci."
+  },
+  "operator/pages/siswa_crud.php": {
+    "summary": "Halaman administrasi data siswa untuk menambah, menyunting, menghapus akun siswa di tabel users, mengunduh template data, serta melakukan impor massal data siswa via berkas CSV."
+  },
+  "router.php": {
+    "summary": "Skrip router untuk web server pengembangan bawaan PHP (php -S) yang menangani penyajian aset statis dan perutean berkas PHP bersih."
+  },
+  "schema.sql": {
+    "summary": "Skrip inisialisasi basis data PostgreSQL yang mendefinisikan tipe ENUM, struktur tabel kelas, mapel, users, paket_soal, bank_soal, sesi_ujian, ujian_siswa, jawaban_siswa, server_alerts, indeks, dan data awal."
+  },
+  "siswa/ajax_ragu.php": {
+    "summary": "Endpoint AJAX untuk memperbarui status tanda ragu-ragu siswa pada butir soal tertentu di tabel jawaban_siswa secara real-time saat ujian berlangsung."
+  },
+  "siswa/ajax_save.php": {
+    "summary": "Endpoint AJAX penyimpanan otomatis jawaban siswa secara realtime menggunakan upsert ke tabel jawaban_siswa serta sinkronisasi sisa durasi detik di tabel ujian_siswa."
+  },
+  "siswa/index.php": {
+    "summary": "Front controller modul peserta ujian (siswa) yang memvalidasi role siswa dan memetakan alur pengerjaan antara halaman konfirmasi, ruang ujian, dan hasil ujian."
+  },
+  "siswa/pages/hasil.php": {
+    "summary": "Halaman ringkasan bukti penyelesaian ujian bagi siswa, menampilkan nilai pilihan ganda, jumlah benar, dan status penilaian setelah sesi ujian selesai."
+  },
+  "siswa/pages/konfirmasi.php": {
+    "summary": "Halaman konfirmasi tes siswa untuk memilih sesi ujian aktif yang tersedia di kelasnya, memasukkan token ujian valid, dan memulai lembar ujian baru."
+  },
+  "siswa/pages/ruang_ujian.php": {
+    "summary": "Halaman antarmuka pengerjaan ujian siswa berbasis layout UNBK dengan tampilan satu soal per halaman, panel navigasi kisi nomor, indikator timer sinkron, dan form submission akhir."
+  },
+  "siswa/proses_selesai.php": {
+    "summary": "Skrip pemrosesan finalisasi ujian siswa yang mengakhiri sesi pengerjaan di tabel ujian_siswa, melakukan kalkulasi otomatis skor jawaban pilihan ganda, dan mengarahkan ke halaman hasil."
+  }
+}

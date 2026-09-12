@@ -1,10 +1,12 @@
 <?php
 /**
  * Page: Detail Jawaban Siswa
- * Menampilkan hasil pengerjaan siswa dan koreksi butir soal.
+ * Menampilkan hasil pengerjaan siswa dan koreksi 7 bentuk butir soal CBT SDN Talun:
+ * PG-1, PGK-L1, PGK-BS-1, PGK-BS-L1, MJDK, IJS, dan Uraian.
  */
 
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../config/scoring.php';
 
 $currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
@@ -22,6 +24,7 @@ $stmtUjian = $db->prepare("
     SELECT us.*, 
            u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
            s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
+           s.status as status_sesi, s.created_at as created_at_sesi,
            p.nama_paket,
            m.id_mapel, m.nama_mapel, m.kode_mapel,
            k.id_kelas, k.nama_kelas,
@@ -48,124 +51,123 @@ if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$cu
     redirect(base_url('guru?page=rekap_nilai'));
 }
 
-// 2. Simpan Nilai Essai
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'simpan_nilai_essai') {
-    if (!verify_csrf()) {
-        flash_set('danger', 'Validasi keamanan gagal.');
-        redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
-    }
-
-    $inputNilai = $_POST['nilai_soal'] ?? [];
-
-    $stmtUpdSoal = $db->prepare("
-        INSERT INTO jawaban_siswa (id_ujian_siswa, id_soal, nilai_soal, updated_at)
-        VALUES (:us, :soal, :n, CURRENT_TIMESTAMP)
-        ON CONFLICT (id_ujian_siswa, id_soal) 
-        DO UPDATE SET 
-            nilai_soal = EXCLUDED.nilai_soal,
-            updated_at = CURRENT_TIMESTAMP
-    ");
-
-    foreach ($inputNilai as $sid => $scoreVal) {
-        $sid = (int)$sid;
-        $cleanScore = ($scoreVal !== '' && is_numeric($scoreVal)) ? max(0, min(100, (float)$scoreVal)) : null;
-        $stmtUpdSoal->execute([
-            ':n'    => $cleanScore,
-            ':us'   => $idUjianSiswa,
-            ':soal' => $sid
-        ]);
-    }
-
-    $stmtAvgEssai = $db->prepare("
-        SELECT js.nilai_soal 
-        FROM jawaban_siswa js
-        JOIN bank_soal bs ON js.id_soal = bs.id_soal
-        WHERE js.id_ujian_siswa = :us AND bs.jenis_soal = 'essai'
-    ");
-    $stmtAvgEssai->execute([':us' => $idUjianSiswa]);
-    $allEssaiScores = $stmtAvgEssai->fetchAll(PDO::FETCH_COLUMN);
-
-    $totalEssaiItems = count($allEssaiScores);
-    $filledEssaiScores = array_filter($allEssaiScores, function($v) { return $v !== null && $v !== ''; });
-
-    $avgEssai = null;
-    if (!empty($filledEssaiScores)) {
-        $avgEssai = round(array_sum($filledEssaiScores) / count($filledEssaiScores), 2);
-    }
-
-    $stmtHitungPG = $db->prepare("
-        SELECT b.id_soal, b.kunci_jawaban, js.jawaban_terpilih
-        FROM bank_soal b
-        JOIN jawaban_siswa js ON js.id_soal = b.id_soal
-        WHERE js.id_ujian_siswa = :us AND (b.jenis_soal != 'essai' OR b.jenis_soal IS NULL)
-    ");
-    $stmtHitungPG->execute([':us' => $idUjianSiswa]);
-    $pgRows = $stmtHitungPG->fetchAll();
-
-    $totalPGCount = count($pgRows);
-    $pgBenarCount = 0;
-    foreach ($pgRows as $pgr) {
-        $kunciStr = strtoupper(trim($pgr['kunci_jawaban'] ?? ''));
-        $jwbStr   = strtoupper(trim($pgr['jawaban_terpilih'] ?? ''));
-        if ($kunciStr !== '' && $jwbStr !== '') {
-            $kunciArr = array_filter(array_map('trim', explode(',', $kunciStr)));
-            $jwbArr   = array_filter(array_map('trim', explode(',', $jwbStr)));
-            sort($kunciArr);
-            sort($jwbArr);
-            if ($kunciArr === $jwbArr || in_array($jwbStr, $kunciArr, true)) {
-                $pgBenarCount++;
+// 2. Ambil Urutan Butir Soal Ujian
+$urutanIds = json_decode($detailUjian['urutan_soal'] ?? '[]', true);
+if (!empty($detailUjian['id_paket'])) {
+    $stmtAllPaket = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
+    $stmtAllPaket->execute([':p' => $detailUjian['id_paket']]);
+    $paketSoalIds = $stmtAllPaket->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($paketSoalIds)) {
+        if (empty($urutanIds) || !is_array($urutanIds)) {
+            $urutanIds = $paketSoalIds;
+        } else {
+            foreach ($paketSoalIds as $psid) {
+                if (!in_array($psid, $urutanIds)) {
+                    $urutanIds[] = $psid;
+                }
             }
         }
     }
-    $nilaiPG = ($totalPGCount > 0) ? round(($pgBenarCount / $totalPGCount) * 100, 2) : 0.00;
-
-    if ($totalPGCount > 0 && $totalEssaiItems > 0) {
-        $nilaiAkhirBaru = ($avgEssai !== null) ? round(($nilaiPG + $avgEssai) / 2, 2) : $nilaiPG;
-    } elseif ($totalEssaiItems > 0) {
-        $nilaiAkhirBaru = ($avgEssai !== null) ? $avgEssai : 0.00;
-    } else {
-        $nilaiAkhirBaru = $nilaiPG;
-    }
-
-    $stmtUpdUs = $db->prepare("
-        UPDATE ujian_siswa 
-        SET jumlah_benar = :benar,
-            nilai_pg = :npg,
-            nilai_essai = :nessai,
-            nilai_akhir = :nakhir
-        WHERE id_ujian_siswa = :us
-    ");
-    $stmtUpdUs->execute([
-        ':benar'  => $pgBenarCount,
-        ':npg'    => $nilaiPG,
-        ':nessai' => $avgEssai,
-        ':nakhir' => $nilaiAkhirBaru,
-        ':us'     => $idUjianSiswa
-    ]);
-
-    flash_set('success', "Nilai essai berhasil disimpan. Nilai Akhir: {$nilaiAkhirBaru}");
-    redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
-}
-
-// 3. Urutan Soal
-$urutanIds = json_decode($detailUjian['urutan_soal'] ?? '[]', true);
-if (empty($urutanIds) || !is_array($urutanIds)) {
-    if (!empty($detailUjian['id_paket'])) {
-        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket = :p ORDER BY id_soal ASC");
-        $stmtFallback->execute([':p' => $detailUjian['id_paket']]);
-    } else {
-        $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m) ORDER BY id_soal ASC");
-        $stmtFallback->execute([':m' => $detailUjian['id_mapel']]);
-    }
+} elseif (empty($urutanIds) || !is_array($urutanIds)) {
+    $stmtFallback = $db->prepare("SELECT id_soal FROM bank_soal WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m) ORDER BY id_soal ASC");
+    $stmtFallback->execute([':m' => $detailUjian['id_mapel']]);
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// 4. Data Butir Soal & Jawaban
+// Auto-deteksi & finalisasi jika sesi sudah ditutup atau batas waktu telah berakhir
+if ($detailUjian['status'] === 'sedang') {
+    $durasiMenit   = (int)($detailUjian['durasi_menit'] ?? 0);
+    $isSesiClosed  = (($detailUjian['status_sesi'] ?? 'aktif') !== 'aktif');
+    $isSesiExpired = (!empty($detailUjian['created_at_sesi']) && (strtotime($detailUjian['created_at_sesi']) + ($durasiMenit * 60) < time()));
+    $isExamExpired = (!empty($detailUjian['waktu_mulai']) && (strtotime($detailUjian['waktu_mulai']) + ($durasiMenit * 60) < time()));
+
+    if ($isSesiClosed || $isSesiExpired || $isExamExpired) {
+        $stmtLastAct = $db->prepare("
+            SELECT MAX(updated_at) FROM jawaban_siswa 
+            WHERE id_ujian_siswa = :us AND jawaban_terpilih IS NOT NULL AND jawaban_terpilih != ''
+        ");
+        $stmtLastAct->execute([':us' => $idUjianSiswa]);
+        $lastAct = $stmtLastAct->fetchColumn();
+
+        $waktuSelesaiFixed = $lastAct ?: (
+            !empty($detailUjian['waktu_mulai']) 
+                ? date('Y-m-d H:i:s', strtotime($detailUjian['waktu_mulai']) + ($durasiMenit * 60))
+                : date('Y-m-d H:i:s')
+        );
+
+        $updClose = $db->prepare("
+            UPDATE ujian_siswa 
+            SET status = 'selesai',
+                waktu_selesai = :ws,
+                sisa_detik = 0
+            WHERE id_ujian_siswa = :us
+        ");
+        $updClose->execute([':ws' => $waktuSelesaiFixed, ':us' => $idUjianSiswa]);
+
+        $detailUjian['status'] = 'selesai';
+        $detailUjian['waktu_selesai'] = $waktuSelesaiFixed;
+        $detailUjian['sisa_detik'] = 0;
+    }
+}
+
+// 3. Simpan Nilai Guru (Koreksi Uraian / Penyesuaian Nilai) atau Finalisasi Manual
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    if (($_POST['action'] ?? '') === 'simpan_nilai_essai') {
+        if (!verify_csrf()) {
+            flash_set('danger', 'Validasi keamanan CSRF gagal.');
+            redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+        }
+
+        $inputNilai = $_POST['nilai_soal'] ?? [];
+        $rekap = cbt_hitung_rekap_ujian($idUjianSiswa, $db, $inputNilai);
+
+        flash_set('success', 'Nilai ujian siswa berhasil disimpan dan dikalkulasi ulang sesuai rubrik resmi.');
+        redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    } elseif (($_POST['action'] ?? '') === 'selesaikan_ujian_siswa') {
+        if (!verify_csrf()) {
+            flash_set('danger', 'Validasi keamanan CSRF gagal.');
+            redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+        }
+
+        $stmtLastAct = $db->prepare("
+            SELECT MAX(updated_at) FROM jawaban_siswa 
+            WHERE id_ujian_siswa = :us AND jawaban_terpilih IS NOT NULL AND jawaban_terpilih != ''
+        ");
+        $stmtLastAct->execute([':us' => $idUjianSiswa]);
+        $lastAct = $stmtLastAct->fetchColumn();
+
+        $waktuSelesaiFixed = $lastAct ?: (
+            !empty($detailUjian['waktu_mulai'])
+                ? date('Y-m-d H:i:s', min(time(), strtotime($detailUjian['waktu_mulai']) + ((int)$detailUjian['durasi_menit'] * 60)))
+                : date('Y-m-d H:i:s')
+        );
+
+        $updClose = $db->prepare("
+            UPDATE ujian_siswa 
+            SET status = 'selesai',
+                waktu_selesai = :ws,
+                sisa_detik = 0
+            WHERE id_ujian_siswa = :us
+        ");
+        $updClose->execute([':ws' => $waktuSelesaiFixed, ':us' => $idUjianSiswa]);
+
+        // Hitung ulang rekap nilai
+        cbt_hitung_rekap_ujian($idUjianSiswa, $db);
+
+        flash_set('success', 'Ujian siswa berhasil diselesaikan secara resmi oleh guru.');
+        redirect(base_url('guru?page=detail_jawaban&id_ujian_siswa=' . $idUjianSiswa . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
+    }
+}
+
+// 4. Ambil dan Evaluasi Butir Soal Menggunakan Scoring Engine Resmi
 $soalList = [];
 $statBenar = 0;
+$statSebagian = 0;
 $statSalah = 0;
 $statKosong = 0;
-$statEssai = 0;
+$statUraian = 0;
+$totalSkorDiperoleh = 0.00;
+$totalSkorMaksimal  = 0.00;
 
 if (!empty($urutanIds)) {
     $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
@@ -173,6 +175,7 @@ if (!empty($urutanIds)) {
     $stmtSoal = $db->prepare("
         SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, 
                b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban,
+               b.bobot_soal, b.konten_soal,
                j.jawaban_terpilih, j.nilai_soal, j.status_ragu
         FROM bank_soal b
         LEFT JOIN jawaban_siswa j ON (j.id_soal = b.id_soal AND j.id_ujian_siswa = ?)
@@ -192,38 +195,23 @@ if (!empty($urutanIds)) {
         if (!isset($soalMap[$sid])) continue;
         $item = $soalMap[$sid];
         
-        $jenisSoal    = $item['jenis_soal'] ?? 'pilihan_ganda';
-        $rawJawaban   = trim($item['jawaban_terpilih'] ?? '');
-        $rawKunci     = trim($item['kunci_jawaban'] ?? '');
-        $jawabanSiswa = ($jenisSoal === 'essai') ? $rawJawaban : strtoupper($rawJawaban);
-        $kunciJawaban = ($jenisSoal === 'essai') ? $rawKunci : strtoupper($rawKunci);
-        $nilaiSoal    = $item['nilai_soal'] !== null ? (float)$item['nilai_soal'] : null;
-        
-        $isCorrect = false;
-        $statusItem = 'kosong';
+        $eval = cbt_evaluasi_soal($item, $item['jawaban_terpilih'], $item['nilai_soal']);
 
-        if ($jenisSoal === 'essai') {
-            $statEssai++;
-            $statusItem = ($nilaiSoal !== null) ? 'dinilai' : 'essai';
+        $totalSkorDiperoleh += $eval['skor'];
+        $totalSkorMaksimal  += $eval['bobot_max'];
+
+        if ($eval['jenis'] === 'uraian') {
+            $statUraian++;
+        }
+
+        if ($eval['is_empty']) {
+            $statKosong++;
+        } elseif ($eval['is_correct']) {
+            $statBenar++;
+        } elseif ($eval['is_partial']) {
+            $statSebagian++;
         } else {
-            if ($jawabanSiswa === '') {
-                $statKosong++;
-                $statusItem = 'kosong';
-            } else {
-                $kunciArr = array_filter(array_map('trim', explode(',', $kunciJawaban)));
-                $jwbArr   = array_filter(array_map('trim', explode(',', $jawabanSiswa)));
-                sort($kunciArr);
-                sort($jwbArr);
-
-                if (!empty($kunciArr) && ($kunciArr === $jwbArr || in_array($jawabanSiswa, $kunciArr, true))) {
-                    $isCorrect = true;
-                    $statBenar++;
-                    $statusItem = 'benar';
-                } else {
-                    $statSalah++;
-                    $statusItem = 'salah';
-                }
-            }
+            $statSalah++;
         }
 
         $opsiList = [
@@ -236,28 +224,107 @@ if (!empty($urutanIds)) {
             $opsiList[] = ['code' => 'E', 'text' => $item['opsi_e']];
         }
 
+        $kontenSoal = null;
+        if (!empty($item['konten_soal'])) {
+            $kontenSoal = is_array($item['konten_soal']) ? $item['konten_soal'] : json_decode((string)$item['konten_soal'], true);
+        }
+
         $soalList[] = [
             'nomor'            => $index + 1,
             'id_soal'          => (int)$item['id_soal'],
-            'jenis_soal'       => $jenisSoal,
+            'jenis_soal'       => $eval['jenis'],
+            'short_label'      => $eval['short_label'],
+            'nama_jenis'       => $eval['nama_jenis'],
+            'bobot_max'        => $eval['bobot_max'],
+            'skor'             => $eval['skor'],
             'pertanyaan'       => $item['pertanyaan'],
             'gambar'           => !empty($item['gambar']) ? base_url(ltrim($item['gambar'], '/')) : null,
             'opsi'             => $opsiList,
-            'kunci_jawaban'    => $kunciJawaban,
-            'jawaban_terpilih' => $jawabanSiswa,
-            'nilai_soal'       => $nilaiSoal,
-            'status_item'      => $statusItem,
-            'is_correct'       => $isCorrect
+            'konten_soal'      => $kontenSoal,
+            'kunci_jawaban'    => $item['kunci_jawaban'],
+            'jawaban_terpilih' => $item['jawaban_terpilih'],
+            'nilai_soal'       => $item['nilai_soal'],
+            'eval'             => $eval,
+            'status_label'     => $eval['status_label'],
+            'is_correct'       => $eval['is_correct'],
+            'is_partial'       => $eval['is_partial'],
+            'keterangan'       => $eval['keterangan']
         ];
     }
 }
 
-$totalPG = count($soalList) - $statEssai;
-$calculatedNilaiPG = ($totalPG > 0) ? round(($statBenar / $totalPG) * 100, 2) : 0.00;
-$nilaiPGDisplay    = isset($detailUjian['nilai_pg']) && $detailUjian['nilai_pg'] !== null ? (float)$detailUjian['nilai_pg'] : $calculatedNilaiPG;
-$nilaiEssaiDisplay = $detailUjian['nilai_essai'] !== null ? (float)$detailUjian['nilai_essai'] : null;
+$calculatedNilaiAkhir = ($totalSkorMaksimal > 0) ? round(($totalSkorDiperoleh / $totalSkorMaksimal) * 100, 2) : 0.00;
 
-// 5. Ekspor Lembar Jawaban Siswa ke Dokumen Word (.doc)
+// Sinkronisasi otomatis ke database ujian_siswa jika ada perbedaan
+if (abs((float)($detailUjian['nilai_akhir'] ?? -1) - $calculatedNilaiAkhir) > 0.01 || (int)($detailUjian['jumlah_benar'] ?? -1) !== $statBenar) {
+    $stmtSync = $db->prepare("
+        UPDATE ujian_siswa 
+        SET jumlah_benar = :benar,
+            total_skor = :tot_skor,
+            skor_maksimal = :tot_max,
+            nilai_akhir = :nak,
+            nilai_pg = :tot_skor
+        WHERE id_ujian_siswa = :us
+    ");
+    $stmtSync->execute([
+        ':benar'    => $statBenar,
+        ':tot_skor' => round($totalSkorDiperoleh, 2),
+        ':tot_max'  => round($totalSkorMaksimal, 2),
+        ':nak'      => $calculatedNilaiAkhir,
+        ':us'       => $idUjianSiswa
+    ]);
+    $detailUjian['nilai_akhir']   = $calculatedNilaiAkhir;
+    $detailUjian['jumlah_benar']  = $statBenar;
+    $detailUjian['total_skor']    = round($totalSkorDiperoleh, 2);
+    $detailUjian['skor_maksimal'] = round($totalSkorMaksimal, 2);
+}
+
+// Durasi Pengerjaan
+$durasiKerjaMenit    = '-';
+$durasiKerjaText     = '-';
+$waktuMulaiFormatted = !empty($detailUjian['waktu_mulai']) ? date('H:i', strtotime($detailUjian['waktu_mulai'])) : null;
+$waktuSelesaiFormatted = !empty($detailUjian['waktu_selesai']) ? date('H:i', strtotime($detailUjian['waktu_selesai'])) : null;
+
+if (!empty($detailUjian['waktu_mulai'])) {
+    $startSec = strtotime($detailUjian['waktu_mulai']);
+
+    if (!empty($detailUjian['waktu_selesai'])) {
+        $endSec   = strtotime($detailUjian['waktu_selesai']);
+        $diffSec  = max(0, $endSec - $startSec);
+        $menit    = floor($diffSec / 60);
+        $detik    = $diffSec % 60;
+        $durasiKerjaText  = "{$menit} Menit {$detik} Detik ({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)";
+        $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span style=\"font-size:0.85rem; color:var(--gray-600);\">({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)</span>";
+    } elseif ($detailUjian['status'] === 'sedang') {
+        // Cek aktivitas jawaban terakhir siswa
+        $stmtLastAct = $db->prepare("
+            SELECT MAX(updated_at) FROM jawaban_siswa 
+            WHERE id_ujian_siswa = :us AND jawaban_terpilih IS NOT NULL AND jawaban_terpilih != ''
+        ");
+        $stmtLastAct->execute([':us' => $idUjianSiswa]);
+        $lastAct = $stmtLastAct->fetchColumn();
+
+        if ($lastAct) {
+            $actSec   = strtotime($lastAct);
+            $diffSec  = max(0, $actSec - $startSec);
+            $menit    = floor($diffSec / 60);
+            $detik    = $diffSec % 60;
+            $jamTerakhir = date('H:i', $actSec);
+            $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)";
+            $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)</span>";
+        } else {
+            $diffSec  = max(0, time() - $startSec);
+            $menit    = floor($diffSec / 60);
+            $detik    = $diffSec % 60;
+            $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB)";
+            $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB)</span>";
+        }
+    }
+}
+
+// =============================================================================
+// 5. TANGANI EKSPOR DOKUMEN WORD (.DOC)
+// =============================================================================
 if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_dokumen', 'export_jawaban'], true)) {
     if (ob_get_level() > 0) {
         ob_end_clean();
@@ -293,7 +360,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
 <![endif]-->
 <style>
   @page Section1 {
-    size: 21.0cm 29.7cm; /* A4 */
+    size: 21.0cm 29.7cm;
     margin: 2.0cm 2.0cm 2.0cm 2.0cm;
     mso-header-margin: 1.0cm;
     mso-footer-margin: 1.0cm;
@@ -302,131 +369,76 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
   body {
     font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
     font-size: 11pt;
-    color: #111;
-    line-height: 1.4;
+    line-height: 1.35;
+    color: #111827;
   }
   table {
     border-collapse: collapse;
     width: 100%;
-    mso-table-lspace: 0pt;
-    mso-table-rspace: 0pt;
-  }
-  .kop {
-    text-align: center;
-    margin-bottom: 6px;
-  }
-  .kop-instansi {
-    font-size: 12pt;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-  }
-  .kop-sekolah {
-    font-size: 15pt;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 3px;
-  }
-  .kop-alamat {
-    font-size: 9.5pt;
-    color: #333;
-  }
-  .kop-judul {
-    font-size: 12.5pt;
-    font-weight: bold;
-    margin-top: 8px;
-    text-decoration: underline;
-    letter-spacing: 0.5px;
-  }
-  .kop-border {
-    border-top: 1.5px solid #000;
-    border-bottom: 3.5px solid #000;
-    height: 4px;
-    margin: 6px 0 16px 0;
   }
   .tbl-info {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    font-size: 10pt;
   }
   .tbl-info td {
-    padding: 3px 6px;
-    font-size: 10.5pt;
+    padding: 3px 4px;
     vertical-align: top;
-    border: none;
   }
   .tbl-score {
-    margin: 12px 0 18px 0;
-    border: 1.5px solid #334155;
-    text-align: center;
+    margin-bottom: 18px;
+    font-size: 10pt;
+    border: 1px solid #333;
   }
   .tbl-score th {
     background-color: #f1f5f9;
-    border: 1px solid #64748b;
+    border: 1px solid #333;
     padding: 6px 8px;
-    font-size: 10pt;
+    text-align: center;
     font-weight: bold;
   }
   .tbl-score td {
-    border: 1px solid #64748b;
-    padding: 8px 10px;
+    border: 1px solid #333;
+    padding: 6px 8px;
+    text-align: center;
     font-weight: bold;
+    font-size: 12pt;
   }
   .tbl-soal {
-    border: 1.5px solid #334155;
+    border: 1px solid #333;
+    font-size: 9.5pt;
     margin-top: 10px;
   }
   .tbl-soal th {
-    background-color: #f1f5f9;
-    border: 1px solid #475569;
-    padding: 8px 6px;
-    font-size: 10pt;
-    font-weight: bold;
+    background-color: #e2e8f0;
+    border: 1px solid #333;
+    padding: 6px 6px;
     text-align: center;
+    font-weight: bold;
   }
   .tbl-soal td {
-    border: 1px solid #94a3b8;
-    padding: 8px 10px;
+    border: 1px solid #333;
+    padding: 6px 6px;
     vertical-align: top;
-    font-size: 10.5pt;
-  }
-  .opt-list {
-    margin-top: 6px;
-    padding-left: 6px;
-  }
-  .opt-row {
-    margin-top: 3px;
-    font-size: 10pt;
-    color: #222;
-  }
-  .jawaban-box {
-    font-weight: bold;
-    color: #0f172a;
-    word-break: break-word;
   }
   .essay-ans {
-    font-size: 10pt;
+    font-size: 9.5pt;
     color: #1e293b;
     white-space: pre-wrap;
-    word-break: break-word;
     background: #f8fafc;
-    padding: 6px 8px;
+    padding: 4px 6px;
     border-left: 3px solid #64748b;
   }
 </style>
 </head>
 <body>
 <div class="Section1">
-  <!-- Kop Dokumen -->
-  <div class="kop">
-    <div class="kop-instansi">DINAS PENDIDIKAN KABUPATEN BLITAR</div>
-    <div class="kop-sekolah">SD NEGERI TALUN 01</div>
-    <div class="kop-alamat">Kecamatan Talun, Kabupaten Blitar, Jawa Timur</div>
-    <div class="kop-judul">LEMBAR HASIL &amp; JAWABAN SISWA</div>
+  <div style="text-align: center; margin-bottom: 18px;">
+    <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">DINAS PENDIDIKAN KABUPATEN PONOROGO</div>
+    <div style="font-size: 15pt; font-weight: bold; text-transform: uppercase;">SD NEGERI 1 TALUN</div>
+    <div style="font-size: 9.5pt; color: #333; margin-bottom: 12px;">Jln. Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur</div>
+    <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
   </div>
-  <div class="kop-border"></div>
 
-  <!-- Identitas Siswa & Ujian -->
   <table class="tbl-info">
     <tr>
       <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
@@ -434,7 +446,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
       <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></td>
       <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
       <td style="width: 2%;">:</td>
-      <td style="width: 32%;"><?= htmlspecialchars($detailUjian['nama_ujian'], ENT_QUOTES, 'UTF-8') ?></td>
+      <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian['nama_ujian'], ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
     <tr>
       <td style="font-weight: bold;">NIS / Akun</td>
@@ -453,140 +465,80 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
       <td><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
     <tr>
-      <td style="font-weight: bold;">Waktu Ujian</td>
+      <td style="font-weight: bold;">Waktu Pengerjaan</td>
       <td>:</td>
-      <td>
-        <?= $detailUjian['waktu_mulai'] ? date('d/m/Y H:i', strtotime($detailUjian['waktu_mulai'])) : '-' ?>
-        <?= $detailUjian['waktu_selesai'] ? ' s/d ' . date('H:i', strtotime($detailUjian['waktu_selesai'])) : '' ?>
-      </td>
+      <td><?= htmlspecialchars($durasiKerjaText, ENT_QUOTES, 'UTF-8') ?></td>
       <td style="font-weight: bold;">Status Ujian</td>
       <td>:</td>
-      <td style="font-weight: bold;"><?= strtoupper($detailUjian['status'] ?? 'BELUM') ?></td>
+      <td><?= strtoupper($detailUjian['status']) ?></td>
     </tr>
   </table>
 
-  <!-- Ringkasan Nilai -->
+  <!-- Ringkasan Nilai Resmi -->
   <table class="tbl-score">
     <tr>
-      <th>Nilai Pilihan Ganda</th>
-      <?php if ($statEssai > 0): ?>
-        <th>Rata-rata Nilai Essai</th>
-      <?php endif; ?>
-      <th style="background-color: #e2e8f0;">Nilai Akhir</th>
+      <th>Total Skor Diperoleh</th>
+      <th>Skor Maksimal</th>
+      <th style="background-color: #dbeafe; color: #1e40af;">Nilai Akhir (Skala 100)</th>
+      <th>Benar / Sebagian</th>
+      <th>Salah / Kosong</th>
     </tr>
     <tr>
-      <td style="font-size: 13pt; color: #0369a1;">
-        <?= number_format($nilaiPGDisplay, 2) ?>
-        <span style="font-size: 9.5pt; font-weight: normal; color: #475569;">(Benar <?= $statBenar ?> dari <?= $totalPG ?> butir)</span>
-      </td>
-      <?php if ($statEssai > 0): ?>
-        <td style="font-size: 13pt; color: #7c3aed;">
-          <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size:10pt;color:#b45309;font-weight:normal;">Belum Dinilai</span>' ?>
-        </td>
-      <?php endif; ?>
-      <td style="font-size: 15pt; color: #0f172a; background-color: #f8fafc;">
-        <?= number_format((float)$detailUjian['nilai_akhir'], 2) ?>
-      </td>
+      <td style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?></td>
+      <td><?= number_format($totalSkorMaksimal, 2) ?></td>
+      <td style="background-color: #eff6ff; color: #1e3a8a; font-size: 14pt;"><?= number_format($calculatedNilaiAkhir, 2) ?></td>
+      <td style="color: #166534; font-size: 11pt;"><?= $statBenar ?> / <?= $statSebagian ?></td>
+      <td style="color: #dc2626; font-size: 11pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
     </tr>
   </table>
 
-  <!-- Tabel Rincian Butir Soal dan Jawaban -->
+  <!-- Tabel Rincian Butir Soal -->
   <table class="tbl-soal">
     <thead>
       <tr>
-        <th style="width: 35px;">No</th>
-        <th>Pertanyaan &amp; Pilihan Jawaban</th>
-        <th style="width: 25%;">Jawaban Siswa</th>
-        <th style="width: 10%;">Nilai</th>
+        <th style="width: 5%;">No</th>
+        <th style="width: 14%;">Bentuk Soal</th>
+        <th style="width: 41%;">Pertanyaan</th>
+        <th style="width: 25%;">Jawaban Siswa &amp; Kunci</th>
+        <th style="width: 15%;">Skor &amp; Status</th>
       </tr>
     </thead>
     <tbody>
       <?php foreach ($soalList as $s): ?>
-        <?php
-        $cleanPertanyaan = trim(strip_tags(html_entity_decode((string)$s['pertanyaan'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-        $opsiMap = [];
-        foreach ($s['opsi'] as $o) {
-            $cleanOpsi = trim(strip_tags(html_entity_decode((string)($o['text'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            $opsiMap[$o['code']] = $cleanOpsi;
-        }
-
-        $jwbSiswa = trim((string)($s['jawaban_terpilih'] ?? ''));
-
-        if ($s['jenis_soal'] === 'essai') {
-            $nilaiItem = ($s['nilai_soal'] !== null) ? (string)((float)$s['nilai_soal']) : 'Belum Dinilai';
-        } else {
-            $nilaiItem = $s['is_correct'] ? '1' : '0';
-        }
-        ?>
         <tr>
           <td style="text-align: center; font-weight: bold;"><?= $s['nomor'] ?></td>
+          <td style="text-align: center;">
+            <strong><?= htmlspecialchars($s['short_label'], ENT_QUOTES, 'UTF-8') ?></strong>
+            <div style="font-size: 8pt; color: #555;">(Max: <?= $s['bobot_max'] ?>)</div>
+          </td>
           <td>
             <div style="font-weight: 500; margin-bottom: 4px;">
-              <?= nl2br(htmlspecialchars($cleanPertanyaan, ENT_QUOTES, 'UTF-8')) ?>
+              <?= nl2br(htmlspecialchars(trim(strip_tags($s['pertanyaan'])), ENT_QUOTES, 'UTF-8')) ?>
             </div>
-            <?php if (!empty($s['gambar'])): ?>
-              <div style="margin: 6px 0;">
-                <img src="<?= htmlspecialchars($s['gambar'], ENT_QUOTES, 'UTF-8') ?>" style="max-width: 300px; max-height: 180px;">
-              </div>
-            <?php endif; ?>
-            <?php if ($s['jenis_soal'] !== 'essai'): ?>
-              <div class="opt-list">
-                <?php foreach ($s['opsi'] as $o): ?>
-                  <?php if (empty($o['text']) && $o['text'] !== '0') continue; ?>
-                  <div class="opt-row">
-                    <strong><?= $o['code'] ?>.</strong> <?= htmlspecialchars($o['text'], ENT_QUOTES, 'UTF-8') ?>
-                  </div>
-                <?php endforeach; ?>
-              </div>
-            <?php else: ?>
-              <div style="font-size: 9pt; color: #64748b; font-style: italic; margin-top: 4px;">
-                (Soal Uraian / Essai)
-              </div>
-            <?php endif; ?>
           </td>
           <td>
-            <?php if ($jwbSiswa === ''): ?>
-              <span style="color: #94a3b8; font-style: italic;">(Tidak Dijawab)</span>
-            <?php elseif ($s['jenis_soal'] === 'essai'): ?>
-              <div class="essay-ans">
-                <?= nl2br(htmlspecialchars($jwbSiswa, ENT_QUOTES, 'UTF-8')) ?>
-              </div>
-            <?php else: ?>
-              <div class="jawaban-box">
-                <strong><?= htmlspecialchars($jwbSiswa, ENT_QUOTES, 'UTF-8') ?></strong>
-                <?php
-                if (isset($opsiMap[$jwbSiswa]) && $opsiMap[$jwbSiswa] !== '') {
-                    echo '. ' . htmlspecialchars($opsiMap[$jwbSiswa], ENT_QUOTES, 'UTF-8');
-                }
-                ?>
-              </div>
-            <?php endif; ?>
+            <div style="margin-bottom: 3px;">
+              <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
+              <div class="essay-ans"><?= nl2br(htmlspecialchars((string)$s['jawaban_terpilih'], ENT_QUOTES, 'UTF-8')) ?: '<span style="color:#94a3b8;font-style:italic;">(Kosong)</span>' ?></div>
+            </div>
+            <div>
+              <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
+              <div style="font-size: 9pt; color: #166534; font-weight: bold;"><?= htmlspecialchars((string)$s['kunci_jawaban'], ENT_QUOTES, 'UTF-8') ?: '-' ?></div>
+            </div>
           </td>
-          <td style="text-align: center; font-weight: bold; color: <?= ($nilaiItem === '0') ? '#dc2626' : '#166534' ?>;">
-            <?= htmlspecialchars($nilaiItem, ENT_QUOTES, 'UTF-8') ?>
+          <td style="text-align: center;">
+            <div style="font-size: 11pt; font-weight: bold; color: <?= $s['is_correct'] ? '#166534' : ($s['is_partial'] ? '#ca8a04' : '#dc2626') ?>;">
+              <?= number_format($s['skor'], 2) ?> / <?= $s['bobot_max'] ?>
+            </div>
+            <div style="font-size: 8pt; font-weight: bold; color: #555;">
+              <?= htmlspecialchars($s['status_label'], ENT_QUOTES, 'UTF-8') ?>
+            </div>
           </td>
         </tr>
       <?php endforeach; ?>
     </tbody>
   </table>
 
-  <!-- Tanda Tangan Pengesahan -->
-  <table style="border: none; margin-top: 30px; font-size: 10.5pt; page-break-inside: avoid;">
-    <tr>
-      <td style="width: 50%; text-align: center; border: none;">
-        Mengetahui,<br>
-        Kepala SD Negeri Talun 01<br><br><br><br><br>
-        <strong><u>...................................................</u></strong><br>
-        NIP. ...........................................
-      </td>
-      <td style="width: 50%; text-align: center; border: none;">
-        Talun, <?= date('d/m/Y') ?><br>
-        Guru Penguji / Pengampu<br><br><br><br><br>
-        <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
-        NIP. ...........................................
-      </td>
-    </tr>
-  </table>
 </div>
 </body>
 </html>
@@ -594,7 +546,9 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
     exit;
 }
 
-// 6. Ekspor Lembar Jawaban Siswa ke CSV
+// =============================================================================
+// 6. TANGANI EKSPOR CSV
+// =============================================================================
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     if (ob_get_level() > 0) {
         ob_end_clean();
@@ -602,8 +556,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 
     $rawNamaSiswa = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_siswa']);
     $rawNis       = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($detailUjian['nis'] ?: $detailUjian['username']));
-    $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
-    $filename     = "jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}.csv";
+    $filename     = "koreksi_{$rawNis}_{$rawNamaSiswa}.csv";
 
     header('Content-Description: File Transfer');
     header('Content-Type: text/csv; charset=utf-8');
@@ -613,63 +566,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     header('Pragma: public');
 
     $out = fopen('php://output', 'w');
-    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
-    fwrite($out, "sep=,\n");
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+    fwrite($out, "sep=,
+");
 
-    // 1. Blok Identitas Siswa & Informasi Ujian
-    fputcsv($out, ['LEMBAR JAWABAN SISWA']);
-    fputcsv($out, ['Nama Siswa', $detailUjian['nama_siswa']]);
-    fputcsv($out, ['NIS / Akun', $detailUjian['nis'] ?: $detailUjian['username']]);
-    fputcsv($out, ['Kelas', $detailUjian['nama_kelas']]);
-    fputcsv($out, ['Nama Ujian', $detailUjian['nama_ujian']]);
-    fputcsv($out, ['Mata Pelajaran', $detailUjian['nama_mapel']]);
-    fputcsv($out, ['Guru Penguji', $detailUjian['nama_guru'] ?: '-']);
-    fputcsv($out, ['Waktu Mulai', $detailUjian['waktu_mulai'] ? date('d/m/Y H:i:s', strtotime($detailUjian['waktu_mulai'])) : '-']);
-    fputcsv($out, ['Waktu Selesai', $detailUjian['waktu_selesai'] ? date('d/m/Y H:i:s', strtotime($detailUjian['waktu_selesai'])) : '-']);
-    fputcsv($out, ['Status Ujian', strtoupper($detailUjian['status'] ?? 'BELUM')]);
-    fputcsv($out, ['Nilai PG', number_format($nilaiPGDisplay, 2) . " (Benar {$statBenar} dari {$totalPG} butir)"]);
-    if ($statEssai > 0) {
-        fputcsv($out, ['Nilai Essai', $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : 'Belum Dinilai']);
-    }
-    fputcsv($out, ['Nilai Akhir', number_format((float)$detailUjian['nilai_akhir'], 2)]);
-    fputcsv($out, []); // Baris kosong pemisah
+    fputcsv($out, ['nomor', 'bentuk_soal', 'pertanyaan', 'kunci_jawaban', 'jawaban_siswa', 'skor_diperoleh', 'skor_maksimal', 'status']);
 
-    // 2. Baris Header Tabel Butir Soal (Tanpa kolom Tipe Soal dan Tanpa Kunci Jawaban)
-    fputcsv($out, ['No', 'Pertanyaan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'Pilihan E', 'Jawaban Siswa', 'Nilai Butir']);
-
-    // 3. Baris Data Butir Soal
     foreach ($soalList as $s) {
-        $cleanPertanyaan = trim(strip_tags(html_entity_decode((string)$s['pertanyaan'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-
-        $opsiMap = [];
-        foreach ($s['opsi'] as $o) {
-            $cleanOpsi = trim(strip_tags(html_entity_decode((string)($o['text'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            $opsiMap[$o['code']] = $cleanOpsi;
-        }
-
-        $jwbSiswa = trim((string)($s['jawaban_terpilih'] ?? ''));
-        if ($jwbSiswa === '') {
-            $jwbDisplay = '(Tidak Dijawab)';
-        } else {
-            $jwbDisplay = $jwbSiswa;
-        }
-
-        if ($s['jenis_soal'] === 'essai') {
-            $nilaiItem = ($s['nilai_soal'] !== null) ? (string)((float)$s['nilai_soal']) : 'Belum Dinilai';
-        } else {
-            $nilaiItem = $s['is_correct'] ? '1' : '0';
-        }
-
         fputcsv($out, [
             $s['nomor'],
-            $cleanPertanyaan,
-            $opsiMap['A'] ?? '',
-            $opsiMap['B'] ?? '',
-            $opsiMap['C'] ?? '',
-            $opsiMap['D'] ?? '',
-            $opsiMap['E'] ?? '',
-            $jwbDisplay,
-            $nilaiItem
+            $s['short_label'],
+            trim(strip_tags((string)$s['pertanyaan'])),
+            (string)$s['kunci_jawaban'],
+            (string)$s['jawaban_terpilih'],
+            $s['skor'],
+            $s['bobot_max'],
+            $s['status_label']
         ]);
     }
 
@@ -766,77 +678,62 @@ $extraCss = '
     .opt-list {
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
-        margin-bottom: 0.75rem;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
     }
     .opt-item {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
+        padding: 0.45rem 0.75rem;
         border: 1px solid #e2e8f0;
         border-radius: 4px;
         font-size: 0.9rem;
         background: #fff;
     }
     .opt-item.is-correct-choice {
-        background: #f0fdf4;
+        background: #dcfce7;
         border-color: #86efac;
         color: #166534;
         font-weight: 600;
     }
     .opt-item.is-wrong-choice {
-        background: #fef2f2;
+        background: #fee2e2;
         border-color: #fca5a5;
         color: #991b1b;
+        font-weight: 600;
     }
     .opt-item.is-key-target {
         background: #f0fdf4;
-        border: 1px dashed #22c55e;
-        color: #166534;
+        border-color: #bbf7d0;
+        color: #15803d;
+        font-style: italic;
     }
     .badge-status {
-        display: inline-block;
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
+        padding: 0.25rem 0.6rem;
+        border-radius: 9999px;
         font-size: 0.75rem;
-        font-weight: 600;
+        font-weight: 700;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
     }
-    .badge-status.benar { background: #dcfce7; color: #166534; }
-    .badge-status.salah { background: #fee2e2; color: #991b1b; }
-    .badge-status.kosong { background: #f1f5f9; color: #64748b; }
-    .badge-status.essai { background: #f3e8ff; color: #6b21a8; }
-    .essay-box {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        padding: 0.75rem 1rem;
-        margin-top: 0.5rem;
+    .badge-status.benar {
+        background: #dcfce7;
+        color: #166534;
     }
-    @media print {
-        header, nav, .navbar, .no-print, .alert, .btn, form button[type="submit"] {
-            display: none !important;
-        }
-        body {
-            background: #fff !important;
-            color: #000 !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        main.container {
-            max-width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        .info-panel, .scores-panel, .item-card {
-            border: 1px solid #cbd5e1 !important;
-            box-shadow: none !important;
-            break-inside: avoid;
-            page-break-inside: avoid;
-        }
-        .page-header {
-            margin-bottom: 1rem !important;
-        }
+    .badge-status.sebagian {
+        background: #fef9c3;
+        color: #854d0e;
+    }
+    .badge-status.salah {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .badge-status.kosong {
+        background: #f1f5f9;
+        color: #475569;
     }
 </style>
 ';
@@ -844,35 +741,35 @@ $extraCss = '
 include __DIR__ . '/../layouts/header.php';
 ?>
 
-<main class="container" style="max-width: 1100px;">
-    <?php if ($flash): ?>
-        <div class="alert alert-<?= sanitize($flash['type']) ?> no-print">
-            <?= sanitize($flash['message']) ?>
-        </div>
-    <?php endif; ?>
-
+<main class="container">
     <div class="page-header">
         <div>
-            <h1 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 0.25rem 0; color: #0f172a;">
-                Lembar Jawaban Siswa
-            </h1>
-            <span style="font-size: 0.85rem; color: #64748b;">
-                Pemeriksaan detail jawaban dan penilaian ujian
-            </span>
+            <h1 class="card-title">Koreksi &amp; Lembar Jawaban Siswa</h1>
+            <p style="color: var(--gray-500); font-size: 0.85rem; margin-top: 0.25rem;">
+                Evaluasi jawaban siswa berdasarkan 7 bentuk soal &amp; rubrik resmi SDN Talun.
+            </p>
         </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" class="no-print">
-            <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke Dokumen Word (.doc)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                <span>Ekspor Dokumen (Word)</span>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa (.doc)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                <span>Unduh Word (.doc)</span>
             </a>
-            <a href="<?= base_url('guru?page=detail_jawaban&action=export_csv&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa ke File CSV">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                <span>Ekspor CSV</span>
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_csv&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor CSV">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>CSV</span>
             </a>
-            <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Cetak Lembar Jawaban atau Simpan sebagai PDF">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                <span>Cetak / PDF</span>
-            </button>
+            <?php if ($detailUjian['status'] === 'sedang'): ?>
+                <form action="<?= base_url('guru?page=detail_jawaban') ?>" method="POST" style="display: inline;" onsubmit="return confirm('Apakah Anda yakin ingin menyelesaikan ujian siswa ini sekarang?');">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="selesaikan_ujian_siswa">
+                    <input type="hidden" name="id_ujian_siswa" value="<?= $idUjianSiswa ?>">
+                    <input type="hidden" name="id_sesi" value="<?= (int)$detailUjian['id_sesi'] ?>">
+                    <button type="submit" class="btn btn-warning btn-sm font-bold" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Tandai Selesai</span>
+                    </button>
+                </form>
+            <?php endif; ?>
             <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
                 Kembali
             </a>
@@ -894,6 +791,16 @@ include __DIR__ . '/../layouts/header.php';
                 <span class="info-label">Kelas</span>
                 <span class="info-val"><?= sanitize($detailUjian['nama_kelas']) ?></span>
             </div>
+            <div class="info-row">
+                <span class="info-label">Status Ujian</span>
+                <span class="info-val">
+                    <?php if ($detailUjian['status'] === 'selesai'): ?>
+                        <span class="badge badge-online">SELESAI</span>
+                    <?php else: ?>
+                        <span class="badge badge-aktif">SEDANG MENGERJAKAN</span>
+                    <?php endif; ?>
+                </span>
+            </div>
         </div>
         <div>
             <div class="info-row">
@@ -905,40 +812,33 @@ include __DIR__ . '/../layouts/header.php';
                 <span class="info-val"><?= sanitize($detailUjian['nama_mapel']) ?></span>
             </div>
             <div class="info-row">
-                <span class="info-label">Waktu</span>
-                <span class="info-val">
-                    <?= $detailUjian['waktu_mulai'] ? date('d/m/Y H:i', strtotime($detailUjian['waktu_mulai'])) : '-' ?> 
-                    <?= $detailUjian['waktu_selesai'] ? 's/d ' . date('H:i', strtotime($detailUjian['waktu_selesai'])) : '' ?>
-                </span>
+                <span class="info-label">Waktu Pengerjaan</span>
+                <span class="info-val"><?= $durasiKerjaMenit ?></span>
             </div>
         </div>
     </div>
 
-    <!-- Ringkasan Nilai -->
+    <!-- Ringkasan Nilai Akurat -->
     <div class="scores-panel">
-        <div class="score-card">
-            <div class="title">Nilai Akhir</div>
-            <div class="number" style="color: #0f172a;"><?= number_format((float)$detailUjian['nilai_akhir'], 2) ?></div>
+        <div class="score-card" style="border-left: 4px solid #2563eb;">
+            <div class="title">Nilai Akhir (Skala 100)</div>
+            <div class="number" style="color: #1d4ed8; font-size: 1.6rem;"><?= number_format((float)$detailUjian['nilai_akhir'], 2) ?></div>
         </div>
         <div class="score-card">
-            <div class="title">Nilai PG (<?= $statBenar ?>/<?= $totalPG ?>)</div>
-            <div class="number" style="color: #0284c7;"><?= number_format($nilaiPGDisplay, 2) ?></div>
-        </div>
-        <?php if ($statEssai > 0): ?>
-            <div class="score-card">
-                <div class="title">Rata-rata Essai</div>
-                <div class="number" style="color: #7c3aed;">
-                    <?= $nilaiEssaiDisplay !== null ? number_format($nilaiEssaiDisplay, 2) : '<span style="font-size:0.9rem;color:#b45309;">Belum Diisi</span>' ?>
-                </div>
-            </div>
-        <?php endif; ?>
-        <div class="score-card">
-            <div class="title">Salah PG</div>
-            <div class="number" style="color: #dc2626;"><?= $statSalah ?></div>
+            <div class="title">Akumulasi Skor Butir</div>
+            <div class="number" style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?> <span style="font-size:0.9rem; color:#64748b;">/ <?= number_format($totalSkorMaksimal, 2) ?></span></div>
         </div>
         <div class="score-card">
-            <div class="title">Kosong</div>
-            <div class="number" style="color: #64748b;"><?= $statKosong ?></div>
+            <div class="title">Benar Sempurna</div>
+            <div class="number" style="color: #16a34a;"><?= $statBenar ?></div>
+        </div>
+        <div class="score-card">
+            <div class="title">Sebagian Benar</div>
+            <div class="number" style="color: #ca8a04;"><?= $statSebagian ?></div>
+        </div>
+        <div class="score-card">
+            <div class="title">Salah / Kosong</div>
+            <div class="number" style="color: #dc2626;"><?= $statSalah + $statKosong ?></div>
         </div>
     </div>
 
@@ -957,32 +857,32 @@ include __DIR__ . '/../layouts/header.php';
             <?php foreach ($soalList as $s): ?>
                 <div class="item-card">
                     <div class="item-head">
-                        <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                             <strong>Soal No. <?= $s['nomor'] ?></strong>
-                            <?php 
-                            $isKompleks = ($s['jenis_soal'] !== 'essai') && (count(array_filter(explode(',', $s['kunci_jawaban'] ?? ''))) > 1);
-                            $labelTipe  = ($s['jenis_soal'] === 'essai') ? 'Essai / Uraian' : ($isKompleks ? 'Pilihan Ganda Kompleks' : 'Pilihan Ganda');
-                            ?>
-                            <span style="color: <?= $isKompleks ? '#4338ca' : '#64748b' ?>; font-size: 0.8rem; margin-left: 0.35rem; font-weight: <?= $isKompleks ? '700' : 'normal' ?>;">
-                                (<?= $labelTipe ?>)
+                            <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; font-size:0.75rem; padding:0.2rem 0.55rem; border-radius:999px;">
+                                <?= sanitize($s['short_label']) ?>: <?= sanitize($s['nama_jenis']) ?>
+                            </span>
+                            <span style="font-size:0.8rem; color:#64748b; font-weight:600;">
+                                (Bobot: <?= $s['bobot_max'] ?> Poin)
                             </span>
                         </div>
                         <div>
-                            <?php if ($s['jenis_soal'] === 'essai'): ?>
+                            <?php if ($s['jenis_soal'] === 'uraian'): ?>
                                 <?php if ($s['nilai_soal'] !== null): ?>
-                                    <span class="badge-status benar">Nilai: <?= (float)$s['nilai_soal'] ?></span>
+                                    <span class="badge-status benar">Skor: <?= number_format((float)$s['nilai_soal'], 2) ?> / <?= $s['bobot_max'] ?></span>
+                                <?php elseif ($s['jawaban_terpilih'] === ''): ?>
+                                    <span class="badge-status kosong">Kosong (0)</span>
                                 <?php else: ?>
-                                    <span class="badge-status" style="background:#fef3c7;color:#92400e;">Belum Dinilai</span>
+                                    <span class="badge-status sebagian" style="background:#fef3c7; color:#92400e;">Menunggu Koreksi</span>
                                 <?php endif; ?>
-                                <?php if (empty($s['jawaban_terpilih'])): ?>
-                                    <span class="badge-status kosong" style="margin-left:0.25rem;">Tidak Diisi</span>
-                                <?php endif; ?>
-                            <?php elseif ($s['status_item'] === 'benar'): ?>
-                                <span class="badge-status benar">Benar (+1)</span>
-                            <?php elseif ($s['status_item'] === 'salah'): ?>
-                                <span class="badge-status salah">Salah (0)</span>
+                            <?php elseif ($s['is_correct']): ?>
+                                <span class="badge-status benar">Benar (<?= number_format($s['skor'], 2) ?> / <?= $s['bobot_max'] ?>)</span>
+                            <?php elseif ($s['is_partial']): ?>
+                                <span class="badge-status sebagian">Sebagian Benar (<?= number_format($s['skor'], 2) ?> / <?= $s['bobot_max'] ?>)</span>
+                            <?php elseif (empty($s['jawaban_terpilih'])): ?>
+                                <span class="badge-status kosong">Kosong (0 / <?= $s['bobot_max'] ?>)</span>
                             <?php else: ?>
-                                <span class="badge-status kosong">Kosong (0)</span>
+                                <span class="badge-status salah">Salah (0 / <?= $s['bobot_max'] ?>)</span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -997,41 +897,10 @@ include __DIR__ . '/../layouts/header.php';
                         </div>
                     <?php endif; ?>
 
-                    <?php if ($s['jenis_soal'] !== 'essai'): ?>
-                        <div class="opt-list">
-                            <?php 
-                            $jwbArr   = array_filter(array_map('trim', explode(',', $s['jawaban_terpilih'] ?? '')));
-                            $kunciArr = array_filter(array_map('trim', explode(',', $s['kunci_jawaban'] ?? '')));
-                            ?>
-                            <?php foreach ($s['opsi'] as $opt): ?>
-                                <?php
-                                    if (empty($opt['text']) && $opt['text'] !== '0') continue;
+                    <!-- TAMPILAN JAWABAN SESUAI BENTUK SOAL -->
 
-                                    $isChoice = in_array($opt['code'], $jwbArr, true);
-                                    $isKey    = in_array($opt['code'], $kunciArr, true);
-
-                                    $cls = '';
-                                    $tag = '';
-
-                                    if ($isChoice && $isKey) {
-                                        $cls = 'is-correct-choice';
-                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa & Kunci Benar]</span>';
-                                    } elseif ($isChoice && !$isKey) {
-                                        $cls = 'is-wrong-choice';
-                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa]</span>';
-                                    } elseif (!$isChoice && $isKey) {
-                                        $cls = 'is-key-target';
-                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Kunci Benar]</span>';
-                                    }
-                                ?>
-                                <div class="opt-item <?= $cls ?>">
-                                    <span style="font-weight:700;"><?= $opt['code'] ?>.</span>
-                                    <span><?= sanitize($opt['text']) ?></span>
-                                    <?= $tag ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
+                    <!-- 1. URAIAN / ESSAI -->
+                    <?php if ($s['jenis_soal'] === 'uraian'): ?>
                         <div class="essay-box">
                             <div style="margin-bottom: 0.85rem;">
                                 <div style="font-size:0.82rem;color:#475569;font-weight:700;margin-bottom:0.35rem;display:flex;align-items:center;gap:0.4rem;">
@@ -1056,36 +925,172 @@ include __DIR__ . '/../layouts/header.php';
                                 </div>
                             <?php endif; ?>
 
-                            <div style="display:flex;align-items:center;gap:0.6rem;background:#ede9fe;border:1px solid #ddd6fe;border-radius:6px;padding:0.6rem 0.85rem;flex-wrap:wrap;">
-                                <label for="nilai_<?= $s['id_soal'] ?>" style="font-size:0.85rem;font-weight:700;color:#5b21b6;margin:0;">
-                                    Beri Nilai Manual:
-                                </label>
-                                <input type="number" name="nilai_soal[<?= $s['id_soal'] ?>]" id="nilai_<?= $s['id_soal'] ?>" class="form-control" min="0" max="100" step="0.5" placeholder="0-100" value="<?= $s['nilai_soal'] !== null ? (float)$s['nilai_soal'] : '' ?>" style="width:90px;text-align:center;padding:0.35rem 0.5rem;font-weight:700;background:#fff;">
-                                <span style="font-size:0.85rem;color:#6d28d9;font-weight:600;">/ 100</span>
-                                <span style="font-size:0.75rem;color:#7c3aed;margin-left:auto;">(Skala 0 - 100)</span>
+                            <div style="background:#ede9fe;border:1px solid #ddd6fe;border-radius:6px;padding:0.75rem 1rem;">
+                                <div style="font-size:0.85rem;font-weight:700;color:#5b21b6;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;">
+                                    <span>Penilaian Nilai Guru (Skala 0 s/d <?= $s['bobot_max'] ?>):</span>
+                                </div>
+                                <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                                    <input type="number" step="0.1" min="0" max="<?= $s['bobot_max'] ?>" name="nilai_soal[<?= $s['id_soal'] ?>]" value="<?= $s['nilai_soal'] !== null ? $s['nilai_soal'] : '' ?>" class="form-control" style="width: 110px; font-size:1.1rem; font-weight:800;" placeholder="0 - <?= $s['bobot_max'] ?>">
+                                    <span style="font-weight:700; color:#5b21b6;">/ <?= $s['bobot_max'] ?> Poin</span>
+                                    <div style="display:flex; gap:0.35rem;">
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="this.parentElement.previousElementSibling.previousElementSibling.value = 0;">0</button>
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="this.parentElement.previousElementSibling.previousElementSibling.value = <?= round($s['bobot_max'] * 0.5, 1) ?>;">50%</button>
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="this.parentElement.previousElementSibling.previousElementSibling.value = <?= $s['bobot_max'] ?>;">Penuh (<?= $s['bobot_max'] ?>)</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+
+                    <!-- 2. ISIAN / JAWABAN SINGKAT (IJS) -->
+                    <?php elseif ($s['jenis_soal'] === 'ijs'): ?>
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.75rem 1rem; margin-top:0.5rem;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-size:0.85rem;">
+                                <span><strong>Jawaban Siswa:</strong> <span style="font-size:1rem; font-weight:700; color:<?= $s['is_correct'] ? '#166534' : '#991b1b' ?>;"><?= sanitize($s['jawaban_terpilih']) ?: '<em style="color:#94a3b8;">(Kosong)</em>' ?></span></span>
+                                <span><strong>Kunci Jawaban:</strong> <code style="background:#e0f2fe; color:#0369a1; padding:0.2rem 0.5rem; border-radius:4px; font-weight:700;"><?= sanitize($s['kunci_jawaban']) ?></code></span>
+                            </div>
+                            <div style="font-size:0.82rem; color:#64748b;">
+                                <?= sanitize($s['keterangan']) ?>
+                            </div>
+                        </div>
+
+                    <!-- 3. BENAR / SALAH 1 PERNYATAAN (PGK-BS-1) -->
+                    <?php elseif ($s['jenis_soal'] === 'pgk_bs_1'): ?>
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.75rem 1rem; margin-top:0.5rem;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-size:0.85rem;">
+                                <span><strong>Pilihan Siswa:</strong> <strong style="color:<?= $s['is_correct'] ? '#166534' : '#991b1b' ?>;"><?= sanitize($s['jawaban_terpilih']) ?: '(Kosong)' ?></strong></span>
+                                <span><strong>Kunci Benar:</strong> <strong style="color:#166534;"><?= sanitize($s['kunci_jawaban']) ?></strong></span>
+                            </div>
+                            <div style="font-size:0.82rem; color:#64748b;">
+                                <?= sanitize($s['keterangan']) ?>
+                            </div>
+                        </div>
+
+                    <!-- 4. BENAR / SALAH > 1 PERNYATAAN (PGK-BS-L1) -->
+                    <?php elseif ($s['jenis_soal'] === 'pgk_bs_l1'): ?>
+                        <div style="margin-top:0.5rem;">
+                            <table class="cbt-table-bs">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px; text-align:center;">No</th>
+                                        <th>Pernyataan</th>
+                                        <th style="width: 130px; text-align:center;">Jawaban Siswa</th>
+                                        <th style="width: 110px; text-align:center;">Kunci Benar</th>
+                                        <th style="width: 90px; text-align:center;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (!empty($s['eval']['detail']['rows'])): ?>
+                                        <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
+                                            <tr>
+                                                <td style="text-align:center; font-weight:700; color:#64748b;"><?= $r['index'] ?></td>
+                                                <td><?= sanitize($r['pernyataan']) ?></td>
+                                                <td style="text-align:center; font-weight:700; color:<?= $r['is_correct'] ? '#166534' : '#991b1b' ?>;">
+                                                    <?= $r['siswa'] ? ($r['siswa'] === 'B' ? 'BENAR' : 'SALAH') : '<em style="color:#94a3b8;">(Kosong)</em>' ?>
+                                                </td>
+                                                <td style="text-align:center; font-weight:700; color:#166534;">
+                                                    <?= $r['kunci'] === 'B' ? 'BENAR' : 'SALAH' ?>
+                                                </td>
+                                                <td style="text-align:center;">
+                                                    <?= $r['is_correct'] ? '<span class="badge-status benar">✔ Tepat</span>' : '<span class="badge-status salah">✖ Salah</span>' ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.4rem;">
+                                <?= sanitize($s['keterangan']) ?>
+                            </div>
+                        </div>
+
+                    <!-- 5. MENJODOHKAN (MJDK) -->
+                    <?php elseif ($s['jenis_soal'] === 'mjdk'): ?>
+                        <div style="margin-top:0.5rem;">
+                            <table class="cbt-table-mjdk">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px; text-align:center;">No</th>
+                                        <th style="width: 45%;">Pokok Soal / Premis</th>
+                                        <th style="width: 25%;">Pasangan Siswa</th>
+                                        <th style="width: 20%;">Kunci Tepat</th>
+                                        <th style="width: 10%; text-align:center;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (!empty($s['eval']['detail']['rows'])): ?>
+                                        <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
+                                            <tr>
+                                                <td style="text-align:center; font-weight:700; color:#64748b;"><?= $r['index'] ?></td>
+                                                <td style="font-weight:600;"><?= sanitize($r['premis']) ?></td>
+                                                <td style="font-weight:700; color:<?= $r['is_correct'] ? '#166534' : '#991b1b' ?>;">
+                                                    <?= sanitize($r['siswa']) ?: '<em style="color:#94a3b8;">(Kosong)</em>' ?>
+                                                </td>
+                                                <td style="font-weight:700; color:#166534;"><?= sanitize($r['kunci']) ?></td>
+                                                <td style="text-align:center;">
+                                                    <?= $r['is_correct'] ? '<span class="badge-status benar">✔ Tepat</span>' : '<span class="badge-status salah">✖ Salah</span>' ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.4rem;">
+                                <?= sanitize($s['keterangan']) ?>
+                            </div>
+                        </div>
+
+                    <!-- 6. PILIHAN GANDA (PG-1) ATAU KOMPLEKS (PGK-L1) -->
+                    <?php else: ?>
+                        <div class="opt-list">
+                            <?php 
+                            $jwbArr   = array_filter(array_map('trim', explode(',', $s['jawaban_terpilih'] ?? '')));
+                            $kunciArr = array_filter(array_map('trim', explode(',', $s['kunci_jawaban'] ?? '')));
+                            ?>
+                            <?php foreach ($s['opsi'] as $opt): ?>
+                                <?php
+                                    if (empty($opt['text']) && $opt['text'] !== '0') continue;
+
+                                    $isChoice = in_array($opt['code'], $jwbArr, true);
+                                    $isKey    = in_array($opt['code'], $kunciArr, true);
+
+                                    $cls = '';
+                                    $tag = '';
+
+                                    if ($isChoice && $isKey) {
+                                        $cls = 'is-correct-choice';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa &amp; Kunci Benar]</span>';
+                                    } elseif ($isChoice && !$isKey) {
+                                        $cls = 'is-wrong-choice';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Jawaban Siswa - Salah]</span>';
+                                    } elseif (!$isChoice && $isKey) {
+                                        $cls = 'is-key-target';
+                                        $tag = '<span style="margin-left:auto;font-size:0.75rem;">[Kunci Benar]</span>';
+                                    }
+                                ?>
+                                <div class="opt-item <?= $cls ?>">
+                                    <span style="font-weight:700;"><?= $opt['code'] ?>.</span>
+                                    <span><?= sanitize($opt['text']) ?></span>
+                                    <?= $tag ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php if (!empty($s['keterangan'])): ?>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.5rem;">
+                                ℹ <?= sanitize($s['keterangan']) ?>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
+
                 </div>
             <?php endforeach; ?>
-        <?php endif; ?>
 
-        <?php if ($statEssai > 0): ?>
-            <div class="no-print" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
-                <span style="font-size:0.85rem;color:#64748b;">Klik simpan setelah mengisi nilai seluruh butir soal essai.</span>
-                <button type="submit" class="btn btn-primary" style="font-weight:600;">
-                    Simpan Nilai Essai
+            <div style="text-align: right; margin-top: 1.5rem; margin-bottom: 2rem;">
+                <button type="submit" class="btn btn-primary" style="padding: 0.65rem 2rem; font-size: 1rem; font-weight: 700;">
+                    Simpan Seluruh Nilai Ujian
                 </button>
             </div>
         <?php endif; ?>
     </form>
-
-    <div class="no-print" style="margin: 1.5rem 0 3rem 0;">
-        <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . (int)$detailUjian['id_sesi']) ?>" class="btn btn-outline btn-sm">
-            Kembali ke Rekap Nilai
-        </a>
-    </div>
 </main>
 
-<?php
-include __DIR__ . '/../layouts/footer.php';
+<?php include __DIR__ . '/../layouts/footer.php'; ?>

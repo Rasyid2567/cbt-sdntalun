@@ -10,13 +10,36 @@ $db = get_db();
 $idSiswa = $currentUser['id_user'];
 $idKelas = $currentUser['id_kelas'];
 
+// Auto-finalize ujian siswa jika durasi sesi atau waktu ujian sudah habis
+$db->prepare("
+    UPDATE ujian_siswa us
+    SET status = 'selesai',
+        waktu_selesai = COALESCE(
+            us.waktu_selesai,
+            (SELECT MAX(js.updated_at) FROM jawaban_siswa js WHERE js.id_ujian_siswa = us.id_ujian_siswa AND js.jawaban_terpilih IS NOT NULL AND js.jawaban_terpilih != ''),
+            us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute'),
+            CURRENT_TIMESTAMP
+        ),
+        sisa_detik = 0
+    FROM sesi_ujian s
+    WHERE us.id_sesi = s.id_sesi
+      AND us.id_siswa = :s
+      AND us.status = 'sedang'
+      AND (
+          s.status != 'aktif'
+          OR (s.created_at + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
+          OR (us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
+      )
+")->execute([':s' => $idSiswa]);
+
 // 1. Cek apakah ada ujian yang sedang berlangsung (status = 'sedang')
 $stmtAktif = $db->prepare("
     SELECT us.*, s.nama_ujian, m.nama_mapel 
     FROM ujian_siswa us
     JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
     JOIN mapel m ON s.id_mapel = m.id_mapel
-    WHERE us.id_siswa = :s AND us.status = 'sedang'
+    WHERE us.id_siswa = :s AND us.status = 'sedang' AND s.status = 'aktif'
+    ORDER BY us.id_ujian_siswa DESC
     LIMIT 1
 ");
 $stmtAktif->execute([':s' => $idSiswa]);
@@ -90,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(base_url('siswa?page=hasil&id_ujian_siswa=' . $existingUs['id_ujian_siswa']));
         } elseif ($existingUs['status'] === 'sedang') {
             // Lanjutkan pengerjaan
-            redirect(base_url('siswa?page=ruang_ujian'));
+            redirect(base_url('siswa?page=ruang_ujian&id=' . (int)$newUjianSiswaId));
         }
     }
 
@@ -122,7 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         INSERT INTO ujian_siswa (id_sesi, id_siswa, urutan_soal, waktu_mulai, sisa_detik, status)
         VALUES (:sesi, :siswa, :urutan, CURRENT_TIMESTAMP, :sisa, 'sedang')
         ON CONFLICT (id_sesi, id_siswa) DO UPDATE 
-        SET status = 'sedang', waktu_mulai = COALESCE(ujian_siswa.waktu_mulai, CURRENT_TIMESTAMP)
+        SET status = 'sedang', 
+            urutan_soal = CASE WHEN ujian_siswa.urutan_soal IS NULL OR ujian_siswa.urutan_soal = '[]'::jsonb THEN EXCLUDED.urutan_soal ELSE ujian_siswa.urutan_soal END,
+            waktu_mulai = COALESCE(ujian_siswa.waktu_mulai, CURRENT_TIMESTAMP)
         RETURNING id_ujian_siswa
     ");
     $insUs->execute([
@@ -143,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtInsJwb->execute([':us' => $newUjianSiswaId, ':soal' => $sid]);
     }
 
-    redirect(base_url('siswa?page=ruang_ujian'));
+    redirect(base_url('siswa?page=ruang_ujian&id=' . (int)$newUjianSiswaId));
 }
 
 $flash = flash_get();
@@ -191,7 +216,7 @@ $flash = flash_get();
                     </p>
                 </div>
                 <div>
-                    <a href="<?= base_url('siswa?page=ruang_ujian') ?>" class="btn btn-primary btn-lg" style="min-height: 48px;">Lanjutkan Ujian Sekarang</a>
+                    <a href="<?= base_url('siswa?page=ruang_ujian&id=' . (int)$ujianBerjalan['id_ujian_siswa']) ?>" class="btn btn-primary btn-lg" style="min-height: 48px;">Lanjutkan Ujian Sekarang</a>
                 </div>
             </div>
         </div>
@@ -264,7 +289,7 @@ $flash = flash_get();
                                 <a href="<?= base_url('siswa?page=hasil&id_ujian_siswa=' . $s['id_ujian_siswa']) ?>" class="btn btn-sm btn-outline">Bukti Selesai</a>
                             <?php elseif ($s['status_ujian_siswa'] === 'sedang'): ?>
                                 <span class="text-primary" style="font-weight: 700; font-size: 0.88rem;">Sedang Dikerjakan</span>
-                                <a href="<?= base_url('siswa?page=ruang_ujian') ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
+                                <a href="<?= base_url('siswa?page=ruang_ujian&id=' . (int)$s['id_ujian_siswa']) ?>" class="btn btn-sm btn-primary">Lanjutkan Ujian</a>
                             <?php elseif ($s['sisa_detik_sesi'] <= 0): ?>
                                 <span class="text-danger" style="font-size: 0.85rem; font-weight: 700;">Waktu Sesi Berakhir</span>
                                 <button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.6; cursor: not-allowed;">
