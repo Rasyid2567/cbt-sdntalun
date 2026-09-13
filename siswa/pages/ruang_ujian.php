@@ -85,7 +85,7 @@ if (empty($urutanIds)) {
 $placeholders = implode(',', array_fill(0, count($urutanIds), '?'));
 
 $stmtSoal = $db->prepare("
-    SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban,
+    SELECT b.id_soal, b.jenis_soal, b.pertanyaan, b.gambar, b.opsi_a, b.opsi_b, b.opsi_c, b.opsi_d, b.opsi_e, b.kunci_jawaban, b.konten_soal,
            COALESCE(j.jawaban_terpilih, '') as jawaban_terpilih,
            COALESCE(j.status_ragu, false) as status_ragu
     FROM bank_soal b
@@ -109,20 +109,28 @@ foreach ($urutanIds as $index => $sid) {
     if (!isset($soalMap[$sid])) continue;
     $item = $soalMap[$sid];
 
-    // Deteksi jika soal merupakan Pilihan Ganda Kompleks (kunci jawaban > 1 opsi atau jenis_soal)
-    $isEssai    = ($item['jenis_soal'] ?? 'pilihan_ganda') === 'essai';
-    $kunciArr   = array_filter(array_map('trim', explode(',', $item['kunci_jawaban'] ?? '')));
-    $isKompleks = !$isEssai && ((count($kunciArr) > 1) || (($item['jenis_soal'] ?? '') === 'pilihan_ganda_kompleks'));
+    // Deteksi jika soal merupakan Essai / Uraian atau Pilihan Ganda Kompleks
+    $rawJenisSoal = $item['jenis_soal'] ?? 'pilihan_ganda';
+    $isEssai      = in_array($rawJenisSoal, ['essai', 'uraian'], true);
+    $kunciArr     = array_filter(array_map('trim', explode(',', $item['kunci_jawaban'] ?? '')));
+    $isKompleks   = !$isEssai && ((count($kunciArr) > 1) || in_array($rawJenisSoal, ['pilihan_ganda_kompleks', 'pgk_l1'], true));
 
     // Persiapkan Opsi jika pilihan ganda
     $opsiArray = [
         ['code' => 'A', 'text' => $item['opsi_a']],
         ['code' => 'B', 'text' => $item['opsi_b']],
         ['code' => 'C', 'text' => $item['opsi_c']],
-        ['code' => 'D', 'text' => $item['opsi_d']],
     ];
+    if (!empty($item['opsi_d'])) {
+        $opsiArray[] = ['code' => 'D', 'text' => $item['opsi_d']];
+    }
     if (!empty($item['opsi_e'])) {
         $opsiArray[] = ['code' => 'E', 'text' => $item['opsi_e']];
+    }
+
+    $kontenDecoded = null;
+    if (!empty($item['konten_soal'])) {
+        $kontenDecoded = is_array($item['konten_soal']) ? $item['konten_soal'] : json_decode((string)$item['konten_soal'], true);
     }
 
     $soalClean[] = [
@@ -133,6 +141,7 @@ foreach ($urutanIds as $index => $sid) {
         'pertanyaan'       => $item['pertanyaan'],
         'gambar'           => !empty($item['gambar']) ? base_url(ltrim($item['gambar'], '/')) : null,
         'opsi'             => $opsiArray,
+        'konten_soal'      => $kontenDecoded,
         'jawaban_terpilih' => $item['jawaban_terpilih'],
         'status_ragu'      => (bool)$item['status_ragu']
     ];
@@ -314,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveUrl: '<?= base_url('siswa/ajax_save.php') ?>',
         raguUrl: '<?= base_url('siswa/ajax_ragu.php') ?>',
         finishUrl: '<?= base_url('siswa/proses_selesai.php') ?>',
+        syncTimeUrl: '<?= base_url('siswa/ajax_sync_time.php') ?>',
         soalData: soalDataJson,
         timerInstance: timer
     });

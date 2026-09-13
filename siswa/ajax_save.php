@@ -75,16 +75,27 @@ try {
         ':jwb'  => $jawabanTerpilih
     ]);
 
-    // 3. Perbarui Sisa Detik Terkini di Server
-    if ($sisaDetik !== null && $sisaDetik >= 0) {
-        $stmtWaktu = $db->prepare("UPDATE ujian_siswa SET sisa_detik = :sisa WHERE id_ujian_siswa = :us");
-        $stmtWaktu->execute([':sisa' => $sisaDetik, ':us' => $idUjianSiswa]);
-    }
+    // 3. Perbarui Sisa Detik Terkini di Server berdasarkan durasi sesi aktual
+    $stmtSesiTime = $db->prepare("
+        SELECT GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_real,
+               s.status as status_sesi
+        FROM ujian_siswa us
+        JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+        WHERE us.id_ujian_siswa = :us
+    ");
+    $stmtSesiTime->execute([':us' => $idUjianSiswa]);
+    $sesiInfo = $stmtSesiTime->fetch();
+    $sisaDetikReal = $sesiInfo ? (int)$sesiInfo['sisa_detik_real'] : ($sisaDetik ?? 0);
+
+    $stmtWaktu = $db->prepare("UPDATE ujian_siswa SET sisa_detik = :sisa WHERE id_ujian_siswa = :us");
+    $stmtWaktu->execute([':sisa' => $sisaDetikReal, ':us' => $idUjianSiswa]);
 
     json_response([
-        'success' => true,
-        'status'  => 'success',
-        'message' => 'Jawaban berhasil disimpan otomatis.',
+        'success'     => true,
+        'status'      => 'success',
+        'message'     => 'Jawaban berhasil disimpan otomatis.',
+        'sisa_detik'  => $sisaDetikReal,
+        'status_sesi' => $sesiInfo['status_sesi'] ?? 'aktif',
         'data' => [
             'id_soal' => $idSoal,
             'jawaban' => $jawabanTerpilih

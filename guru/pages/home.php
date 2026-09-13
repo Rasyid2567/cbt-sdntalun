@@ -19,6 +19,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = $_POST['action'] ?? '';
     
+    if ($action === 'tambah_waktu') {
+        $idSesi      = (int)($_POST['id_sesi'] ?? 0);
+        $tambahMenit = (int)($_POST['tambah_menit'] ?? 0);
+
+        $res = tambah_durasi_sesi($idSesi, $tambahMenit, $idGuru);
+        if ($res['success']) {
+            flash_set('success', "Waktu ujian untuk sesi '" . sanitize($res['nama_ujian']) . "' berhasil ditambah sebanyak {$res['tambah_menit']} menit. Durasi total kini: {$res['durasi_baru']} menit.");
+        } else {
+            flash_set('danger', $res['message']);
+        }
+        redirect(base_url('guru'));
+    }
+
     if ($action === 'refresh_token') {
         $idSesi = (int)($_POST['id_sesi'] ?? 0);
         $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -205,13 +218,19 @@ include __DIR__ . '/../layouts/header.php';
                                 </td>
                                 <td data-label="Sisa Waktu">
                                     <?php if ($s['status'] === 'aktif'): ?>
-                                        <?php if ($s['sisa_detik_sesi'] > 0): ?>
-                                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
-                                                <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="badge badge-offline">Waktu Habis</span>
-                                        <?php endif; ?>
+                                        <div style="display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                            <?php if ($s['sisa_detik_sesi'] > 0): ?>
+                                                <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                                    <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge badge-offline">Waktu Habis</span>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-sm btn-warning" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                <span>+ Waktu</span>
+                                            </button>
+                                        </div>
                                     <?php elseif ($s['status'] === 'selesai'): ?>
                                         <span class="badge badge-selesai">Selesai</span>
                                     <?php else: ?>
@@ -229,7 +248,15 @@ include __DIR__ . '/../layouts/header.php';
                                 </td>
                                 <td data-label="Peserta"><?= $s['total_peserta'] ?> Siswa</td>
                                 <td data-label="Aksi">
-                                    <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline" style="width: 100%; text-align: center;">Lihat Nilai</a>
+                                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                                        <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline" style="white-space: nowrap; flex: 1; text-align: center;">Lihat Nilai</a>
+                                        <?php if ($s['status'] === 'aktif'): ?>
+                                            <button type="button" class="btn btn-sm btn-warning" style="display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 700; white-space: nowrap;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                <span>+ Waktu</span>
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -344,5 +371,7 @@ updateDashboardCountdowns();
 </script>
 
 <?php
+$modalFormAction = base_url('guru');
+include __DIR__ . '/../layouts/modal_tambah_waktu.php';
 include __DIR__ . '/../layouts/footer.php';
 ?>

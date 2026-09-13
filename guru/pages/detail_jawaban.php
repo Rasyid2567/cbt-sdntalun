@@ -218,8 +218,10 @@ if (!empty($urutanIds)) {
             ['code' => 'A', 'text' => $item['opsi_a']],
             ['code' => 'B', 'text' => $item['opsi_b']],
             ['code' => 'C', 'text' => $item['opsi_c']],
-            ['code' => 'D', 'text' => $item['opsi_d']],
         ];
+        if (!empty($item['opsi_d'])) {
+            $opsiList[] = ['code' => 'D', 'text' => $item['opsi_d']];
+        }
         if (!empty($item['opsi_e'])) {
             $opsiList[] = ['code' => 'E', 'text' => $item['opsi_e']];
         }

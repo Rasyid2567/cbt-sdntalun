@@ -12,6 +12,27 @@ $idGuru = $currentUser['id_user'];
 $page = 'rekap_nilai';
 $pageTitle = 'Rekapitulasi Nilai Ujian';
 
+// Tangani POST Tambah Waktu Sesi Ujian
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf()) {
+        flash_set('danger', 'Validasi token keamanan (CSRF) gagal.');
+        redirect(base_url('guru?page=rekap_nilai' . (!empty($_POST['id_sesi']) ? '&id_sesi=' . (int)$_POST['id_sesi'] : '')));
+    }
+    $action = $_POST['action'] ?? '';
+    if ($action === 'tambah_waktu') {
+        $idSesi      = (int)($_POST['id_sesi'] ?? 0);
+        $tambahMenit = (int)($_POST['tambah_menit'] ?? 0);
+
+        $res = tambah_durasi_sesi($idSesi, $tambahMenit, ($currentUser['role'] === 'guru' ? $idGuru : null));
+        if ($res['success']) {
+            flash_set('success', "Waktu ujian untuk sesi '" . sanitize($res['nama_ujian']) . "' berhasil ditambah sebanyak {$res['tambah_menit']} menit. Durasi total kini: {$res['durasi_baru']} menit.");
+        } else {
+            flash_set('danger', $res['message']);
+        }
+        redirect(base_url('guru?page=rekap_nilai&id_sesi=' . $idSesi));
+    }
+}
+
 // Ambil Daftar Seluruh Sesi Ujian (Guru terfilter, Operator melihat semua)
 $sqlSesiAll = "
     SELECT s.id_sesi, s.nama_ujian, s.token_ujian, s.status, s.id_mapel, m.nama_mapel, k.nama_kelas, p.nama_paket
@@ -40,7 +61,8 @@ $totalSoalUjian = 0;
 if ($selectedSesiId > 0) {
     // Detail Sesi
     $sqlDet = "
-        SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas, p.nama_paket
+        SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas, p.nama_paket,
+               GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
         FROM sesi_ujian s
         LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
         JOIN mapel m ON s.id_mapel = m.id_mapel
@@ -258,6 +280,21 @@ include __DIR__ . '/../layouts/header.php';
                     <div><strong>Kelas:</strong> <?= sanitize($sesiDetail['nama_kelas']) ?></div>
                     <div><strong>Durasi:</strong> <?= $sesiDetail['durasi_menit'] ?> Menit</div>
                     <div><strong>Total Soal:</strong> <?= $totalSoalUjian ?> Butir (<?= $totalPG ?> PG<?= $totalEssai > 0 ? ', ' . $totalEssai . ' Essai' : '' ?>)</div>
+                    <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <strong>Status:</strong>
+                        <?php if ($sesiDetail['status'] === 'aktif'): ?>
+                            <span class="badge badge-online">AKTIF</span>
+                            <?php if (($sesiDetail['sisa_detik_sesi'] ?? 0) > 0): ?>
+                                <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.85rem; font-weight: 700; padding: 0.2rem 0.5rem; border: 1px solid #bfdbfe;">
+                                    Sisa: <span class="countdown-timer" data-seconds="<?= (int)$sesiDetail['sisa_detik_sesi'] ?>">--:--:--</span>
+                                </span>
+                            <?php else: ?>
+                                <span class="badge badge-offline">Waktu Habis</span>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span class="badge badge-offline"><?= strtoupper($sesiDetail['status']) ?></span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
 
@@ -382,6 +419,54 @@ include __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 </main>
 
+<?php
+if ($sesiDetail) {
+    $modalFormAction = base_url('guru?page=rekap_nilai&id_sesi=' . (int)$sesiDetail['id_sesi']);
+    include __DIR__ . '/../layouts/modal_tambah_waktu.php';
+}
+?>
+<script>
+function updateDashboardCountdowns() {
+    const timers = document.querySelectorAll('.countdown-timer');
+    timers.forEach(el => {
+        let sec = parseInt(el.dataset.seconds, 10);
+        if (isNaN(sec)) return;
+        if (sec > 0) {
+            sec--;
+            el.dataset.seconds = sec;
+        }
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        el.textContent = [
+            String(h).padStart(2, '0'),
+            String(m).padStart(2, '0'),
+            String(s).padStart(2, '0')
+        ].join(':');
+
+        if (sec <= 300 && sec > 0) {
+            const badge = el.closest('.badge');
+            if (badge) {
+                badge.style.backgroundColor = '#fee2e2';
+                badge.style.color = '#b91c1c';
+                badge.style.borderColor = '#fca5a5';
+            }
+        } else if (sec <= 0) {
+            el.textContent = '00:00:00';
+            const badge = el.closest('.badge');
+            if (badge) {
+                badge.style.backgroundColor = '#f1f5f9';
+                badge.style.color = '#64748b';
+                badge.style.borderColor = '#cbd5e1';
+            }
+        }
+    });
+}
+if (document.querySelector('.countdown-timer')) {
+    setInterval(updateDashboardCountdowns, 1000);
+    updateDashboardCountdowns();
+}
+</script>
 <?php
 include __DIR__ . '/../layouts/footer.php';
 ?>

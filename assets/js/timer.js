@@ -111,6 +111,10 @@ class CBTTimer {
         if (typeof serverSeconds === 'number' && serverSeconds >= 0) {
             this.remainingSeconds = serverSeconds;
             this.lastTimestamp = Date.now();
+            if (serverSeconds > 0 && this.isFinished) {
+                this.isFinished = false;
+                this.start();
+            }
             this.updateDisplay();
         }
     }

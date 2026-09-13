@@ -237,3 +237,95 @@ function base_url(string $path = ''): string {
 
     return ($scriptDir === '' ? '' : $scriptDir) . '/' . $cleanPath . $query;
 }
+
+/**
+ * Helper Menambah Durasi Waktu Sesi Ujian (Custom Menit)
+ * Sinkronisasi otomatis ke durasi_menit sesi dan sisa_detik peserta aktif.
+ *
+ * @param int $idSesi
+ * @param int $tambahMenit
+ * @param int|null $idGuru (Opsional: batasi kepemilikan guru)
+ * @return array
+ */
+function tambah_durasi_sesi(int $idSesi, int $tambahMenit, ?int $idGuru = null): array {
+    if ($idSesi <= 0 || $tambahMenit <= 0) {
+        return ['success' => false, 'message' => 'Parameter sesi atau penambahan waktu tidak valid.'];
+    }
+
+    $db = get_db();
+
+    // Verifikasi sesi
+    $sqlCek = "SELECT id_sesi, nama_ujian, durasi_menit, status, created_at FROM sesi_ujian WHERE id_sesi = :id";
+    $paramsCek = [':id' => $idSesi];
+    if ($idGuru !== null) {
+        $sqlCek .= " AND id_guru = :g";
+        $paramsCek[':g'] = $idGuru;
+    }
+    $stmtCek = $db->prepare($sqlCek);
+    $stmtCek->execute($paramsCek);
+    $sesi = $stmtCek->fetch();
+
+    if (!$sesi) {
+        return ['success' => false, 'message' => 'Sesi ujian tidak ditemukan atau bukan milik Anda.'];
+    }
+
+    // Perbarui durasi_menit & created_at (jika sesi stale > 1 hari)
+    $sqlUpd = "
+        UPDATE sesi_ujian
+        SET 
+            created_at = CASE 
+                WHEN (CURRENT_TIMESTAMP - created_at) > INTERVAL '1 day' 
+                    THEN CURRENT_TIMESTAMP 
+                ELSE created_at 
+            END,
+            durasi_menit = CASE 
+                WHEN (CURRENT_TIMESTAMP - created_at) > INTERVAL '1 day' 
+                    THEN :tambah
+                WHEN (created_at + (durasi_menit * INTERVAL '1 minute')) >= CURRENT_TIMESTAMP 
+                    THEN durasi_menit + :tambah
+                ELSE 
+                    CEIL(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at)) / 60.0)::int + :tambah
+            END
+        WHERE id_sesi = :id
+    ";
+    if ($idGuru !== null) {
+        $sqlUpd .= " AND id_guru = :g";
+    }
+    $sqlUpd .= " RETURNING id_sesi, nama_ujian, durasi_menit, 
+                GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (created_at + (durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_baru";
+
+    $paramsUpd = [':tambah' => $tambahMenit, ':id' => $idSesi];
+    if ($idGuru !== null) {
+        $paramsUpd[':g'] = $idGuru;
+    }
+
+    $stmtUpd = $db->prepare($sqlUpd);
+    $stmtUpd->execute($paramsUpd);
+    $hasil = $stmtUpd->fetch();
+
+    if (!$hasil) {
+        return ['success' => false, 'message' => 'Gagal memperbarui waktu sesi ujian.'];
+    }
+
+    $sisaDetikBaru = (int)$hasil['sisa_detik_baru'];
+
+    // Update sisa_detik pada seluruh siswa yang sedang aktif mengerjakan sesi ini
+    $stmtSiswa = $db->prepare("
+        UPDATE ujian_siswa
+        SET sisa_detik = :sisa
+        WHERE id_sesi = :id AND status = 'sedang'
+    ");
+    $stmtSiswa->execute([
+        ':sisa' => $sisaDetikBaru,
+        ':id'   => $idSesi
+    ]);
+
+    return [
+        'success'         => true,
+        'nama_ujian'      => $hasil['nama_ujian'],
+        'durasi_baru'     => (int)$hasil['durasi_menit'],
+        'sisa_detik_baru' => $sisaDetikBaru,
+        'tambah_menit'    => $tambahMenit
+    ];
+}
+

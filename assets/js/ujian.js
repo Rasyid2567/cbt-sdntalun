@@ -18,6 +18,7 @@ class CBTExamManager {
         this.finishUrl    = config.finishUrl;
         this.soalData     = config.soalData || [];
         this.timerInstance = config.timerInstance || null;
+        this.syncTimeUrl  = config.syncTimeUrl || null;
         
         this.currentIndex = 0;
         this.retryQueue   = [];
@@ -56,6 +57,9 @@ class CBTExamManager {
             console.error('Data soal tidak ditemukan.');
             return;
         }
+
+        // Inisialisasi Sinkronisasi Timer Background
+        this.initTimerSync();
 
         // Render Grid Nomor
         this.renderGrid();
@@ -603,6 +607,9 @@ class CBTExamManager {
         .then(data => {
             if (data.success || data.status === 'success') {
                 this.setSyncStatus('saved', 'Jawaban tersimpan');
+                if (typeof data.sisa_detik === 'number') {
+                    this.handleServerTimerSync(data.sisa_detik);
+                }
             } else {
                 throw new Error(data.message || 'Gagal menyimpan');
             }
@@ -875,6 +882,130 @@ class CBTExamManager {
         if (this.dom.formSelesai) {
             this.dom.formSelesai.submit();
         }
+    }
+
+    /**
+     * Inisialisasi polling background untuk sinkronisasi waktu ujian dari guru
+     */
+    initTimerSync() {
+        if (!this.syncTimeUrl || !this.idUjianSiswa) return;
+
+        // Cek berkala setiap 15 detik
+        this.timerSyncInterval = setInterval(() => {
+            if (document.hidden) return; // Skip jika tab sedang di background
+            this.syncTimerWithServer();
+        }, 15000);
+    }
+
+    /**
+     * Heartbeat request ke server untuk mengecek pembaruan sisa_detik & status sesi
+     */
+    syncTimerWithServer() {
+        if (!this.syncTimeUrl || !this.idUjianSiswa) return;
+
+        fetch(`${this.syncTimeUrl}?id_ujian_siswa=${encodeURIComponent(this.idUjianSiswa)}&_t=${Date.now()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            cache: 'no-store'
+        })
+        .then(res => {
+            if (!res.ok) return null;
+            return res.json();
+        })
+        .then(data => {
+            if (data && data.success) {
+                if (data.status_sesi && data.status_sesi !== 'aktif') {
+                    alert('Sesi ujian telah ditutup atau dinonaktifkan oleh pengawas/guru.');
+                    if (this.dom.formSelesai) {
+                        this.dom.formSelesai.submit();
+                    }
+                    return;
+                }
+                if (typeof data.sisa_detik === 'number') {
+                    this.handleServerTimerSync(data.sisa_detik);
+                }
+            }
+        })
+        .catch(() => {
+            // Abaikan kesalahan jaringan sementara
+        });
+    }
+
+    /**
+     * Membandingkan waktu server dengan timer lokal dan sinkronisasi
+     */
+    handleServerTimerSync(serverSeconds) {
+        if (!this.timerInstance || typeof serverSeconds !== 'number') return;
+        const currentSeconds = this.timerInstance.getRemainingSeconds();
+
+        // Jika waktu server bertambah lebih dari 5 detik (guru menambah waktu ujian)
+        if (serverSeconds > currentSeconds + 5) {
+            const minutesAdded = Math.round((serverSeconds - currentSeconds) / 60);
+            this.timerInstance.syncWithServer(serverSeconds);
+            this.showTimeExtensionToast(minutesAdded > 0 ? minutesAdded : 1);
+        } else if (serverSeconds < currentSeconds - 15) {
+            // Jika desinkronisasi lokal terlalu jauh ke depan
+            this.timerInstance.syncWithServer(serverSeconds);
+        }
+    }
+
+    /**
+     * Menampilkan notifikasi toast elegan ke siswa ketika waktu ditambah oleh guru
+     */
+    showTimeExtensionToast(minutesAdded) {
+        let toast = document.getElementById('cbt-time-extension-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'cbt-time-extension-toast';
+            toast.style.cssText = `
+                position: fixed;
+                top: 24px;
+                right: 24px;
+                z-index: 999999;
+                background: #0f172a;
+                color: #f8fafc;
+                padding: 0.95rem 1.35rem;
+                border-radius: 12px;
+                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.2);
+                display: flex;
+                align-items: center;
+                gap: 0.85rem;
+                border-left: 5px solid #22c55e;
+                max-width: 380px;
+                transition: opacity 0.3s ease, transform 0.3s ease;
+            `;
+            document.body.appendChild(toast);
+        }
+
+        toast.innerHTML = `
+            <div style="background: rgba(34, 197, 94, 0.18); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div>
+                <div style="font-weight: 800; font-size: 0.95rem; color: #4ade80;">Waktu Ujian Ditambah!</div>
+                <div style="font-size: 0.82rem; color: #cbd5e1; margin-top: 0.15rem; line-height: 1.4;">
+                    Pengawas/Guru telah menambahkan waktu ujian sebanyak <strong>+${minutesAdded} Menit</strong>.
+                </div>
+            </div>
+        `;
+        toast.style.display = 'flex';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+
+        clearTimeout(this._timeToastTimeout);
+        this._timeToastTimeout = setTimeout(() => {
+            if (toast) {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => { toast.style.display = 'none'; }, 300);
+            }
+        }, 7000);
     }
 }
 
