@@ -186,6 +186,16 @@ $stmtPaket = $db->prepare("
 $stmtPaket->execute([':g' => $idGuru]);
 $paketList = $stmtPaket->fetchAll();
 
+// Ambil Daftar Mapel untuk Pilihan di Modal Tambah Sesi
+$stmtMapelList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY nama_mapel ASC");
+$mapelList = $stmtMapelList->fetchAll();
+
+$paketCountPerMapel = [];
+foreach ($paketList as $p) {
+    $mid = (int)$p['id_mapel'];
+    $paketCountPerMapel[$mid] = ($paketCountPerMapel[$mid] ?? 0) + 1;
+}
+
 // Ambil Seluruh Sesi Ujian Guru
 $stmtSesi = $db->prepare("
     SELECT su.*, m.nama_mapel, k.nama_kelas, p.nama_paket,
@@ -218,7 +228,7 @@ include __DIR__ . '/../layouts/header.php';
             <p class="text-sm text-muted">Kelola sesi ujian aktif, rilis token ujian, dan pantau status peserta.</p>
         </div>
         <div class="card-header-actions">
-            <button class="btn btn-primary" onclick="openModal('modal-tambah-sesi')">
+            <button class="btn btn-primary" onclick="openModalTambahSesi()">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Buat Sesi Ujian</span>
             </button>
@@ -243,11 +253,11 @@ include __DIR__ . '/../layouts/header.php';
                             <th>Nama Ujian</th>
                             <th>Mapel & Kelas</th>
                             <th style="text-align: center;">Token Ujian</th>
-                            <th>Sisa Waktu</th>
+                            <th style="white-space: nowrap;">Sisa Waktu</th>
                             <th>Acak</th>
                             <th>Status</th>
                             <th>Peserta</th>
-                            <th style="text-align: center;">Aksi</th>
+                            <th style="text-align: center; white-space: nowrap;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -279,9 +289,9 @@ include __DIR__ . '/../layouts/header.php';
                                         </form>
                                     </div>
                                 </td>
-                                <td data-label="Sisa Waktu">
+                                <td data-label="Sisa Waktu" style="white-space: nowrap;">
                                     <?php if ($s['status'] === 'aktif'): ?>
-                                        <div style="display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                        <div style="display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: nowrap; white-space: nowrap;">
                                             <?php if ($s['sisa_detik_sesi'] > 0): ?>
                                                 <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
                                                     <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
@@ -289,9 +299,9 @@ include __DIR__ . '/../layouts/header.php';
                                             <?php else: ?>
                                                 <span class="badge badge-offline">Waktu Habis</span>
                                             <?php endif; ?>
-                                            <button type="button" class="btn btn-sm btn-warning" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                                <span>+ Waktu</span>
+                                            <button type="button" class="btn btn-sm btn-warning" style="padding: 0.22rem 0.45rem; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.2rem; white-space: nowrap; border-radius: 6px; line-height: 1;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                <span style="font-size: 0.92rem; font-weight: 800; line-height: 1;">+</span>
                                             </button>
                                         </div>
                                     <?php elseif ($s['status'] === 'selesai'): ?>
@@ -319,32 +329,26 @@ include __DIR__ . '/../layouts/header.php';
                                         <?= $s['total_peserta'] ?> Siswa
                                     </a>
                                 </td>
-                                <td data-label="Aksi">
-                                    <div class="flex gap-2" style="justify-content: center; flex-wrap: wrap;">
-                                        <?php if ($s['status'] === 'aktif'): ?>
-                                            <button type="button" class="btn btn-sm btn-warning" style="display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; white-space: nowrap;" title="Tambah durasi pengerjaan siswa" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                                <span>Tambah Waktu</span>
-                                            </button>
-                                        <?php endif; ?>
-                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display:inline;">
+                                <td data-label="Aksi" style="text-align: center; white-space: nowrap;">
+                                    <div class="flex" style="display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: nowrap;">
+                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display: inline-block; margin: 0;">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
                                             <?php if ($s['status'] === 'aktif'): ?>
                                                 <input type="hidden" name="status" value="nonaktif">
-                                                <button type="submit" class="btn btn-sm btn-secondary">Nonaktifkan</button>
+                                                <button type="submit" class="btn btn-sm btn-secondary" style="white-space: nowrap; padding: 0.32rem 0.65rem;">Nonaktifkan</button>
                                             <?php else: ?>
                                                 <input type="hidden" name="status" value="aktif">
-                                                <button type="submit" class="btn btn-sm btn-success">Aktifkan</button>
+                                                <button type="submit" class="btn btn-sm btn-success" style="white-space: nowrap; padding: 0.32rem 0.65rem;">Aktifkan</button>
                                             <?php endif; ?>
                                         </form>
 
-                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display:inline;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
+                                        <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST" style="display: inline-block; margin: 0;" data-confirm="Hapus sesi ujian ini beserta seluruh riwayat pengerjaan siswa?" data-confirm-title="Hapus Sesi Ujian" data-confirm-type="danger" data-confirm-btn="Ya, Hapus Sesi">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus_sesi">
                                             <input type="hidden" name="id_sesi" value="<?= $s['id_sesi'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                                            <button type="submit" class="btn btn-sm btn-danger" style="white-space: nowrap; padding: 0.32rem 0.65rem;">Hapus</button>
                                         </form>
                                     </div>
                                 </td>
@@ -369,29 +373,34 @@ include __DIR__ . '/../layouts/header.php';
             <input type="hidden" name="id_mapel" id="hidden_id_mapel" value="">
             <input type="hidden" name="id_paket" id="hidden_id_paket" value="">
 
-            <div class="form-group">
-                <label for="select_paket_soal">Pilih Paket Soal <span class="text-danger">*</span></label>
-                <?php if (empty($paketList)): ?>
-                    <div class="alert alert-warning" style="font-size: 0.85rem; padding: 0.75rem 0.95rem; margin-top: 0.25rem;">
-                        Belum ada paket soal di Bank Soal. <a href="<?= base_url('guru?page=tambah_soal') ?>"><strong>Klik untuk membuat soal dahulu</strong></a>.
-                    </div>
-                <?php else: ?>
-                    <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)">
-                        <option value="">Pilih Paket Soal yang Diujikan</option>
-                        <?php foreach ($paketList as $p): ?>
-                            <option value="<?= htmlspecialchars(json_encode([
-                                'id_paket'   => (int)$p['id_paket'],
-                                'judul'      => $p['nama_paket'],
-                                'id_mapel'   => (int)$p['id_mapel'],
-                                'nama_mapel' => $p['nama_mapel'],
-                                'kode_mapel' => $p['kode_mapel'],
-                                'total_soal' => (int)$p['total_soal']
-                            ])) ?>">
-                                <?= sanitize($p['nama_paket']) ?> — <?= sanitize($p['kode_mapel'] ?: $p['nama_mapel']) ?> (<?= (int)$p['total_soal'] ?> Soal)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                <?php endif; ?>
+            <div class="form-group mb-3">
+                <label for="select_mapel_ujian" style="font-weight: 700;">Pilih Mata Pelajaran <span class="text-danger">*</span></label>
+                <select id="select_mapel_ujian" class="form-control" required onchange="onPilihMapel(this)">
+                    <option value="">-- Pilih Mata Pelajaran Terlebih Dahulu --</option>
+                    <?php foreach ($mapelList as $m): ?>
+                        <?php 
+                        $mid = (int)$m['id_mapel'];
+                        $pCount = $paketCountPerMapel[$mid] ?? 0;
+                        $mapelLabel = sanitize($m['nama_mapel']);
+                        if (!empty($m['kode_mapel']) && !str_contains($m['nama_mapel'], $m['kode_mapel'])) {
+                            $mapelLabel .= ' (' . sanitize($m['kode_mapel']) . ')';
+                        }
+                        ?>
+                        <option value="<?= $mid ?>">
+                            <?= $mapelLabel ?><?= $pCount > 0 ? " — {$pCount} Paket Soal" : ' — (0 Paket)' ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="select_paket_soal" style="font-weight: 700;">Pilih Paket Soal <span class="text-danger">*</span></label>
+                <select id="select_paket_soal" class="form-control" required onchange="onPilihPaket(this)" disabled>
+                    <option value="">-- Pilih Mata Pelajaran Terlebih Dahulu --</option>
+                </select>
+                <div id="alert_paket_kosong" class="alert alert-warning mt-2" style="display: none; font-size: 0.85rem; padding: 0.65rem 0.9rem;">
+                    Belum ada paket soal untuk mata pelajaran ini di Bank Soal. <a href="<?= base_url('guru?page=tambah_soal') ?>" style="font-weight: 700; text-decoration: underline;">Klik untuk membuat paket soal</a>.
+                </div>
             </div>
 
             <div id="info_otomatis" style="display: none; background: #f8fafc; border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem; border: 1px solid var(--gray-300);">
@@ -506,6 +515,79 @@ function openModalEditToken(idSesi, currentToken, namaUjian) {
         const inp = document.getElementById('edit_input_token');
         if (inp) inp.select();
     }, 150);
+}
+
+const daftarPaketGuru = <?= json_encode($paketList, JSON_UNESCAPED_UNICODE) ?>;
+
+function openModalTambahSesi() {
+    const selMapel = document.getElementById('select_mapel_ujian');
+    if (selMapel) {
+        selMapel.value = '';
+        if (typeof window.refreshCustomSelect === 'function') {
+            window.refreshCustomSelect(selMapel);
+        }
+        onPilihMapel(selMapel);
+    }
+    openModal('modal-tambah-sesi');
+}
+
+function onPilihMapel(sel) {
+    const idMapel = parseInt(sel.value, 10) || 0;
+    const selectPaket = document.getElementById('select_paket_soal');
+    const alertKosong = document.getElementById('alert_paket_kosong');
+    const infoBox = document.getElementById('info_otomatis');
+    const hidMapel = document.getElementById('hidden_id_mapel');
+    const hidPaket = document.getElementById('hidden_id_paket');
+
+    if (selectPaket) selectPaket.innerHTML = '';
+    if (infoBox) infoBox.style.display = 'none';
+    if (hidMapel) hidMapel.value = idMapel > 0 ? idMapel : '';
+    if (hidPaket) hidPaket.value = '';
+
+    if (idMapel <= 0) {
+        if (selectPaket) {
+            selectPaket.disabled = true;
+            selectPaket.innerHTML = '<option value="">-- Pilih Mata Pelajaran Terlebih Dahulu --</option>';
+        }
+        if (alertKosong) alertKosong.style.display = 'none';
+        if (typeof window.refreshCustomSelect === 'function') {
+            window.refreshCustomSelect(selectPaket);
+        }
+        return;
+    }
+
+    const filtered = daftarPaketGuru.filter(p => parseInt(p.id_mapel, 10) === idMapel);
+
+    if (filtered.length === 0) {
+        if (selectPaket) {
+            selectPaket.disabled = true;
+            selectPaket.innerHTML = '<option value="">(Tidak ada paket soal untuk mapel ini)</option>';
+        }
+        if (alertKosong) alertKosong.style.display = 'block';
+    } else {
+        if (selectPaket) {
+            selectPaket.disabled = false;
+            let optHtml = '<option value="">-- Pilih Paket Soal yang Diujikan --</option>';
+            filtered.forEach(p => {
+                const payload = JSON.stringify({
+                    id_paket: parseInt(p.id_paket, 10),
+                    judul: p.nama_paket,
+                    id_mapel: parseInt(p.id_mapel, 10),
+                    nama_mapel: p.nama_mapel,
+                    kode_mapel: p.kode_mapel || '',
+                    total_soal: parseInt(p.total_soal, 10) || 0
+                });
+                const safePayload = payload.replace(/"/g, '&quot;');
+                optHtml += `<option value="${safePayload}">${p.nama_paket} (${p.total_soal || 0} Soal)</option>`;
+            });
+            selectPaket.innerHTML = optHtml;
+        }
+        if (alertKosong) alertKosong.style.display = 'none';
+    }
+
+    if (typeof window.refreshCustomSelect === 'function') {
+        window.refreshCustomSelect(selectPaket);
+    }
 }
 
 function onPilihPaket(sel) {

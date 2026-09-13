@@ -484,6 +484,19 @@ textarea.form-control {
     user-select: none;
 }
 
+.cbt-select-container.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cbt-select-container.disabled .cbt-select-trigger {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    box-shadow: none !important;
+}
+
 .cbt-select-container select {
     position: absolute !important;
     opacity: 0 !important;

@@ -21,6 +21,7 @@ window.initCustomSelects = function(root = document) {
         const wrapper = document.createElement('div');
         wrapper.className = 'cbt-select-container';
         if (select.classList.contains('form-control-sm')) wrapper.classList.add('cbt-select-sm');
+        if (select.disabled) wrapper.classList.add('disabled');
 
         select.parentNode.insertBefore(wrapper, select);
         wrapper.appendChild(select);
@@ -44,10 +45,19 @@ window.initCustomSelects = function(root = document) {
         dropdown.className = 'cbt-select-dropdown';
         wrapper.appendChild(dropdown);
 
+        const updateDisabledState = () => {
+            if (select.disabled) {
+                wrapper.classList.add('disabled');
+            } else {
+                wrapper.classList.remove('disabled');
+            }
+        };
+
         const renderOptions = () => {
             dropdown.innerHTML = '';
             const selectedOpt = select.options[select.selectedIndex];
             label.textContent = selectedOpt ? selectedOpt.textContent : 'Pilih...';
+            updateDisabledState();
 
             Array.from(select.options).forEach((opt, idx) => {
                 // Jangan tampilkan opsi placeholder kosong / teks "Pilih ..." di dalam list item
@@ -76,8 +86,12 @@ window.initCustomSelects = function(root = document) {
             });
         };
 
+        wrapper._renderOptions = renderOptions;
+        wrapper._updateDisabledState = updateDisabledState;
+
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (select.disabled) return;
             const isOpen = wrapper.classList.contains('open');
             document.querySelectorAll('.cbt-select-container.open').forEach(el => {
                 if (el !== wrapper) el.classList.remove('open');
@@ -91,6 +105,7 @@ window.initCustomSelects = function(root = document) {
         });
 
         trigger.addEventListener('keydown', (e) => {
+            if (select.disabled) return;
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
                 e.preventDefault();
                 renderOptions();
@@ -108,6 +123,15 @@ window.initCustomSelects = function(root = document) {
 
         renderOptions();
     });
+};
+
+window.refreshCustomSelect = function(select) {
+    if (!select) return;
+    const wrapper = select.closest('.cbt-select-container');
+    if (wrapper) {
+        if (typeof wrapper._renderOptions === 'function') wrapper._renderOptions();
+        if (typeof wrapper._updateDisabledState === 'function') wrapper._updateDisabledState();
+    }
 };
 
 window.openModal = function(id) {

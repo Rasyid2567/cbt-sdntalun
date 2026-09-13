@@ -186,7 +186,7 @@ include __DIR__ . '/../layouts/header.php';
                             <th>Mata Pelajaran</th>
                             <th>Kelas</th>
                             <th>Token</th>
-                            <th>Sisa Waktu</th>
+                            <th style="white-space: nowrap;">Sisa Waktu</th>
                             <th>Status</th>
                             <th>Peserta</th>
                             <th>Aksi</th>
@@ -216,9 +216,9 @@ include __DIR__ . '/../layouts/header.php';
                                         </form>
                                     </div>
                                 </td>
-                                <td data-label="Sisa Waktu">
+                                <td data-label="Sisa Waktu" style="white-space: nowrap;">
                                     <?php if ($s['status'] === 'aktif'): ?>
-                                        <div style="display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                        <div style="display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: nowrap; white-space: nowrap;">
                                             <?php if ($s['sisa_detik_sesi'] > 0): ?>
                                                 <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-family: monospace; font-size: 0.92rem; font-weight: 700; padding: 0.3rem 0.6rem; border: 1px solid #bfdbfe; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 0.35rem;">
                                                     <span class="countdown-timer" data-seconds="<?= (int)$s['sisa_detik_sesi'] ?>">--:--:--</span>
@@ -226,9 +226,9 @@ include __DIR__ . '/../layouts/header.php';
                                             <?php else: ?>
                                                 <span class="badge badge-offline">Waktu Habis</span>
                                             <?php endif; ?>
-                                            <button type="button" class="btn btn-sm btn-warning" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                                <span>+ Waktu</span>
+                                            <button type="button" class="btn btn-sm btn-warning" style="padding: 0.22rem 0.45rem; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.2rem; white-space: nowrap; border-radius: 6px; line-height: 1;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                <span style="font-size: 0.92rem; font-weight: 800; line-height: 1;">+</span>
                                             </button>
                                         </div>
                                     <?php elseif ($s['status'] === 'selesai'): ?>
@@ -250,12 +250,6 @@ include __DIR__ . '/../layouts/header.php';
                                 <td data-label="Aksi">
                                     <div style="display: flex; gap: 0.35rem; align-items: center;">
                                         <a href="<?= base_url('guru?page=rekap_nilai&id_sesi=' . $s['id_sesi']) ?>" class="btn btn-sm btn-outline" style="white-space: nowrap; flex: 1; text-align: center;">Lihat Nilai</a>
-                                        <?php if ($s['status'] === 'aktif'): ?>
-                                            <button type="button" class="btn btn-sm btn-warning" style="display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 700; white-space: nowrap;" title="Tambah Waktu Sesi Ini" onclick="openModalTambahWaktu(<?= $s['id_sesi'] ?>, '<?= sanitize(addslashes($s['nama_paket'] ?: $s['nama_ujian'])) ?>', <?= (int)$s['durasi_menit'] ?>, <?= (int)$s['sisa_detik_sesi'] ?>)">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                                <span>+ Waktu</span>
-                                            </button>
-                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
