@@ -104,7 +104,7 @@ if ($selectedSesiId > 0) {
         $totalPG        = (int)($statRow['total_pg'] ?? 0);
         $totalEssai     = (int)($statRow['total_essai'] ?? 0);
 
-        // Auto-finalize ujian siswa yang sudah melewati batas waktu sesi atau durasi pengerjaan
+        // Auto-finalize ujian siswa jika sesi ujian SUDAH ditutup/nonaktif oleh guru
         $stmtAutoClose = $db->prepare("
             UPDATE ujian_siswa us
             SET status = 'selesai',
@@ -119,11 +119,7 @@ if ($selectedSesiId > 0) {
             WHERE us.id_sesi = s.id_sesi
               AND us.id_sesi = :sesi
               AND us.status = 'sedang'
-              AND (
-                  s.status != 'aktif'
-                  OR (s.created_at + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
-                  OR (us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
-              )
+              AND s.status != 'aktif'
         ");
         $stmtAutoClose->execute([':sesi' => $selectedSesiId]);
 

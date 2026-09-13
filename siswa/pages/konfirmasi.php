@@ -25,11 +25,7 @@ $db->prepare("
     WHERE us.id_sesi = s.id_sesi
       AND us.id_siswa = :s
       AND us.status = 'sedang'
-      AND (
-          s.status != 'aktif'
-          OR (s.created_at + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
-          OR (us.waktu_mulai + (s.durasi_menit * INTERVAL '1 minute')) < CURRENT_TIMESTAMP
-      )
+      AND s.status != 'aktif'
 ")->execute([':s' => $idSiswa]);
 
 // 1. Cek apakah ada ujian yang sedang berlangsung (status = 'sedang')

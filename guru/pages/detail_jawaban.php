@@ -74,41 +74,8 @@ if (!empty($detailUjian['id_paket'])) {
     $urutanIds = $stmtFallback->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// Auto-deteksi & finalisasi jika sesi sudah ditutup atau batas waktu telah berakhir
-if ($detailUjian['status'] === 'sedang') {
-    $durasiMenit   = (int)($detailUjian['durasi_menit'] ?? 0);
-    $isSesiClosed  = (($detailUjian['status_sesi'] ?? 'aktif') !== 'aktif');
-    $isSesiExpired = (!empty($detailUjian['created_at_sesi']) && (strtotime($detailUjian['created_at_sesi']) + ($durasiMenit * 60) < time()));
-    $isExamExpired = (!empty($detailUjian['waktu_mulai']) && (strtotime($detailUjian['waktu_mulai']) + ($durasiMenit * 60) < time()));
-
-    if ($isSesiClosed || $isSesiExpired || $isExamExpired) {
-        $stmtLastAct = $db->prepare("
-            SELECT MAX(updated_at) FROM jawaban_siswa 
-            WHERE id_ujian_siswa = :us AND jawaban_terpilih IS NOT NULL AND jawaban_terpilih != ''
-        ");
-        $stmtLastAct->execute([':us' => $idUjianSiswa]);
-        $lastAct = $stmtLastAct->fetchColumn();
-
-        $waktuSelesaiFixed = $lastAct ?: (
-            !empty($detailUjian['waktu_mulai']) 
-                ? date('Y-m-d H:i:s', strtotime($detailUjian['waktu_mulai']) + ($durasiMenit * 60))
-                : date('Y-m-d H:i:s')
-        );
-
-        $updClose = $db->prepare("
-            UPDATE ujian_siswa 
-            SET status = 'selesai',
-                waktu_selesai = :ws,
-                sisa_detik = 0
-            WHERE id_ujian_siswa = :us
-        ");
-        $updClose->execute([':ws' => $waktuSelesaiFixed, ':us' => $idUjianSiswa]);
-
-        $detailUjian['status'] = 'selesai';
-        $detailUjian['waktu_selesai'] = $waktuSelesaiFixed;
-        $detailUjian['sisa_detik'] = 0;
-    }
-}
+// Catatan: Saat guru membuka lembar detail jawaban siswa yang sedang aktif ujian ('sedang'),
+// status siswa TETAP dibiarkan 'sedang' agar siswa dapat terus mengerjakan ujian secara normal.
 
 // 3. Simpan Nilai Guru (Koreksi Uraian / Penyesuaian Nilai) atau Finalisasi Manual
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
