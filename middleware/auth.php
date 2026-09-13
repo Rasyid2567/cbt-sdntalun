@@ -22,9 +22,26 @@ function auth_check(array $allowed_roles = []): array {
     }
 
     $db = get_db();
-    $stmt = $db->prepare("SELECT id_user, nis, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
-    $stmt->execute([':id' => $_SESSION['user_id']]);
-    $user = $stmt->fetch();
+    try {
+        $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+        $stmt->execute([':id' => $_SESSION['user_id']]);
+        $user = $stmt->fetch();
+    } catch (Throwable $e) {
+        // Fallback jika kolom nip belum ada di DB remote
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS nip VARCHAR(30) NULL;");
+            $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+            $stmt->execute([':id' => $_SESSION['user_id']]);
+            $user = $stmt->fetch();
+        } catch (Throwable $e2) {
+            $stmt = $db->prepare("SELECT id_user, nis, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+            $stmt->execute([':id' => $_SESSION['user_id']]);
+            $user = $stmt->fetch();
+            if ($user) {
+                $user['nip'] = null;
+            }
+        }
+    }
 
     if (!$user) {
         // User telah dihapus dari basis data
@@ -69,6 +86,7 @@ function get_auth_user(): ?array {
     return [
         'id_user'      => $_SESSION['user_id'],
         'nis'          => $_SESSION['nis'] ?? null,
+        'nip'          => $_SESSION['nip'] ?? null,
         'username'     => $_SESSION['username'] ?? '',
         'nama_lengkap' => $_SESSION['nama_lengkap'] ?? '',
         'role'         => $_SESSION['role'] ?? '',

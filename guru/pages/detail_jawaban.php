@@ -20,26 +20,52 @@ if ($idUjianSiswa <= 0) {
 }
 
 // 1. Ambil Data Ujian Siswa
-$stmtUjian = $db->prepare("
-    SELECT us.*, 
-           u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
-           s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
-           s.status as status_sesi, s.created_at as created_at_sesi,
-           p.nama_paket,
-           m.id_mapel, m.nama_mapel, m.kode_mapel,
-           k.id_kelas, k.nama_kelas,
-           g.nama_lengkap as nama_guru
-    FROM ujian_siswa us
-    JOIN users u ON us.id_siswa = u.id_user
-    JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
-    LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
-    JOIN mapel m ON s.id_mapel = m.id_mapel
-    JOIN kelas k ON s.id_kelas = k.id_kelas
-    LEFT JOIN users g ON s.id_guru = g.id_user
-    WHERE us.id_ujian_siswa = :us
-");
-$stmtUjian->execute([':us' => $idUjianSiswa]);
-$detailUjian = $stmtUjian->fetch();
+try {
+    $stmtUjian = $db->prepare("
+        SELECT us.*, 
+               u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
+               s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
+               s.status as status_sesi, s.created_at as created_at_sesi,
+               p.nama_paket,
+               m.id_mapel, m.nama_mapel, m.kode_mapel,
+               k.id_kelas, k.nama_kelas,
+               g.nama_lengkap as nama_guru, g.nip as nip_guru
+        FROM ujian_siswa us
+        JOIN users u ON us.id_siswa = u.id_user
+        JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+        LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
+        JOIN mapel m ON s.id_mapel = m.id_mapel
+        JOIN kelas k ON s.id_kelas = k.id_kelas
+        LEFT JOIN users g ON s.id_guru = g.id_user
+        WHERE us.id_ujian_siswa = :us
+    ");
+    $stmtUjian->execute([':us' => $idUjianSiswa]);
+    $detailUjian = $stmtUjian->fetch();
+} catch (Throwable $e) {
+    $stmtUjian = $db->prepare("
+        SELECT us.*, 
+               u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
+               s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
+               s.status as status_sesi, s.created_at as created_at_sesi,
+               p.nama_paket,
+               m.id_mapel, m.nama_mapel, m.kode_mapel,
+               k.id_kelas, k.nama_kelas,
+               g.nama_lengkap as nama_guru
+        FROM ujian_siswa us
+        JOIN users u ON us.id_siswa = u.id_user
+        JOIN sesi_ujian s ON us.id_sesi = s.id_sesi
+        LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
+        JOIN mapel m ON s.id_mapel = m.id_mapel
+        JOIN kelas k ON s.id_kelas = k.id_kelas
+        LEFT JOIN users g ON s.id_guru = g.id_user
+        WHERE us.id_ujian_siswa = :us
+    ");
+    $stmtUjian->execute([':us' => $idUjianSiswa]);
+    $detailUjian = $stmtUjian->fetch();
+    if ($detailUjian) {
+        $detailUjian['nip_guru'] = null;
+    }
+}
 
 if (!$detailUjian) {
     flash_set('danger', 'Data ujian siswa tidak ditemukan.');
@@ -588,7 +614,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       <td><?= htmlspecialchars($detailUjian['nama_kelas'], ENT_QUOTES, 'UTF-8') ?></td>
       <td style="font-weight: bold;">Guru Penguji</td>
       <td>:</td>
-      <td><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
+      <td><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '-'), ENT_QUOTES, 'UTF-8') ?><?= !empty($detailUjian['nip_guru']) ? ' <span style="font-size: 8.5pt; color: #475569;">(NIP. ' . htmlspecialchars($detailUjian['nip_guru'], ENT_QUOTES, 'UTF-8') . ')</span>' : '' ?></td>
     </tr>
     <tr>
       <td style="font-weight: bold;">Waktu Pengerjaan</td>
@@ -678,7 +704,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
         Talun, <?= date('d/m/Y') ?><br>
         Guru Penguji / Pengampu<br><br><br><br><br>
         <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
-        <span style="font-size: 9pt; color: #475569;">NIP. ...........................................</span>
+        <span style="font-size: 9pt; color: #475569;">NIP. <?= htmlspecialchars((string)($detailUjian['nip_guru'] ?: '...........................................'), ENT_QUOTES, 'UTF-8') ?></span>
       </td>
     </tr>
   </table>

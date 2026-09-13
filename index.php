@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Set Sesi Pengguna
                     $_SESSION['user_id']      = $user['id_user'];
                     $_SESSION['nis']          = $user['nis'];
+                    $_SESSION['nip']          = $user['nip'] ?? null;
                     $_SESSION['username']     = $user['username'];
                     $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
                     $_SESSION['role']         = $user['role'];

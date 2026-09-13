@@ -32,6 +32,9 @@ try {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
+        -- 1b. Tambah kolom nip di tabel users jika belum ada
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS nip VARCHAR(30) NULL;
+
         -- 2. Tambah kolom id_paket di bank_soal dan sesi_ujian
         ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE CASCADE;
         ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE SET NULL;

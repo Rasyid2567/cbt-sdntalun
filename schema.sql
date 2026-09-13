@@ -41,6 +41,7 @@ CREATE TABLE mapel (
 CREATE TABLE users (
     id_user SERIAL PRIMARY KEY,
     nis VARCHAR(30) UNIQUE NULL, -- Nomor Induk Siswa (Khusus role Siswa)
+    nip VARCHAR(30) NULL,        -- Nomor Induk Pegawai (Khusus role Guru)
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nama_lengkap VARCHAR(100) NOT NULL,

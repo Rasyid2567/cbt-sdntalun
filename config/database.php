@@ -79,6 +79,17 @@ function get_db(): PDO {
             die("Koneksi database PostgreSQL gagal: " . htmlspecialchars($lastException->getMessage()) . "<br><small>Pastikan service PostgreSQL aktif dan database '" . htmlspecialchars(DB_NAME) . "' dapat diakses.</small>");
         }
 
+        // Auto-heal skema tabel: Tambah kolom nip di users jika belum ada
+        static $checkedNip = false;
+        if (!$checkedNip && $pdo !== null) {
+            try {
+                $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS nip VARCHAR(30) NULL;");
+            } catch (Throwable $e) {
+                // Abaikan error DDL jika role user terbatas
+            }
+            $checkedNip = true;
+        }
+
         // Pastikan folder uploads selalu ada dan memiliki izin akses
         $uploadsDir = dirname(__DIR__) . '/assets/uploads';
         if (!is_dir($uploadsDir)) {

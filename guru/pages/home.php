@@ -32,6 +32,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('guru'));
     }
 
+    if ($action === 'update_profil_guru') {
+        $nama = trim($_POST['nama_lengkap'] ?? '');
+        $nip  = trim($_POST['nip'] ?? '');
+
+        if ($nama === '') {
+            flash_set('danger', 'Nama lengkap tidak boleh kosong.');
+        } else {
+            $upd = $db->prepare("UPDATE users SET nama_lengkap = :n, nip = :nip WHERE id_user = :id AND role = 'guru'");
+            $upd->execute([':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':id' => $idGuru]);
+            $_SESSION['nama_lengkap'] = $nama;
+            $_SESSION['nip'] = ($nip !== '' ? $nip : null);
+            flash_set('success', 'Profil dan NIP guru berhasil diperbarui.');
+        }
+        redirect(base_url('guru'));
+    }
+
     if ($action === 'refresh_token') {
         $idSesi = (int)($_POST['id_sesi'] ?? 0);
         $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -116,6 +132,13 @@ include __DIR__ . '/../layouts/header.php';
         <div>
             <h1 class="card-title" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                 <span>Selamat Datang, <?= sanitize($currentUser['nama_lengkap']) ?></span>
+                <?php if (!empty($currentUser['nip'])): ?>
+                    <span style="font-size: 0.8rem; background: #e0e7ff; color: #1e40af; padding: 0.25rem 0.6rem; border-radius: 4px; font-weight: 700;">NIP. <?= sanitize($currentUser['nip']) ?></span>
+                <?php endif; ?>
+                <button type="button" class="btn btn-sm btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;" onclick="openModal('modal-profil-guru')" title="Ubah Nama Lengkap & NIP Guru">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    <span>Ubah NIP</span>
+                </button>
                 <span style="font-size: 0.8rem; background: #e2e8f0; padding: 0.25rem 0.6rem; border-radius: 4px; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 0.35rem;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     <span>Waktu Server:</span>
@@ -366,6 +389,33 @@ updateDashboardCountdowns();
 
 <?php
 $modalFormAction = base_url('guru');
+?>
+<!-- Modal Edit Profil & NIP Guru -->
+<div id="modal-profil-guru" class="modal-overlay">
+    <div class="modal-box" style="max-width: 440px;">
+        <h2 class="card-title mb-2">Profil Guru &amp; NIP</h2>
+        <p class="text-sm text-muted mb-3">Atur nama lengkap dan NIP Anda untuk tanda tangan otomatis pada lembar hasil ujian siswa (PDF).</p>
+        <form action="<?= base_url('guru') ?>" method="POST">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="update_profil_guru">
+            <div class="form-group mb-3">
+                <label style="font-weight: 700;">Nama Lengkap (beserta Gelar)</label>
+                <input type="text" name="nama_lengkap" class="form-control" value="<?= sanitize($currentUser['nama_lengkap']) ?>" required>
+            </div>
+            <div class="form-group mb-3">
+                <label style="font-weight: 700;">Nomor Induk Pegawai (NIP)</label>
+                <input type="text" name="nip" class="form-control" value="<?= sanitize($currentUser['nip'] ?? '') ?>" placeholder="Contoh: 198501012010011005">
+                <div class="text-xs text-muted mt-1">NIP akan otomatis dicetak pada tanda tangan Guru Penguji di lembar hasil ujian siswa (PDF).</div>
+            </div>
+            <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-profil-guru')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan Profil</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php
 include __DIR__ . '/../layouts/modal_tambah_waktu.php';
 include __DIR__ . '/../layouts/footer.php';
 ?>
