@@ -585,14 +585,18 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 
 <div class="paper-page" id="printable-area">
   <!-- Kop Resmi Sekolah -->
-  <div style="text-align: center; margin-bottom: 14px;">
-    <div style="font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b;">PEMERINTAH KABUPATEN PONOROGO</div>
-    <div style="font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b;">DINAS PENDIDIKAN</div>
-    <div style="font-size: 15pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0;">SD NEGERI 1 TALUN</div>
-    <div style="font-size: 9pt; color: #475569;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
-    <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-top: 8px; margin-bottom: 14px;"></div>
-    <div style="font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
+  <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px;">
+    <img src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="width: 62px; height: 62px; object-fit: contain;">
+    <div style="text-align: center; flex: 1;">
+      <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
+      <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
+      <div style="font-size: 14pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
+      <div style="font-size: 8.5pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+    </div>
+    <div style="width: 62px;"></div>
   </div>
+  <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 14px;"></div>
+  <div style="text-align: center; font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 14px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
 
   <table class="tbl-info">
     <tr>

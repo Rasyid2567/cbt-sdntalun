@@ -18,7 +18,7 @@ $flash = $flash ?? flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title><?= sanitize($title) ?></title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/sdntalun.png') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
     <?= $extraCss ?? '' ?>
 </head>
@@ -27,11 +27,8 @@ $flash = $flash ?? flash_get();
 <header class="cbt-navbar no-print">
     <div class="cbt-navbar-header">
         <a href="<?= base_url('guru') ?>" class="cbt-navbar-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>CBT <?= strtoupper(htmlspecialchars($currentUser['role'] ?? 'guru')) ?></span>
+            <img src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="height: 32px; width: 32px; object-fit: contain;">
+            <span>SDN 1 TALUN</span>
         </a>
         <button type="button" class="cbt-menu-toggle" aria-label="Toggle Menu" onclick="toggleNavMenu(event)">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

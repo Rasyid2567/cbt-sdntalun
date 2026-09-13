@@ -179,15 +179,15 @@ $flash = flash_get();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Konfirmasi Tes - CBT Siswa</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/sdntalun.png') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body class="app-webview-body">
 
 <header class="cbt-navbar cbt-navbar-student flex-between">
     <div class="cbt-navbar-brand">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
-        <span>CBT PESERTA</span>
+        <img src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="height: 32px; width: 32px; object-fit: contain;">
+        <span>SDN 1 TALUN</span>
     </div>
     <div class="flex gap-2" style="align-items: center; flex-shrink: 0;">
         <span class="user-badge"><?= sanitize($currentUser['nama_lengkap']) ?></span>
