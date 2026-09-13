@@ -325,9 +325,9 @@ if (!empty($detailUjian['waktu_mulai'])) {
 }
 
 // =============================================================================
-// 5. TANGANI EKSPOR DOKUMEN WORD (.DOC)
+// 5. TANGANI EKSPOR LEMBAR HASIL & JAWABAN SISWA (PDF / PRINT)
 // =============================================================================
-if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_dokumen', 'export_jawaban'], true)) {
+if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_doc', 'export_dokumen', 'export_jawaban'], true)) {
     if (ob_get_level() > 0) {
         ob_end_clean();
     }
@@ -335,110 +335,263 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
     $rawNamaSiswa = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_siswa']);
     $rawNis       = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($detailUjian['nis'] ?: $detailUjian['username']));
     $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
-    $filename     = "Lembar_Jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}.doc";
+    $filenameBase = "Lembar_Jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}";
 
-    header('Content-Description: File Transfer');
-    header('Content-Type: application/vnd.ms-word; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-    header('Expires: 0');
-    header('Pragma: public');
-
+    header('Content-Type: text/html; charset=utf-8');
     ?>
-<html xmlns:o='urn:schemas-microsoft-com:office:office'
-      xmlns:w='urn:schemas-microsoft-com:office:word'
-      xmlns='http://www.w3.org/TR/REC-html40'>
+<!DOCTYPE html>
+<html lang="id">
 <head>
-<meta charset='utf-8'>
-<title>Lembar Jawaban Siswa - <?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></title>
-<!--[if gte mso 9]>
-<xml>
-<w:WordDocument>
-  <w:View>Print</w:View>
-  <w:Zoom>100</w:Zoom>
-  <w:DoNotOptimizeForBrowser/>
-</w:WordDocument>
-</xml>
-<![endif]-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?= htmlspecialchars($filenameBase, ENT_QUOTES, 'UTF-8') ?></title>
+<link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
 <style>
-  @page Section1 {
-    size: 21.0cm 29.7cm;
-    margin: 2.0cm 2.0cm 2.0cm 2.0cm;
-    mso-header-margin: 1.0cm;
-    mso-footer-margin: 1.0cm;
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 12mm 15mm;
   }
-  div.Section1 { page: Section1; }
+  * {
+    box-sizing: border-box;
+  }
   body {
-    font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
-    font-size: 11pt;
-    line-height: 1.35;
-    color: #111827;
+    background-color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+    color: #0f172a;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    font-family: sans-serif;
+  }
+  .no-print-bar .title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .no-print-bar .title-group span {
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .no-print-bar .badge-user {
+    background: #334155;
+    color: #93c5fd;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+  }
+  .no-print-bar .btn-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-print-action {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    padding: 0.45rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .btn-print-action:hover {
+    background: #1d4ed8;
+  }
+  .btn-download-action {
+    background: #059669;
+    color: #ffffff;
+    border: none;
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .btn-download-action:hover {
+    background: #047857;
+  }
+  .btn-close-action {
+    background: #475569;
+    color: #ffffff;
+    border: none;
+    padding: 0.45rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-close-action:hover {
+    background: #334155;
+  }
+  .print-hint {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-right: 0.5rem;
+  }
+  .paper-page {
+    background: #ffffff;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 20px auto 40px auto;
+    padding: 15mm 18mm;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    box-sizing: border-box;
+    border-radius: 4px;
   }
   table {
     border-collapse: collapse;
     width: 100%;
   }
   .tbl-info {
-    margin-bottom: 16px;
-    font-size: 10pt;
+    margin-bottom: 14px;
+    font-size: 9.5pt;
   }
   .tbl-info td {
     padding: 3px 4px;
     vertical-align: top;
   }
   .tbl-score {
-    margin-bottom: 18px;
-    font-size: 10pt;
-    border: 1px solid #333;
+    margin-bottom: 16px;
+    font-size: 9.5pt;
+    border: 1px solid #334155;
   }
   .tbl-score th {
     background-color: #f1f5f9;
-    border: 1px solid #333;
+    border: 1px solid #334155;
     padding: 6px 8px;
     text-align: center;
-    font-weight: bold;
+    font-weight: 700;
   }
   .tbl-score td {
-    border: 1px solid #333;
+    border: 1px solid #334155;
     padding: 6px 8px;
     text-align: center;
-    font-weight: bold;
-    font-size: 12pt;
+    font-weight: 700;
+    font-size: 11pt;
   }
   .tbl-soal {
-    border: 1px solid #333;
+    border: 1px solid #334155;
     font-size: 9.5pt;
     margin-top: 10px;
   }
   .tbl-soal th {
     background-color: #e2e8f0;
-    border: 1px solid #333;
+    border: 1px solid #334155;
     padding: 6px 6px;
     text-align: center;
-    font-weight: bold;
+    font-weight: 700;
   }
   .tbl-soal td {
-    border: 1px solid #333;
+    border: 1px solid #334155;
     padding: 6px 6px;
     vertical-align: top;
   }
   .essay-ans {
-    font-size: 9.5pt;
-    color: #1e293b;
+    font-size: 9pt;
+    color: #0f172a;
     white-space: pre-wrap;
     background: #f8fafc;
     padding: 4px 6px;
     border-left: 3px solid #64748b;
   }
+  .signature-box {
+    margin-top: 25px;
+    font-size: 10pt;
+    border: none;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .signature-box td {
+    border: none;
+    padding: 4px;
+  }
+
+  @media print {
+    .no-print, .no-print-bar {
+      display: none !important;
+    }
+    body {
+      background: #ffffff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .paper-page {
+      width: 100% !important;
+      min-height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+    tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .tbl-soal tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .signature-box {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  }
 </style>
 </head>
 <body>
-<div class="Section1">
-  <div style="text-align: center; margin-bottom: 18px;">
-    <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">DINAS PENDIDIKAN KABUPATEN PONOROGO</div>
-    <div style="font-size: 15pt; font-weight: bold; text-transform: uppercase;">SD NEGERI 1 TALUN</div>
-    <div style="font-size: 9.5pt; color: #333; margin-bottom: 12px;">Jln. Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur</div>
-    <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
+
+<div class="no-print-bar no-print">
+  <div class="title-group">
+    <span>📄 Lembar Hasil &amp; Jawaban Siswa</span>
+    <span class="badge-user"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></span>
+  </div>
+  <div class="btn-group">
+    <span class="print-hint">Pilih "Save as PDF" pada jendela cetak</span>
+    <button type="button" class="btn-print-action" onclick="window.print()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      <span>Cetak / Simpan PDF</span>
+    </button>
+    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      <span>Unduh File .PDF</span>
+    </button>
+    <button type="button" class="btn-close-action" onclick="window.close()">Tutup</button>
+  </div>
+</div>
+
+<div class="paper-page" id="printable-area">
+  <!-- Kop Resmi Sekolah -->
+  <div style="text-align: center; margin-bottom: 14px;">
+    <div style="font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b;">PEMERINTAH KABUPATEN PONOROGO</div>
+    <div style="font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b;">DINAS PENDIDIKAN</div>
+    <div style="font-size: 15pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0;">SD NEGERI 1 TALUN</div>
+    <div style="font-size: 9pt; color: #475569;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+    <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-top: 8px; margin-bottom: 14px;"></div>
+    <div style="font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
   </div>
 
   <table class="tbl-info">
@@ -541,7 +694,69 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_doc', 'export_d
     </tbody>
   </table>
 
+  <!-- Tanda Tangan Pengesahan -->
+  <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 10pt; page-break-inside: avoid;">
+    <tr>
+      <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
+        Mengetahui,<br>
+        Kepala SD Negeri 1 Talun<br><br><br><br><br>
+        <strong><u>...................................................</u></strong><br>
+        <span style="font-size: 9pt; color: #475569;">NIP. ...........................................</span>
+      </td>
+      <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
+        Talun, <?= date('d/m/Y') ?><br>
+        Guru Penguji / Pengampu<br><br><br><br><br>
+        <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
+        <span style="font-size: 9pt; color: #475569;">NIP. ...........................................</span>
+      </td>
+    </tr>
+  </table>
+
 </div>
+
+<script src="<?= base_url('assets/js/html2pdf.bundle.min.js') ?>"></script>
+<script>
+function downloadPdfDirectly() {
+    const btn = document.getElementById('btn-download-pdf');
+    if (typeof html2pdf === 'undefined') {
+        window.print();
+        return;
+    }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Memproses PDF...</span>';
+    }
+    const element = document.getElementById('printable-area');
+    const opt = {
+        margin:       [10, 12, 10, 12],
+        filename:     '<?= $filenameBase ?>.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+    html2pdf().set(opt).from(element).save().then(function() {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh File .PDF</span>';
+        }
+    }).catch(function(err) {
+        console.error(err);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Unduh File .PDF</span>';
+        }
+        window.print();
+    });
+}
+
+window.addEventListener('load', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('download') === '1') {
+        setTimeout(downloadPdfDirectly, 300);
+    }
+});
+</script>
 </body>
 </html>
     <?php
@@ -752,9 +967,9 @@ include __DIR__ . '/../layouts/header.php';
             </p>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa (.doc)">
+            <a href="<?= base_url('guru?page=detail_jawaban&action=export_pdf&id_ujian_siswa=' . $idUjianSiswa) ?>" target="_blank" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor Lembar Jawaban Siswa (PDF)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                <span>Unduh Word (.doc)</span>
+                <span>Ekspor PDF</span>
             </a>
             <a href="<?= base_url('guru?page=detail_jawaban&action=export_csv&id_ujian_siswa=' . $idUjianSiswa) ?>" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="Ekspor CSV">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>

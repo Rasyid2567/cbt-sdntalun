@@ -390,9 +390,9 @@ include __DIR__ . '/../layouts/header.php';
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                     <span>Detail & Nilai</span>
                                                 </a>
-                                                <a href="<?= base_url('guru?page=detail_jawaban&action=export_doc&id_ujian_siswa=' . (int)$r['id_ujian_siswa']) ?>" class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Ekspor Lembar Jawaban Siswa (.doc)">
-                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                                    <span>Ekspor Jawaban</span>
+                                                <a href="<?= base_url('guru?page=detail_jawaban&action=export_pdf&id_ujian_siswa=' . (int)$r['id_ujian_siswa']) ?>" target="_blank" class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Ekspor Lembar Jawaban Siswa (PDF)">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                                    <span>Ekspor PDF</span>
                                                 </a>
                                             </div>
                                         <?php else: ?>
