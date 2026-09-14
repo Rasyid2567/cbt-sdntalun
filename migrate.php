@@ -32,8 +32,9 @@ try {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- 1b. Tambah kolom nip di tabel users jika belum ada
+        -- 1b. Tambah kolom nip dan status_akun di tabel users jika belum ada
         ALTER TABLE users ADD COLUMN IF NOT EXISTS nip VARCHAR(30) NULL;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS status_akun VARCHAR(20) DEFAULT 'aktif';
 
         -- 2. Tambah kolom id_paket di bank_soal dan sesi_ujian
         ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE CASCADE;
@@ -97,6 +98,7 @@ try {
         ALTER TABLE sesi_ujian DROP COLUMN IF EXISTS judul_soal CASCADE;
 
         -- 5. Indeks optimasi performa
+        CREATE INDEX IF NOT EXISTS idx_users_status_akun ON users(status_akun);
         CREATE INDEX IF NOT EXISTS idx_paket_soal_guru ON paket_soal(id_guru);
         CREATE INDEX IF NOT EXISTS idx_paket_soal_mapel ON paket_soal(id_mapel);
         CREATE INDEX IF NOT EXISTS idx_bank_soal_paket ON bank_soal(id_paket);

@@ -30,6 +30,11 @@ if (!empty($_SESSION['user_id']) && !empty($_SESSION['role'])) {
 }
 
 $error = null;
+$accountDisabled = false;
+if (!empty($_SESSION["account_disabled"])) {
+    $accountDisabled = true;
+    unset($_SESSION["account_disabled"]);
+}
 
 // Proses Form Login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,8 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password'])) {
+                // Pengecekan Status Akun Aktif / Nonaktif
+                if (isset($user['status_akun']) && $user['status_akun'] === 'nonaktif') {
+                    $accountDisabled = true;
+                    $error = 'Akun anda telah di nonaktifkan. silahkan hubungi operator';
+                }
                 // Khusus Siswa: Proteksi Sesi Ganda (CBT Strict Login)
-                if ($user['role'] === 'siswa' && $user['status_login'] === 'online') {
+                elseif ($user['role'] === 'siswa' && $user['status_login'] === 'online') {
                     $error = 'Akun Anda sedang aktif di perangkat lain. Silakan hubungi Operator/Proktor untuk melakukan Reset Login.';
                 } else {
                     // Update status login menjadi 'online'
@@ -144,5 +154,30 @@ $flash = flash_get();
 
 <script src="<?= base_url('assets/js/app.js') ?>"></script>
 <script src="<?= base_url('assets/js/server-alert.js') ?>"></script>
+
+<!-- Popup Modal Peringatan Akun Dinonaktifkan -->
+<?php if (!empty($accountDisabled)): ?>
+<div id="modal-akun-nonaktif" class="modal-overlay active" style="z-index: 99999;">
+    <div class="modal-box" style="max-width: 440px; text-align: center; border-radius: 16px; padding: 2rem 1.75rem; box-shadow: var(--shadow-lg); background: #ffffff; border: 1px solid var(--gray-200);">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; box-shadow: 0 0 0 6px #fef2f2;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </div>
+        <h2 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0 0 0.5rem; letter-spacing: -0.01em;">Peringatan Masuk</h2>
+        <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.5rem;">
+            <p style="font-size: 0.92rem; color: #9f1239; margin: 0; line-height: 1.5; font-weight: 700;">
+                Akun anda telah di nonaktifkan. silahkan hubungi operator
+            </p>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" onclick="document.getElementById('modal-akun-nonaktif').classList.remove('active')" style="padding: 0.75rem 1.5rem; font-weight: 700; font-size: 0.95rem; border-radius: 8px;">
+            Mengerti / Tutup
+        </button>
+    </div>
+</div>
+<?php endif; ?>
+
 </body>
 </html>

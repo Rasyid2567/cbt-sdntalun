@@ -62,16 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('danger', "NIS '{$nis}' atau Username '{$username}' sudah terdaftar pada akun lain.");
             } else {
                 $hash = password_hash($password, PASSWORD_BCRYPT);
+                $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 $ins = $db->prepare("
-                    INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login) 
-                    VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline')
+                    INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login, status_akun) 
+                    VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline', :sa)
                 ");
                 $ins->execute([
                     ':nis' => $nis,
                     ':u'   => $username,
                     ':p'   => $hash,
                     ':n'   => $nama,
-                    ':k'   => $id_kelas
+                    ':k'   => $id_kelas,
+                    ':sa'  => $status_akun
                 ]);
                 flash_set('success', 'Data siswa berhasil ditambahkan.');
             }
@@ -97,23 +99,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetch()) {
                 flash_set('danger', "NIS atau Username sudah digunakan oleh akun siswa lain.");
             } else {
+                $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 if ($password !== '') {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
                     $upd = $db->prepare("
                         UPDATE users 
-                        SET nis = :nis, username = :u, password = :p, nama_lengkap = :n, id_kelas = :k 
+                        SET nis = :nis, username = :u, password = :p, nama_lengkap = :n, id_kelas = :k, status_akun = :sa 
                         WHERE id_user = :id AND role = 'siswa'
                     ");
-                    $upd->execute([':nis' => $nis, ':u' => $username, ':p' => $hash, ':n' => $nama, ':k' => $id_kelas, ':id' => $id_user]);
+                    $upd->execute([':nis' => $nis, ':u' => $username, ':p' => $hash, ':n' => $nama, ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
                 } else {
                     $upd = $db->prepare("
                         UPDATE users 
-                        SET nis = :nis, username = :u, nama_lengkap = :n, id_kelas = :k 
+                        SET nis = :nis, username = :u, nama_lengkap = :n, id_kelas = :k, status_akun = :sa 
                         WHERE id_user = :id AND role = 'siswa'
                     ");
-                    $upd->execute([':nis' => $nis, ':u' => $username, ':n' => $nama, ':k' => $id_kelas, ':id' => $id_user]);
+                    $upd->execute([':nis' => $nis, ':u' => $username, ':n' => $nama, ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                }
+                if ($status_akun === 'nonaktif') {
+                    $db->prepare("UPDATE users SET status_login = 'offline' WHERE id_user = :id")->execute([':id' => $id_user]);
                 }
                 flash_set('success', 'Data siswa berhasil diperbarui.');
+            }
+        }
+        redirect(base_url('operator?page=siswa_crud'));
+    }
+
+    // TOGGLE STATUS AKUN SISWA (AKTIF / NONAKTIF)
+    if ($action === 'toggle_status') {
+        $id_user = (int)($_POST['id_user'] ?? 0);
+        if ($id_user > 0) {
+            $stmt = $db->prepare("SELECT id_user, nama_lengkap, status_akun FROM users WHERE id_user = :id AND role = 'siswa'");
+            $stmt->execute([':id' => $id_user]);
+            $target = $stmt->fetch();
+            if ($target) {
+                $cur = $target['status_akun'] ?? 'aktif';
+                $newStatus = ($cur === 'nonaktif') ? 'aktif' : 'nonaktif';
+                $upd = $db->prepare("UPDATE users SET status_akun = :s WHERE id_user = :id");
+                $upd->execute([':s' => $newStatus, ':id' => $id_user]);
+
+                if ($newStatus === 'nonaktif') {
+                    $db->prepare("UPDATE users SET status_login = 'offline' WHERE id_user = :id")->execute([':id' => $id_user]);
+                    flash_set('warning', "Akun siswa '{$target['nama_lengkap']}' berhasil dinonaktifkan.");
+                } else {
+                    flash_set('success', "Akun siswa '{$target['nama_lengkap']}' berhasil diaktifkan kembali.");
+                }
             }
         }
         redirect(base_url('operator?page=siswa_crud'));
@@ -238,7 +268,7 @@ $filterKelas = !empty($_GET['filter_kelas']) ? (int)$_GET['filter_kelas'] : null
 $search      = trim($_GET['search'] ?? '');
 
 $sql = "
-    SELECT u.id_user, u.nis, u.username, u.nama_lengkap, u.status_login, u.id_kelas, k.nama_kelas
+    SELECT u.id_user, u.nis, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas
     FROM users u
     LEFT JOIN kelas k ON u.id_kelas = k.id_kelas
     WHERE u.role = 'siswa'
@@ -327,8 +357,9 @@ include __DIR__ . '/../layouts/header.php';
                         <th>Username</th>
                         <th>Nama Lengkap</th>
                         <th>Kelas</th>
+                        <th>Status Akun</th>
                         <th>Status Sesi</th>
-                        <th style="width: 180px; text-align: center;">Aksi</th>
+                        <th style="width: 220px; text-align: center;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -344,6 +375,13 @@ include __DIR__ . '/../layouts/header.php';
                                 <td data-label="Username"><strong><?= sanitize($s['username']) ?></strong></td>
                                 <td data-label="Nama Lengkap"><?= sanitize($s['nama_lengkap']) ?></td>
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas'] ?? 'Belum ada') ?></td>
+                                <td data-label="Status Akun">
+                                    <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
+                                        <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 700;">Aktif</span>
+                                    <?php else: ?>
+                                        <span class="badge" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-weight: 700;">Nonaktif</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td data-label="Status Sesi">
                                     <?php if ($s['status_login'] === 'online'): ?>
                                         <span class="badge badge-online">Online</span>
@@ -352,15 +390,35 @@ include __DIR__ . '/../layouts/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Aksi">
-                                    <div class="flex gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline" 
+                                    <div class="flex gap-1" style="flex-wrap: wrap; justify-content: center;">
+                                        <!-- Tombol Toggle Status Akun -->
+                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline;"
+                                              data-confirm="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '? Akun ini tidak akan dapat login ke CBT.' : 'Aktifkan kembali akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '?' ?>"
+                                              data-confirm-title="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan Akun' : 'Aktifkan Akun' ?>"
+                                              data-confirm-type="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'warning' : 'info' ?>"
+                                              data-confirm-btn="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan' ?>">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="toggle_status">
+                                            <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
+                                            <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
+                                                <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 600;" title="Nonaktifkan Akun Siswa">
+                                                    Nonaktifkan
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 600;" title="Aktifkan Akun Siswa">
+                                                    Aktifkan
+                                                </button>
+                                            <?php endif; ?>
+                                        </form>
+
+                                        <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;"
                                             onclick='openEditModal(<?= json_encode($s) ?>)'>Edit</button>
                                         
                                         <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                                            <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Hapus</button>
                                         </form>
                                     </div>
                                 </td>
@@ -406,6 +464,13 @@ include __DIR__ . '/../layouts/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Status Akun</label>
+                <select name="status_akun" class="form-control" required>
+                    <option value="aktif" selected>Aktif (Dapat Login)</option>
+                    <option value="nonaktif">Nonaktif (Dilarang Login)</option>
+                </select>
+            </div>
 
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-tambah')">Batal</button>
@@ -449,6 +514,13 @@ include __DIR__ . '/../layouts/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Status Akun</label>
+                <select id="edit-status_akun" name="status_akun" class="form-control" required>
+                    <option value="aktif">Aktif (Dapat Login)</option>
+                    <option value="nonaktif">Nonaktif (Dilarang Login)</option>
+                </select>
+            </div>
 
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit')">Batal</button>
@@ -490,6 +562,7 @@ function openEditModal(data) {
     document.getElementById("edit-username").value = data.username;
     document.getElementById("edit-nama").value = data.nama_lengkap;
     document.getElementById("edit-kelas").value = data.id_kelas || "";
+    document.getElementById("edit-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit");
 }
 </script>

@@ -48,6 +48,7 @@ CREATE TABLE users (
     role user_role NOT NULL,
     id_kelas INT REFERENCES kelas(id_kelas) ON DELETE SET NULL,
     status_login login_status DEFAULT 'offline',
+    status_akun VARCHAR(20) DEFAULT 'aktif', -- 'aktif' atau 'nonaktif'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -129,6 +130,7 @@ CREATE TABLE jawaban_siswa (
 -- Index Optimasi Performa Query Real-time
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_login ON users(status_login);
+CREATE INDEX idx_users_status_akun ON users(status_akun);
 CREATE INDEX idx_paket_soal_guru ON paket_soal(id_guru);
 CREATE INDEX idx_paket_soal_mapel ON paket_soal(id_mapel);
 CREATE INDEX idx_bank_soal_paket ON bank_soal(id_paket);

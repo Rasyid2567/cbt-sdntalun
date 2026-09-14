@@ -62,9 +62,11 @@ if ($selectedSesiId > 0) {
     // Detail Sesi
     $sqlDet = "
         SELECT s.*, m.nama_mapel, k.nama_kelas, k.id_kelas, p.nama_paket,
+               u.nama_lengkap as nama_guru, u.nip as nip_guru,
                GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (s.created_at + (s.durasi_menit * INTERVAL '1 minute') - CURRENT_TIMESTAMP))))::int as sisa_detik_sesi
         FROM sesi_ujian s
         LEFT JOIN paket_soal p ON s.id_paket = p.id_paket
+        LEFT JOIN users u ON s.id_guru = u.id_user
         JOIN mapel m ON s.id_mapel = m.id_mapel
         JOIN kelas k ON s.id_kelas = k.id_kelas
         WHERE s.id_sesi = :id
@@ -226,6 +228,20 @@ $flash = flash_get();
 include __DIR__ . '/../layouts/header.php';
 ?>
 
+<style>
+.print-only { display: none !important; }
+@media print {
+    .print-only { display: block !important; }
+    .no-print { display: none !important; }
+    body { background: #fff !important; color: #000 !important; font-size: 9.5pt; }
+    .card { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+    .table { width: 100% !important; border-collapse: collapse !important; }
+    .table th, .table td { border: 1px solid #333 !important; padding: 5px 8px !important; color: #000 !important; }
+    .badge { border: none !important; padding: 0 !important; background: transparent !important; color: #000 !important; font-weight: bold; }
+    @page { margin: 15mm 12mm; }
+}
+</style>
+
 <main class="container" style="max-width: 1380px;">
     <?php if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?> no-print">
@@ -269,6 +285,22 @@ include __DIR__ . '/../layouts/header.php';
     <?php if ($sesiDetail): ?>
         <!-- Ringkasan Info Ujian -->
         <div class="card">
+            <!-- Kop Resmi Sekolah (Hanya Tampil Saat Dicetak) -->
+            <div class="print-only" style="display: none; margin-bottom: 14px;">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 8px;">
+                    <img src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="width: 55px; height: 55px; object-fit: contain;">
+                    <div style="text-align: center; flex: 1;">
+                        <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
+                        <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
+                        <div style="font-size: 13pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
+                        <div style="font-size: 8pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+                    </div>
+                    <div style="width: 55px;"></div>
+                </div>
+                <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 12px;"></div>
+                <div style="text-align: center; font-size: 11pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 12px;">REKAPITULASI HASIL PENILAIAN ASESMEN (CBT)</div>
+            </div>
+
             <div style="border-bottom: 2px solid var(--gray-800); padding-bottom: 0.75rem; margin-bottom: 1rem;">
                 <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--gray-900);"><?= sanitize($sesiDetail['nama_ujian']) ?></h2>
                 <div class="flex gap-4 mt-1 text-sm text-muted" style="flex-wrap: wrap;">
@@ -407,6 +439,26 @@ include __DIR__ . '/../layouts/header.php';
                     <strong>Keterangan:</strong> Terdapat <?= $totalEssai ?> butir soal uraian/essai pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai essai siswa.
                 </div>
             <?php endif; ?>
+
+            <!-- Tanda Tangan Pengesahan (Hanya Tampil Saat Dicetak) -->
+            <div class="print-only" style="display: none; margin-top: 30px; page-break-inside: avoid;">
+                <table style="width: 100%; border: none !important; font-size: 10pt;">
+                    <tr style="border: none !important;">
+                        <td style="width: 50%; text-align: center; border: none !important; vertical-align: top;">
+                            Mengetahui,<br>
+                            Kepala <?= defined('SEKOLAH_NAMA') ? sanitize(SEKOLAH_NAMA) : 'SD Negeri 1 Talun' ?><br><br><br><br><br>
+                            <strong><u><?= defined('KEPALA_SEKOLAH_NAMA') ? sanitize(KEPALA_SEKOLAH_NAMA) : 'MASHURI, S.Pd.' ?></u></strong><br>
+                            <span style="font-size: 9pt; color: #475569;">NIP. <?= defined('KEPALA_SEKOLAH_NIP') ? sanitize(KEPALA_SEKOLAH_NIP) : '198511052022211001' ?></span>
+                        </td>
+                        <td style="width: 50%; text-align: center; border: none !important; vertical-align: top;">
+                            Talun, <?= date('d/m/Y') ?><br>
+                            Guru Penguji / Pengampu<br><br><br><br><br>
+                            <strong><u><?= htmlspecialchars((string)(!empty($sesiDetail['nama_guru']) ? $sesiDetail['nama_guru'] : ($currentUser['nama_lengkap'] ?: '...................................................')), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
+                            <span style="font-size: 9pt; color: #475569;">NIP. <?= htmlspecialchars((string)(!empty($sesiDetail['nip_guru']) ? $sesiDetail['nip_guru'] : ($currentUser['nip'] ?: '...........................................')), ENT_QUOTES, 'UTF-8') ?></span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
         </div>
     <?php else: ?>
         <div class="card text-center" style="padding: 3rem 0;">

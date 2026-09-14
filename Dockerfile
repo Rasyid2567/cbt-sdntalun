@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y libpq-dev \
 
 WORKDIR /var/www/html
 
+# Salin konfigurasi PHP kustom (max_multipart_body_parts, max_input_vars, dll)
+COPY config/php.ini /usr/local/etc/php/conf.d/custom.ini
+
 # Pastikan folder assets/uploads dibuat dan memiliki izin tulis untuk Apache www-data
 RUN mkdir -p /var/www/html/assets/uploads \
     && chown -R www-data:www-data /var/www/html \

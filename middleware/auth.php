@@ -12,7 +12,7 @@ require_once __DIR__ . '/../config/database.php';
  * @return array Data user yang sedang login
  */
 function auth_check(array $allowed_roles = []): array {
-    if (session_status() === PHP_SESSION_NONE) {
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
         session_start();
     }
 
@@ -23,18 +23,18 @@ function auth_check(array $allowed_roles = []): array {
 
     $db = get_db();
     try {
-        $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+        $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login, status_akun FROM users WHERE id_user = :id");
         $stmt->execute([':id' => $_SESSION['user_id']]);
         $user = $stmt->fetch();
     } catch (Throwable $e) {
         // Fallback jika kolom nip belum ada di DB remote
         try {
             $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS nip VARCHAR(30) NULL;");
-            $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+            $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login, status_akun FROM users WHERE id_user = :id");
             $stmt->execute([':id' => $_SESSION['user_id']]);
             $user = $stmt->fetch();
         } catch (Throwable $e2) {
-            $stmt = $db->prepare("SELECT id_user, nis, username, nama_lengkap, role, id_kelas, status_login FROM users WHERE id_user = :id");
+            $stmt = $db->prepare("SELECT id_user, nis, username, nama_lengkap, role, id_kelas, status_login, status_akun FROM users WHERE id_user = :id");
             $stmt->execute([':id' => $_SESSION['user_id']]);
             $user = $stmt->fetch();
             if ($user) {
@@ -48,6 +48,18 @@ function auth_check(array $allowed_roles = []): array {
         $_SESSION = [];
         session_destroy();
         flash_set('danger', 'Akun pengguna tidak ditemukan.');
+        redirect(base_url('login'));
+    }
+
+    // Validasi status akun (apakah dinonaktifkan oleh Operator)
+    if (isset($user['status_akun']) && $user['status_akun'] === 'nonaktif') {
+        $_SESSION = [];
+        session_destroy();
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+            session_start();
+        }
+        $_SESSION['account_disabled'] = true;
+        flash_set('danger', 'Akun anda telah di nonaktifkan. silahkan hubungi operator');
         redirect(base_url('login'));
     }
 

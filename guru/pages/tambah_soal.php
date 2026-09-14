@@ -13,10 +13,11 @@
 require_once __DIR__ . '/../../middleware/auth.php';
 require_once __DIR__ . '/../../config/scoring.php';
 
-$currentUser = auth_check(['guru']);
+$currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
 
 $idGuru = $currentUser['id_user'];
+$isGuru = ($currentUser['role'] === 'guru');
 
 // Tangani parameter inisialisasi
 $initPaketId  = !empty($_GET['id_paket']) ? (int)$_GET['id_paket'] : 0;
@@ -26,13 +27,19 @@ $editSingleId = !empty($_GET['edit']) ? (int)$_GET['edit'] : 0;
 
 // Jika datang dari parameter edit butir soal tunggal
 if ($editSingleId > 0 && $initPaketId <= 0) {
-    $stmtSingle = $db->prepare("
+    $sqlSingle = "
         SELECT b.id_soal, b.id_paket, p.id_mapel, p.nama_paket 
         FROM bank_soal b
         JOIN paket_soal p ON b.id_paket = p.id_paket
-        WHERE b.id_soal = :id AND p.id_guru = :g
-    ");
-    $stmtSingle->execute([':id' => $editSingleId, ':g' => $idGuru]);
+        WHERE b.id_soal = :id
+    ";
+    $pSingle = [':id' => $editSingleId];
+    if ($isGuru) {
+        $sqlSingle .= " AND p.id_guru = :g";
+        $pSingle[':g'] = $idGuru;
+    }
+    $stmtSingle = $db->prepare($sqlSingle);
+    $stmtSingle->execute($pSingle);
     $singleData = $stmtSingle->fetch();
     if ($singleData) {
         $initPaketId = (int)$singleData['id_paket'];
@@ -43,8 +50,14 @@ if ($editSingleId > 0 && $initPaketId <= 0) {
 
 // Jika id_paket ditentukan, ambil detail paket
 if ($initPaketId > 0) {
-    $stmtP = $db->prepare("SELECT * FROM paket_soal WHERE id_paket = :id AND id_guru = :g");
-    $stmtP->execute([':id' => $initPaketId, ':g' => $idGuru]);
+    $sqlP = "SELECT * FROM paket_soal WHERE id_paket = :id";
+    $pP = [':id' => $initPaketId];
+    if ($isGuru) {
+        $sqlP .= " AND id_guru = :g";
+        $pP[':g'] = $idGuru;
+    }
+    $stmtP = $db->prepare($sqlP);
+    $stmtP->execute($pP);
     $paketRow = $stmtP->fetch();
     if ($paketRow) {
         $initMapel = (int)$paketRow['id_mapel'];
@@ -106,12 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         // 1. Simpan Header Paket Soal (INSERT atau UPDATE)
         if ($idPaket > 0) {
-            $stmtUpdPaket = $db->prepare("
-                UPDATE paket_soal 
-                SET id_mapel = :m, nama_paket = :j 
-                WHERE id_paket = :p AND id_guru = :g
-            ");
-            $stmtUpdPaket->execute([':m' => $idMapel, ':j' => $judulSoal, ':p' => $idPaket, ':g' => $idGuru]);
+            $sqlUpdPaket = "UPDATE paket_soal SET id_mapel = :m, nama_paket = :j WHERE id_paket = :p";
+            $pUpdPaket   = [':m' => $idMapel, ':j' => $judulSoal, ':p' => $idPaket];
+            if ($isGuru) {
+                $sqlUpdPaket .= " AND id_guru = :g";
+                $pUpdPaket[':g'] = $idGuru;
+            }
+            $stmtUpdPaket = $db->prepare($sqlUpdPaket);
+            $stmtUpdPaket->execute($pUpdPaket);
         } else {
             $stmtCek = $db->prepare("SELECT id_paket FROM paket_soal WHERE id_guru = :g AND id_mapel = :m AND nama_paket = :j");
             $stmtCek->execute([':g' => $idGuru, ':m' => $idMapel, ':j' => $judulSoal]);
@@ -432,7 +447,7 @@ include __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <form action="<?= base_url('guru?page=tambah_soal') ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
+    <form action="<?= base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : '')) ?>" method="POST" enctype="multipart/form-data" id="form-paket-soal">
         <?= csrf_field() ?>
         <input type="hidden" name="id_paket" value="<?= $initPaketId ?>">
 
@@ -487,7 +502,7 @@ include __DIR__ . '/../layouts/header.php';
                             </h3>
                             
                             <!-- Dropdown Bentuk Soal -->
-                            <select name="soal[<?= $idx ?>][jenis_soal]" class="form-control field-jenis-soal" style="width: auto; font-weight: 700; font-size: 0.85rem;" onchange="gantiJenisSoal(this, <?= $idx ?>)">
+                            <select name="soal[<?= $idx ?>][jenis_soal]" class="form-control field-jenis-soal" style="width: auto; font-weight: 700; font-size: 0.85rem;" onchange="gantiJenisSoal(this)">
                                 <option value="pg_1" <?= ($qJenis === 'pg_1') ? 'selected' : '' ?>>PG-1: Pilihan Ganda (1 Jawaban Benar)</option>
                                 <option value="pgk_l1" <?= ($qJenis === 'pgk_l1') ? 'selected' : '' ?>>PGK-L1: Pilihan Ganda Kompleks (> 1 Jawaban)</option>
                                 <option value="pgk_bs_1" <?= ($qJenis === 'pgk_bs_1') ? 'selected' : '' ?>>PGK-BS-1: Benar / Salah (1 Pernyataan)</option>
@@ -686,8 +701,37 @@ const defaultBobotMap = {
     'uraian': 7.0
 };
 
-function gantiJenisSoal(selectEl, idx) {
+// Sinkronkan visibility dan status disabled input agar tidak melebihi limit multipart body parts PHP
+function syncCardSectionInputs(card) {
+    if (!card) return;
+    const jenis = card.getAttribute('data-type') || 'pg_1';
+    const isPg = (jenis === 'pg_1' || jenis === 'pgk_l1');
+    const isBs1 = (jenis === 'pgk_bs_1');
+    const isBsL1 = (jenis === 'pgk_bs_l1');
+    const isMjdk = (jenis === 'mjdk');
+    const isIjs = (jenis === 'ijs');
+    const isUraian = (jenis === 'uraian' || jenis === 'essai');
+
+    function toggleSection(selector, show) {
+        const sec = card.querySelector(selector);
+        if (!sec) return;
+        sec.style.display = show ? 'block' : 'none';
+        sec.querySelectorAll('input, select, textarea').forEach(inp => {
+            inp.disabled = !show;
+        });
+    }
+
+    toggleSection('.section-pg', isPg);
+    toggleSection('.section-bs-1', isBs1);
+    toggleSection('.section-bs-l1', isBsL1);
+    toggleSection('.section-mjdk', isMjdk);
+    toggleSection('.section-ijs', isIjs);
+    toggleSection('.section-uraian', isUraian);
+}
+
+function gantiJenisSoal(selectEl) {
     const card = selectEl.closest('.pertanyaan-card');
+    if (!card) return;
     const jenis = selectEl.value;
     card.setAttribute('data-type', jenis);
 
@@ -697,13 +741,7 @@ function gantiJenisSoal(selectEl, idx) {
         bobotInput.value = defaultBobotMap[jenis];
     }
 
-    // Toggle sections
-    card.querySelector('.section-pg').style.display = (jenis === 'pg_1' || jenis === 'pgk_l1') ? 'block' : 'none';
-    card.querySelector('.section-bs-1').style.display = (jenis === 'pgk_bs_1') ? 'block' : 'none';
-    card.querySelector('.section-bs-l1').style.display = (jenis === 'pgk_bs_l1') ? 'block' : 'none';
-    card.querySelector('.section-mjdk').style.display = (jenis === 'mjdk') ? 'block' : 'none';
-    card.querySelector('.section-ijs').style.display = (jenis === 'ijs') ? 'block' : 'none';
-    card.querySelector('.section-uraian').style.display = (jenis === 'uraian') ? 'block' : 'none';
+    syncCardSectionInputs(card);
 }
 
 function hapusPertanyaan(btn) {
@@ -729,6 +767,16 @@ function refreshNomorSoal() {
         c.querySelectorAll('[name^="soal["]').forEach(inp => {
             inp.name = inp.name.replace(/soal\[\d+\]/, `soal[${i}]`);
         });
+
+        const fileInp = c.querySelector('.field-file-gambar');
+        if (fileInp) {
+            fileInp.name = `gambar_${i}`;
+        }
+    });
+
+    const delBtns = document.querySelectorAll('.btn-hapus-pertanyaan');
+    delBtns.forEach(btn => {
+        btn.style.display = (cards.length > 1) ? '' : 'none';
     });
 }
 
@@ -750,7 +798,7 @@ function tambahPertanyaan(jenis) {
                 <h3 class="font-bold" style="font-size: 1.25rem; color: var(--primary); margin: 0; min-width: 28px;">
                     <span class="nomor-pertanyaan">${newNum}</span>.
                 </h3>
-                <select name="soal[${newIndex}][jenis_soal]" class="form-control field-jenis-soal" style="width: auto; font-weight: 700; font-size: 0.85rem;" onchange="gantiJenisSoal(this, ${newIndex})">
+                <select name="soal[${newIndex}][jenis_soal]" class="form-control field-jenis-soal" style="width: auto; font-weight: 700; font-size: 0.85rem;" onchange="gantiJenisSoal(this)">
                     <option value="pg_1" ${jenis === 'pg_1' ? 'selected' : ''}>PG-1: Pilihan Ganda (1 Jawaban Benar)</option>
                     <option value="pgk_l1" ${jenis === 'pgk_l1' ? 'selected' : ''}>PGK-L1: Pilihan Ganda Kompleks (> 1 Jawaban)</option>
                     <option value="pgk_bs_1" ${jenis === 'pgk_bs_1' ? 'selected' : ''}>PGK-BS-1: Benar / Salah (1 Pernyataan)</option>
@@ -899,6 +947,8 @@ function tambahPertanyaan(jenis) {
     `;
 
     container.appendChild(div);
+    syncCardSectionInputs(div);
+    refreshNomorSoal();
     div.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -937,6 +987,31 @@ function previewDanKompresGambar(input) {
     };
     reader.readAsDataURL(file);
 }
+
+// Inisialisasi awal saat dokumen siap
+document.addEventListener('DOMContentLoaded', function() {
+    // Sinkronkan input semua butir pertanyaan yang sudah ada
+    document.querySelectorAll('.pertanyaan-card').forEach(card => {
+        syncCardSectionInputs(card);
+    });
+
+    const form = document.getElementById('form-paket-soal');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!form.checkValidity()) {
+                return;
+            }
+            document.querySelectorAll('.pertanyaan-card').forEach(card => {
+                syncCardSectionInputs(card);
+                // Matikan input file yang kosong agar browser tidak mengirim part MIME kosong
+                const fileInp = card.querySelector('.field-file-gambar');
+                if (fileInp && (!fileInp.files || fileInp.files.length === 0)) {
+                    fileInp.disabled = true;
+                }
+            });
+        });
+    }
+});
 </script>
 
 <?php include __DIR__ . '/../layouts/footer.php'; ?>

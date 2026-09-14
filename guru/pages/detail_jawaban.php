@@ -696,9 +696,9 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     <tr>
       <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
         Mengetahui,<br>
-        Kepala SD Negeri 1 Talun<br><br><br><br><br>
-        <strong><u>...................................................</u></strong><br>
-        <span style="font-size: 9pt; color: #475569;">NIP. ...........................................</span>
+        Kepala <?= defined('SEKOLAH_NAMA') ? sanitize(SEKOLAH_NAMA) : 'SD Negeri 1 Talun' ?><br><br><br><br><br>
+        <strong><u><?= defined('KEPALA_SEKOLAH_NAMA') ? sanitize(KEPALA_SEKOLAH_NAMA) : 'MASHURI, S.Pd.' ?></u></strong><br>
+        <span style="font-size: 9pt; color: #475569;">NIP. <?= defined('KEPALA_SEKOLAH_NIP') ? sanitize(KEPALA_SEKOLAH_NIP) : '198511052022211001' ?></span>
       </td>
       <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
         Talun, <?= date('d/m/Y') ?><br>

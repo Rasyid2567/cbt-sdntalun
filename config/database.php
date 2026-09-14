@@ -10,13 +10,18 @@ if (ob_get_level() === 0) {
 }
 
 // Pastikan sesi aktif dengan parameter aman
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
     session_start([
         'cookie_httponly' => true,
         'cookie_samesite' => 'Lax',
         'use_strict_mode' => true,
     ]);
 }
+
+// Data Resmi Sekolah & Kepala Sekolah untuk Dokumen / Cetak / PDF
+define('SEKOLAH_NAMA', 'SD NEGERI 1 TALUN');
+define('KEPALA_SEKOLAH_NAMA', 'MASHURI, S.Pd.');
+define('KEPALA_SEKOLAH_NIP', '198511052022211001');
 
 // Konfigurasi Kredensial Database PostgreSQL
 define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
@@ -155,7 +160,12 @@ function sanitize($data): string {
  * @return void
  */
 function redirect(string $url): void {
-    header("Location: " . $url);
+    if (!headers_sent()) {
+        header("Location: " . $url);
+        exit;
+    }
+    echo '<script>window.location.href=' . json_encode($url) . ';</script>';
+    echo '<noscript><meta http-equiv="refresh" content="0;url=' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '"></noscript>';
     exit;
 }
 

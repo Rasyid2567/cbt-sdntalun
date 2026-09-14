@@ -11,6 +11,7 @@ services:
       - "1000:80"
     volumes:
       - .:/var/www/html
+      - ./config/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
     environment:
       - DB_HOST=host.docker.internal
       - DB_PORT=5432

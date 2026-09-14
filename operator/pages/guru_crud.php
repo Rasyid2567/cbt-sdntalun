@@ -33,14 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetch()) {
                 flash_set('danger', 'Username sudah terdaftar.');
             } else {
+                $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 $hash = password_hash($password, PASSWORD_BCRYPT);
-                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, role, id_kelas, status_login) VALUES (:u, :p, :n, :nip, 'guru', :k, 'offline')");
+                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, role, id_kelas, status_login, status_akun) VALUES (:u, :p, :n, :nip, 'guru', :k, 'offline', :sa)");
                 $ins->execute([
                     ':u'   => $username,
                     ':p'   => $hash,
                     ':n'   => $nama,
                     ':nip' => ($nip !== '' ? $nip : null),
-                    ':k'   => $id_kelas
+                    ':k'   => $id_kelas,
+                    ':sa'  => $status_akun
                 ]);
                 flash_set('success', 'Guru berhasil ditambahkan.');
             }
@@ -65,13 +67,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetch()) {
                 flash_set('danger', 'Username sudah digunakan akun lain.');
             } else {
+                $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
+                $extraSql = ($status_akun === 'nonaktif') ? ", status_login = 'offline'" : "";
                 if ($password !== '') {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, id_kelas = :k WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
                 } else {
-                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, id_kelas = :k WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
                 }
                 flash_set('success', 'Data guru berhasil diperbarui.');
             }
@@ -86,6 +90,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del = $db->prepare("DELETE FROM users WHERE id_user = :id AND role = 'guru'");
             $del->execute([':id' => $id]);
             flash_set('danger', 'Data guru berhasil dihapus.');
+        }
+        redirect(base_url('operator?page=guru_crud&tab=guru'));
+    }
+
+    // GURU: TOGGLE STATUS AKUN
+    if ($action === 'toggle_status_guru') {
+        $id = (int)($_POST['id_user'] ?? 0);
+        if ($id > 0) {
+            $st = $db->prepare("SELECT status_akun, nama_lengkap FROM users WHERE id_user = :id AND role = 'guru'");
+            $st->execute([':id' => $id]);
+            $userTarget = $st->fetch();
+            if ($userTarget) {
+                $newStatus = (($userTarget['status_akun'] ?? 'aktif') === 'nonaktif') ? 'aktif' : 'nonaktif';
+                if ($newStatus === 'nonaktif') {
+                    $upd = $db->prepare("UPDATE users SET status_akun = 'nonaktif', status_login = 'offline' WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':id' => $id]);
+                    flash_set('warning', 'Akun guru ' . sanitize($userTarget['nama_lengkap']) . ' berhasil dinonaktifkan.');
+                } else {
+                    $upd = $db->prepare("UPDATE users SET status_akun = 'aktif' WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':id' => $id]);
+                    flash_set('success', 'Akun guru ' . sanitize($userTarget['nama_lengkap']) . ' berhasil diaktifkan kembali.');
+                }
+            }
         }
         redirect(base_url('operator?page=guru_crud&tab=guru'));
     }
@@ -151,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $activeTab  = $_GET['tab'] ?? 'guru';
 try {
     $guruList = $db->query("
-        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.status_login, u.id_kelas, k.nama_kelas 
+        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
         FROM users u 
         LEFT JOIN kelas k ON u.id_kelas = k.id_kelas 
         WHERE u.role = 'guru' 
@@ -159,7 +186,7 @@ try {
     ")->fetchAll();
 } catch (Throwable $e) {
     $guruList = $db->query("
-        SELECT u.id_user, u.username, u.nama_lengkap, u.status_login, u.id_kelas, k.nama_kelas 
+        SELECT u.id_user, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
         FROM users u 
         LEFT JOIN kelas k ON u.id_kelas = k.id_kelas 
         WHERE u.role = 'guru' 
@@ -209,13 +236,14 @@ include __DIR__ . '/../layouts/header.php';
                             <th>Username</th>
                             <th>Nama Lengkap Guru</th>
                             <th>Guru Kelas / Tingkat</th>
+                            <th>Status Akun</th>
                             <th>Status Login</th>
-                            <th style="width: 160px; text-align: center;">Aksi</th>
+                            <th style="width: 200px; text-align: center;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($guruList)): ?>
-                            <tr><td colspan="6" class="text-center text-muted" style="padding: 2rem;">Belum ada data guru.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada data guru.</td></tr>
                         <?php else: ?>
                             <?php foreach ($guruList as $idx => $g): ?>
                                 <tr>
@@ -234,11 +262,28 @@ include __DIR__ . '/../layouts/header.php';
                                             <span class="badge badge-offline">Guru Mapel Umum</span>
                                         <?php endif; ?>
                                     </td>
+                                    <td data-label="Status Akun">
+                                        <?php if (($g['status_akun'] ?? 'aktif') === 'nonaktif'): ?>
+                                            <span class="badge" style="background:#dc2626; color:#fff;">Nonaktif</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-aktif">Aktif</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td data-label="Status Login"><span class="badge badge-<?= ($g['status_login'] === 'online') ? 'online' : 'offline' ?>"><?= strtoupper($g['status_login']) ?></span></td>
                                     <td data-label="Aksi">
-                                        <div class="flex gap-2">
+                                        <div class="flex gap-2" style="flex-wrap: wrap;">
                                             <button type="button" class="btn btn-sm btn-outline" onclick='openEditGuruModal(<?= json_encode($g) ?>)'>Edit</button>
-                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan kembali akun guru ' . sanitize($g['nama_lengkap']) . '?' : 'Nonaktifkan akun guru ' . sanitize($g['nama_lengkap']) . '? Guru tidak akan bisa login sampai diaktifkan kembali.' ?>" data-confirm-title="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan Akun Guru' : 'Nonaktifkan Akun Guru' ?>" data-confirm-type="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'primary' : 'warning' ?>" data-confirm-btn="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan' ?>">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="action" value="toggle_status_guru">
+                                                <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">
+                                                <?php if (($g['status_akun'] ?? 'aktif') === 'nonaktif'): ?>
+                                                    <button type="submit" class="btn btn-sm" style="background:#16a34a; color:#fff;" title="Aktifkan Akun">Aktifkan</button>
+                                                <?php else: ?>
+                                                    <button type="submit" class="btn btn-sm" style="background:#d97706; color:#fff;" title="Nonaktifkan Akun">Nonaktifkan</button>
+                                                <?php endif; ?>
+                                            </form>
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="hapus_guru">
                                                 <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">
@@ -372,6 +417,13 @@ include __DIR__ . '/../layouts/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Status Akun</label>
+                <select name="status_akun" class="form-control">
+                    <option value="aktif" selected>Aktif (Dapat Login)</option>
+                    <option value="nonaktif">Nonaktif (Diblokir dari Login)</option>
+                </select>
+            </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-tambah-guru')">Batal</button>
                 <button type="submit" class="btn btn-primary">Simpan Guru</button>
@@ -412,6 +464,13 @@ include __DIR__ . '/../layouts/header.php';
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status Akun</label>
+                <select id="edit-guru-status_akun" name="status_akun" class="form-control">
+                    <option value="aktif">Aktif (Dapat Login)</option>
+                    <option value="nonaktif">Nonaktif (Diblokir dari Login)</option>
                 </select>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
@@ -473,6 +532,7 @@ function openEditGuruModal(data) {
     document.getElementById("edit-guru-nama").value = data.nama_lengkap;
     document.getElementById("edit-guru-nip").value = data.nip || "";
     document.getElementById("edit-guru-kelas").value = data.id_kelas || "";
+    document.getElementById("edit-guru-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit-guru");
 }
 </script>
