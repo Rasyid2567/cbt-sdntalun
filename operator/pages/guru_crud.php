@@ -238,7 +238,7 @@ include __DIR__ . '/../layouts/header.php';
                             <th>Guru Kelas / Tingkat</th>
                             <th>Status Akun</th>
                             <th>Status Login</th>
-                            <th style="width: 200px; text-align: center;">Aksi</th>
+                            <th style="width: 250px; text-align: center;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -271,23 +271,26 @@ include __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td data-label="Status Login"><span class="badge badge-<?= ($g['status_login'] === 'online') ? 'online' : 'offline' ?>"><?= strtoupper($g['status_login']) ?></span></td>
                                     <td data-label="Aksi">
-                                        <div class="flex gap-2" style="flex-wrap: wrap;">
-                                            <button type="button" class="btn btn-sm btn-outline" onclick='openEditGuruModal(<?= json_encode($g) ?>)'>Edit</button>
-                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan kembali akun guru ' . sanitize($g['nama_lengkap']) . '?' : 'Nonaktifkan akun guru ' . sanitize($g['nama_lengkap']) . '? Guru tidak akan bisa login sampai diaktifkan kembali.' ?>" data-confirm-title="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan Akun Guru' : 'Nonaktifkan Akun Guru' ?>" data-confirm-type="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'primary' : 'warning' ?>" data-confirm-btn="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan' ?>">
+                                        <div class="flex" style="gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                            <!-- Tombol Toggle Status Akun -->
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan kembali akun guru ' . sanitize($g['nama_lengkap']) . '?' : 'Nonaktifkan akun guru ' . sanitize($g['nama_lengkap']) . '? Guru tidak akan bisa login sampai diaktifkan kembali.' ?>" data-confirm-title="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Aktifkan Akun Guru' : 'Nonaktifkan Akun Guru' ?>" data-confirm-type="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'primary' : 'warning' ?>" data-confirm-btn="<?= ($g['status_akun'] ?? 'aktif') === 'nonaktif' ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan' ?>">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="toggle_status_guru">
                                                 <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">
                                                 <?php if (($g['status_akun'] ?? 'aktif') === 'nonaktif'): ?>
-                                                    <button type="submit" class="btn btn-sm" style="background:#16a34a; color:#fff;" title="Aktifkan Akun">Aktifkan</button>
+                                                    <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Aktifkan Akun Guru">Aktifkan</button>
                                                 <?php else: ?>
-                                                    <button type="submit" class="btn btn-sm" style="background:#d97706; color:#fff;" title="Nonaktifkan Akun">Nonaktifkan</button>
+                                                    <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Nonaktifkan Akun Guru">Nonaktifkan</button>
                                                 <?php endif; ?>
                                             </form>
-                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+
+                                            <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick='openEditGuruModal(<?= json_encode($g) ?>)'>Edit</button>
+
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="hapus_guru">
                                                 <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                                                <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Hapus</button>
                                             </form>
                                         </div>
                                     </td>

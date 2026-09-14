@@ -72,6 +72,14 @@ body {
     flex: 1;
 }
 
+.gap-1 {
+    gap: 0.25rem;
+}
+
+.gap-1-5 {
+    gap: 0.375rem;
+}
+
 .gap-2 {
     gap: 0.5rem;
 }
@@ -1799,6 +1807,25 @@ body.app-webview-body {
 
 .webview-grid-close {
     display: none;
+}
+
+
+/* Desktop Table Action Buttons Styling */
+td[data-label="Aksi"] .flex {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+td[data-label="Aksi"] form {
+    display: inline-flex;
+    margin: 0;
+}
+
+td[data-label="Aksi"] .btn {
+    white-space: nowrap;
 }
 
 /* ==========================================================================

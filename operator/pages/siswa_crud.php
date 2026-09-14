@@ -359,7 +359,7 @@ include __DIR__ . '/../layouts/header.php';
                         <th>Kelas</th>
                         <th>Status Akun</th>
                         <th>Status Sesi</th>
-                        <th style="width: 220px; text-align: center;">Aksi</th>
+                        <th style="width: 250px; text-align: center;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -390,9 +390,9 @@ include __DIR__ . '/../layouts/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Aksi">
-                                    <div class="flex gap-1" style="flex-wrap: wrap; justify-content: center;">
+                                    <div class="flex" style="gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
                                         <!-- Tombol Toggle Status Akun -->
-                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline;"
+                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline-flex; margin:0;"
                                               data-confirm="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '? Akun ini tidak akan dapat login ke CBT.' : 'Aktifkan kembali akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '?' ?>"
                                               data-confirm-title="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan Akun' : 'Aktifkan Akun' ?>"
                                               data-confirm-type="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'warning' : 'info' ?>"
@@ -401,24 +401,24 @@ include __DIR__ . '/../layouts/header.php';
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
                                             <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
-                                                <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 600;" title="Nonaktifkan Akun Siswa">
+                                                <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Nonaktifkan Akun Siswa">
                                                     Nonaktifkan
                                                 </button>
                                             <?php else: ?>
-                                                <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 600;" title="Aktifkan Akun Siswa">
+                                                <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Aktifkan Akun Siswa">
                                                     Aktifkan
                                                 </button>
                                             <?php endif; ?>
                                         </form>
 
-                                        <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;"
+                                        <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;"
                                             onclick='openEditModal(<?= json_encode($s) ?>)'>Edit</button>
                                         
-                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                        <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Hapus</button>
+                                            <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Hapus</button>
                                         </form>
                                     </div>
                                 </td>
