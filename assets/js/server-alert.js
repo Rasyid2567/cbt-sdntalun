@@ -201,6 +201,12 @@
             }
 
             const data = await response.json();
+            if (data && data.baseline_id !== undefined) {
+                lastSeenId = parseInt(data.baseline_id, 10) || 0;
+                try {
+                    localStorage.setItem(STORAGE_KEY, String(lastSeenId));
+                } catch (e) {}
+            }
             if (data && data.has_alert && data.alert) {
                 showAlertModal(data.alert);
             }

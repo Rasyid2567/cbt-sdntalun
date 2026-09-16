@@ -17,17 +17,34 @@ header('Content-Type: application/json; charset=utf-8');
 
 $lastId = isset($_GET['last_id']) ? (int)$_GET['last_id'] : 0;
 $userRole = $_SESSION['user']['role'] ?? ($_GET['role'] ?? 'semua');
-
+$isInit = !empty($_GET['init']);
 
 try {
     $db = get_db();
 
-    // Ambil alert terbaru yang ID-nya lebih besar dari last_id
-    // dan targetnya adalah 'semua' atau sesuai peran pengguna saat ini
+    // Jika browser baru pertama kali buka (lastId <= 0 atau mode inisialisasi):
+    // Hanya simpan baseline ID alert saat ini, jangan munculkan popup riwayat masa lalu
+    if ($isInit || $lastId <= 0) {
+        $stmtLatest = $db->query("SELECT id FROM server_alerts ORDER BY id DESC LIMIT 1");
+        $latestId = (int)$stmtLatest->fetchColumn();
+        
+        echo json_encode([
+            'success'     => true,
+            'has_alert'   => false,
+            'baseline_id' => $latestId
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    // Ambil alert terbaru yang:
+    // 1. ID-nya lebih besar dari last_id
+    // 2. Dibuat dalam kurun waktu maksimal 10 menit terakhir (masih aktif, bukan alert basi)
+    // 3. Ditujukan untuk 'semua' atau sesuai peran pengguna saat ini
     $stmt = $db->prepare("
         SELECT id, judul, pesan, target, created_at
         FROM server_alerts
         WHERE id > :last_id
+          AND created_at >= (NOW() - INTERVAL '10 minutes')
           AND (LOWER(target) = 'semua' OR LOWER(target) = LOWER(:target))
         ORDER BY id DESC
         LIMIT 1
