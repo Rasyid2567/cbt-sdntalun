@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 # Helper CLI shortcut CBT SDN Talun - Server Alert
-# Otomatis menggunakan Docker container jika PHP host tidak memiliki driver pdo_pgsql
+# Menggunakan PHP host jika driver pdo_pgsql tersedia, atau fallback ke Docker container cbt_web
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-# Cek apakah container cbt_web aktif
-if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'cbt_web'; then
+if php -m 2>/dev/null | grep -qi "pdo_pgsql"; then
+    php alert.php "$@"
+elif command -v docker &>/dev/null && docker ps --format "{{.Names}}" 2>/dev/null | grep -q "cbt_web"; then
     # Jika terminal interaktif (TTY)
     if [ -t 0 ]; then
         docker exec -it cbt_web php alert.php "$@"
     else
         docker exec -i cbt_web php alert.php "$@"
     fi
-elif php -m 2>/dev/null | grep -qi 'pdo_pgsql'; then
-    php alert.php "$@"
-elif command -v docker &>/dev/null && docker compose ps 2>/dev/null | grep -q 'web'; then
+elif command -v docker &>/dev/null && docker compose ps 2>/dev/null | grep -q "web"; then
     docker compose exec web php alert.php "$@"
 else
     echo "Koneksi database gagal: PHP host belum memiliki ekstensi pdo_pgsql dan container Docker 'cbt_web' tidak aktif."

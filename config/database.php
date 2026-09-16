@@ -4,18 +4,19 @@
  * Driver: PostgreSQL via PDO (PHP 8.x+)
  */
 
-// Aktifkan output buffering untuk mencegah error header/redirect
-if (ob_get_level() === 0) {
-    ob_start();
-}
+// Aktifkan output buffering & sesi hanya untuk request web HTTP (bukan CLI terminal)
+if (php_sapi_name() !== 'cli') {
+    if (ob_get_level() === 0) {
+        ob_start();
+    }
 
-// Pastikan sesi aktif dengan parameter aman
-if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-    session_start([
-        'cookie_httponly' => true,
-        'cookie_samesite' => 'Lax',
-        'use_strict_mode' => true,
-    ]);
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        session_start([
+            'cookie_httponly' => true,
+            'cookie_samesite' => 'Lax',
+            'use_strict_mode' => true,
+        ]);
+    }
 }
 
 // Data Resmi Sekolah & Kepala Sekolah untuk Dokumen / Cetak / PDF
