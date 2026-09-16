@@ -93,14 +93,21 @@ if (in_array('--list', $argvClean)) {
 // Opsi clear seluruh alert
 if (in_array('--clear', $argvClean)) {
     print_banner();
-    echo C_YELLOW . "Apakah Anda yakin ingin menghapus SEMUA riwayat alert di database? (y/N): " . C_RESET;
-    $handle = fopen("php://stdin", "r");
-    $confirm = trim(fgets($handle));
+    $autoYes = in_array('-y', $argvClean) || in_array('--yes', $argvClean) || in_array('-f', $argvClean);
+    if ($autoYes) {
+        $confirm = 'y';
+    } else {
+        echo C_YELLOW . "Apakah Anda yakin ingin menghapus SEMUA riwayat alert di database? (y/N): " . C_RESET;
+        $handle = fopen("php://stdin", "r");
+        $confirm = trim(fgets($handle));
+    }
     if (strtolower($confirm) === 'y') {
         $db->exec("TRUNCATE TABLE server_alerts RESTART IDENTITY");
-        echo C_GREEN . "✓ Seluruh riwayat alert berhasil dibersihkan!\n" . C_RESET;
+        echo C_GREEN . "✓ Seluruh riwayat alert berhasil dibersihkan!
+" . C_RESET;
     } else {
-        echo "Dibatalkan.\n";
+        echo "Dibatalkan.
+";
     }
     exit(0);
 }
