@@ -38,13 +38,13 @@ try {
 
     // Ambil alert terbaru yang:
     // 1. ID-nya lebih besar dari last_id
-    // 2. Dibuat dalam kurun waktu maksimal 10 menit terakhir (masih aktif, bukan alert basi)
+    // 2. Dibuat dalam kurun waktu maksimal 1 menit terakhir (masih aktif, bukan alert basi)
     // 3. Ditujukan untuk 'semua' atau sesuai peran pengguna saat ini
     $stmt = $db->prepare("
         SELECT id, judul, pesan, target, created_at
         FROM server_alerts
         WHERE id > :last_id
-          AND created_at >= (NOW() - INTERVAL '10 minutes')
+          AND created_at >= (NOW() - INTERVAL '1 minute')
           AND (LOWER(target) = 'semua' OR LOWER(target) = LOWER(:target))
         ORDER BY id DESC
         LIMIT 1
