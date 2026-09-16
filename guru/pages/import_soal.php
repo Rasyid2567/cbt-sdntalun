@@ -647,9 +647,10 @@ include __DIR__ . '/../layouts/header.php';
                 <li><strong>Kolom 8 (kunci_jawaban):</strong>
                     <ul style="margin: 0.2rem 0; padding-left: 1rem;">
                         <li>Untuk <strong>pg</strong>: Huruf jawaban benar (contoh: <code>A</code>, <code>B</code>, atau <code>C</code>).</li>
-                        <li>Untuk <strong>pgk</strong>: Huruf dipisah koma (contoh: <code>A,C</code>).</li>
+                        <li>Untuk <strong>pgk</strong>: Huruf dipisah koma (contoh: <code>A,C</code>). Penilaian sistem: benar dikurangi salah (bisa bernilai minus jika salah lebih banyak; jika tidak dijawab nilai tetap 0).</li>
                         <li>Untuk <strong>mjdk</strong>: Dapat dikosongkan (otomatis dipetakan dari kolom opsi yang bertanda <code>=</code>).</li>
-                        <li>Untuk <strong>ijs & essai</strong>: Kata kunci jawaban singkat atau panduan rubrik guru.</li>
+                        <li>Untuk <strong>ijs</strong>: Kunci jawaban singkat untuk penilaian otomatis sistem (gunakan tanda <code>|</code> jika ada alternatif variasi jawaban).</li>
+                        <li>Untuk <strong>essai (Uraian)</strong>: Pedoman / catatan rubrik penilaian manual guru.</li>
                     </ul>
                 </li>
                 <li><strong>Kolom 9 (bobot):</strong>

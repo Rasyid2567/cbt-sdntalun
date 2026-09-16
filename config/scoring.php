@@ -147,9 +147,17 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
     $meta         = CBT_SOAL_TYPES[$jenisKanonik];
 
     // Tentukan Bobot Maksimal Soal
-    $bobotMax = (isset($soal['bobot_soal']) && $soal['bobot_soal'] !== null && is_numeric($soal['bobot_soal']))
-        ? (float)$soal['bobot_soal']
-        : (float)$meta['default_bobot'];
+    if (isset($soal['bobot_soal']) && $soal['bobot_soal'] !== null && is_numeric($soal['bobot_soal']) && (float)$soal['bobot_soal'] > 0) {
+        $bobotMax = (float)$soal['bobot_soal'];
+    } else {
+        if ($jenisKanonik === 'pgk_l1') {
+            $rawKunciTemp = trim((string)($soal['kunci_jawaban'] ?? ''));
+            $kunciArrTemp = array_filter(array_map('trim', explode(',', strtoupper($rawKunciTemp))));
+            $bobotMax = max(1.00, (float)count($kunciArrTemp));
+        } else {
+            $bobotMax = (float)$meta['default_bobot'];
+        }
+    }
 
     if ($bobotMax <= 0) {
         $bobotMax = (float)$meta['default_bobot'];
@@ -211,7 +219,9 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
 
     // =========================================================================
     // 2. PGK-L1: Pilihan Ganda Kompleks Lebih dari 1 Jawaban Benar
-    // Formula resmi: max(0, (C - W) * (BobotMax / N_kunci))
+    // Formula: (Jumlah Benar - Jumlah Salah) * (BobotMax / N_kunci)
+    // - Setiap opsi salah mengurangi nilai (skor dapat bernilai minus).
+    // - Jika tidak dijawab (kosong), nilai tetap 0 (tidak berkurang & tidak bertambah).
     // =========================================================================
     if ($jenisKanonik === 'pgk_l1') {
         $kunciArr = array_values(array_unique(array_filter(array_map('trim', explode(',', strtoupper($rawKunci))))));
@@ -228,9 +238,33 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
         $c = count($correctPicks);
         $w = count($wrongPicks);
 
-        $nilaiPerItem = $bobotMax / $nKunci;
-        $rawScore     = ($c - $w) * $nilaiPerItem;
-        $finalScore   = max(0.00, round($rawScore, 2));
+        $nilaiPerItem = ($nKunci > 0) ? ($bobotMax / $nKunci) : 1.0;
+
+        // Jika tidak dijawab sama sekali, nilai tetap 0 (tidak berkurang & tidak bertambah)
+        if ($hasil['is_empty'] || ($c === 0 && $w === 0)) {
+            $finalScore            = 0.00;
+            $hasil['skor']         = 0.00;
+            $hasil['is_correct']   = false;
+            $hasil['is_partial']   = false;
+            $hasil['is_empty']     = true;
+            $hasil['status_label'] = 'Kosong';
+            $hasil['keterangan']   = "Tidak dijawab. Nilai tetap 0 / {$bobotMax} (tidak berkurang & tidak bertambah).";
+            $hasil['detail']       = [
+                'kunci'         => $kunciArr,
+                'jawaban_siswa' => $jwbArr,
+                'benar_dipilih' => [],
+                'salah_dipilih' => [],
+                'c'             => 0,
+                'w'             => 0,
+                'n_kunci'       => $nKunci,
+                'skor_per_opsi' => round($nilaiPerItem, 2)
+            ];
+            return $hasil;
+        }
+
+        // Hitung skor: Jumlah Benar dikurangi Jumlah Salah
+        $rawScore   = ($c - $w) * $nilaiPerItem;
+        $finalScore = round($rawScore, 2);
         if ($finalScore > $bobotMax) {
             $finalScore = $bobotMax;
         }
@@ -254,11 +288,15 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
         } elseif ($finalScore > 0) {
             $hasil['is_partial']   = true;
             $hasil['status_label'] = 'Sebagian Benar';
-            $hasil['keterangan']   = "Memilih {$c} opsi benar dan {$w} opsi salah. Skor: ({$c} - {$w}) × " . round($nilaiPerItem, 2) . " = {$finalScore} / {$bobotMax}.";
+            $hasil['keterangan']   = "Memilih {$c} opsi benar dan {$w} opsi salah. Skor: ({$c} benar - {$w} salah) = {$finalScore} / {$bobotMax}.";
+        } elseif ($finalScore == 0.00) {
+            $hasil['is_correct']   = false;
+            $hasil['status_label'] = 'Salah (0)';
+            $hasil['keterangan']   = "Memilih {$c} opsi benar dan {$w} opsi salah. Skor: ({$c} benar - {$w} salah) = 0 / {$bobotMax}.";
         } else {
             $hasil['is_correct']   = false;
-            $hasil['status_label'] = 'Salah';
-            $hasil['keterangan']   = "Memilih {$c} opsi benar dan {$w} opsi salah. Skor dipotong penalti menjadi 0 / {$bobotMax}.";
+            $hasil['status_label'] = 'Salah (Minus)';
+            $hasil['keterangan']   = "Memilih {$c} opsi benar dan {$w} opsi salah. Skor penalti: ({$c} benar - {$w} salah) = {$finalScore} / {$bobotMax}.";
         }
         return $hasil;
     }
@@ -385,21 +423,51 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
     // =========================================================================
     if ($jenisKanonik === 'mjdk') {
         $premisList  = $kontenSoal['premis'] ?? [];
+        $pilihanList = $kontenSoal['pilihan'] ?? [];
         $kunciPasang = $kontenSoal['kunci'] ?? [];
 
-        if (empty($premisList) && !empty($rawKunci)) {
+        if (is_string($kunciPasang)) {
+            $kunciPasang = json_decode($kunciPasang, true) ?: [];
+        }
+
+        if (empty($kunciPasang) && !empty($rawKunci)) {
             $decodedKunci = json_decode($rawKunci, true);
             if (is_array($decodedKunci)) {
                 $kunciPasang = $decodedKunci;
-                foreach (array_keys($kunciPasang) as $kIdx => $kKey) {
-                    $premisList[] = ['id' => (string)$kKey, 'teks' => 'Pokok Soal ' . ($kIdx + 1)];
-                }
+            }
+        }
+
+        if (empty($premisList) && !empty($kunciPasang)) {
+            foreach (array_keys($kunciPasang) as $kIdx => $kKey) {
+                $premisList[] = ['id' => (string)$kKey, 'teks' => 'Pokok Soal ' . ($kIdx + 1)];
+            }
+        }
+
+        // Auto-fallback: Jika kunci kosong tetapi premis dan pilihan tersedia di form / database,
+        // pasangkan baris 1-ke-1 secara berurutan (p1 -> j1, p2 -> j2, dst.)
+        if (empty($kunciPasang) && !empty($premisList)) {
+            foreach ($premisList as $pIdx => $pItem) {
+                $pId = (string)($pItem['id'] ?? ('p' . ($pIdx + 1)));
+                $jId = (string)($pilihanList[$pIdx]['id'] ?? ('j' . ($pIdx + 1)));
+                $kunciPasang[$pId] = $jId;
             }
         }
 
         $totalPokok = count($premisList);
         if ($totalPokok <= 0) {
             $totalPokok = count($kunciPasang) > 0 ? count($kunciPasang) : 1;
+        }
+
+        // Kamus opsi jawaban untuk normalisasi pencocokan & tampilan teks
+        $pilihanMapById = [];
+        $pilihanMapByTeks = [];
+        foreach ($pilihanList as $pilIdx => $pil) {
+            $pilId = (string)($pil['id'] ?? ('j' . ($pilIdx + 1)));
+            $pilTeks = trim((string)($pil['teks'] ?? ''));
+            $pilihanMapById[$pilId] = $pilTeks;
+            if ($pilTeks !== '') {
+                $pilihanMapByTeks[mb_strtoupper($pilTeks)] = $pilId;
+            }
         }
 
         $jwbPairs = [];
@@ -416,16 +484,37 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
             $kunciTgt = (string)($kunciPasang[$pId] ?? ($kunciPasang[$idx] ?? ''));
             $siswaTgt = (string)($jwbPairs[$pId] ?? ($jwbPairs[$idx] ?? ''));
 
-            $isMatch = ($kunciTgt !== '' && trim(strtoupper($kunciTgt)) === trim(strtoupper($siswaTgt)));
+            $isMatch = false;
+            if ($kunciTgt !== '' && $siswaTgt !== '') {
+                if (trim(strtoupper($kunciTgt)) === trim(strtoupper($siswaTgt))) {
+                    $isMatch = true;
+                } else {
+                    $siswaNorm = $pilihanMapByTeks[mb_strtoupper(trim($siswaTgt))] ?? $siswaTgt;
+                    $kunciNorm = $pilihanMapByTeks[mb_strtoupper(trim($kunciTgt))] ?? $kunciTgt;
+                    if ($siswaNorm !== '' && $siswaNorm === $kunciNorm) {
+                        $isMatch = true;
+                    } elseif (isset($pilihanMapById[$kunciTgt]) && trim(mb_strtoupper($pilihanMapById[$kunciTgt])) === trim(mb_strtoupper($siswaTgt))) {
+                        $isMatch = true;
+                    } elseif (isset($pilihanMapById[$siswaTgt]) && trim(mb_strtoupper($pilihanMapById[$siswaTgt])) === trim(mb_strtoupper($kunciTgt))) {
+                        $isMatch = true;
+                    }
+                }
+            }
+
             if ($isMatch) {
                 $benarCount++;
             }
 
+            $kunciDisplay = $pilihanMapById[$kunciTgt] ?? $kunciTgt;
+            $siswaDisplay = $pilihanMapById[$siswaTgt] ?? $siswaTgt;
+
             $pairRows[] = [
                 'index'      => $idx + 1,
                 'premis'     => $p['teks'] ?? ('Pokok Soal ' . ($idx + 1)),
-                'kunci'      => $kunciTgt,
-                'siswa'      => $siswaTgt,
+                'kunci'      => $kunciDisplay,
+                'kunci_id'   => $kunciTgt,
+                'siswa'      => $siswaDisplay,
+                'siswa_id'   => $siswaTgt,
                 'is_correct' => $isMatch
             ];
         }
@@ -455,17 +544,31 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
     }
 
     // =========================================================================
-    // 6. IJS: Isian / Jawaban Singkat (1-2 kata atau angka)
+    // 6. IJS: Isian / Jawaban Singkat (Penilaian Otomatis Berdasarkan Kunci & Alternatif)
     // =========================================================================
     if ($jenisKanonik === 'ijs') {
+        // Jika guru memberikan koreksi/penyesuaian nilai manual di detail jawaban, utamakan nilai guru
+        if ($nilaiManualGuru !== null && $nilaiManualGuru !== '' && is_numeric($nilaiManualGuru)) {
+            $cleanVal = max(0.00, min($bobotMax, (float)$nilaiManualGuru));
+            $hasil['skor']         = $cleanVal;
+            $hasil['is_correct']   = ($cleanVal >= $bobotMax);
+            $hasil['is_partial']   = ($cleanVal > 0 && $cleanVal < $bobotMax);
+            $hasil['status_label'] = ($cleanVal >= $bobotMax) ? 'Benar (Manual)' : (($cleanVal > 0) ? 'Sebagian (Manual)' : 'Salah (Manual)');
+            $hasil['keterangan']   = "Nilai penyesuaian guru: {$cleanVal} / {$bobotMax}.";
+            return $hasil;
+        }
+
         $normSiswa = cbt_normalize_text_ijs($rawJwb);
-        $alternatifKunci = array_filter(array_map('cbt_normalize_text_ijs', preg_split('/[\|\/]+/', $rawKunci)));
+        // Pecah alternatif kunci jawaban berdasarkan pemisah pipe (|), slash (/), titik koma (;), atau koma (,)
+        $alternatifKunci = array_filter(array_map('cbt_normalize_text_ijs', preg_split('/[\|\/;,]+/', $rawKunci)));
 
         $isMatch = false;
-        foreach ($alternatifKunci as $alt) {
-            if ($normSiswa !== '' && $normSiswa === $alt) {
-                $isMatch = true;
-                break;
+        if ($normSiswa !== '') {
+            foreach ($alternatifKunci as $alt) {
+                if ($alt !== '' && $normSiswa === $alt) {
+                    $isMatch = true;
+                    break;
+                }
             }
         }
 
@@ -473,17 +576,18 @@ function cbt_evaluasi_soal(array $soal, ?string $jawabanSiswa, $nilaiManualGuru 
             $hasil['skor']         = $bobotMax;
             $hasil['is_correct']   = true;
             $hasil['status_label'] = 'Benar';
-            $hasil['keterangan']   = "Jawaban singkat '{$rawJwb}' tepat sesuai kunci.";
+            $hasil['keterangan']   = "Jawaban singkat '{$rawJwb}' tepat sesuai kunci acuan.";
         } else {
             $hasil['skor']         = 0.00;
             $hasil['is_correct']   = false;
             $hasil['status_label'] = 'Salah';
-            $hasil['keterangan']   = "Jawaban singkat '{$rawJwb}', kunci yang diharapkan adalah '{$rawKunci}'.";
+            $hasil['keterangan']   = "Jawaban singkat '{$rawJwb}', kunci yang diharapkan: '{$rawKunci}'.";
         }
         return $hasil;
     }
 
     // =========================================================================
+
     // 7. URAIAN: Uraian / Esai (Penilaian Manual Guru dengan batas 0 s/d BobotMax)
     // =========================================================================
     if ($jenisKanonik === 'uraian') {
@@ -540,9 +644,12 @@ function cbt_hitung_rekap_ujian(int $idUjianSiswa, PDO $db, ?array $manualScores
 
     $totalSkorMaksimal = 0.00;
     $totalSkorDiperoleh = 0.00;
+    $totalAutoSkor = 0.00;
+    $totalManualSkor = 0.00;
+    $hasManualInput = false;
     $jumlahBenarSempurna = 0;
     $totalButir = count($urutanIds);
-    $adaUraianBelumDinilai = false;
+    $adaManualBelumDinilai = false;
     $evaluasiList = [];
 
     $stmtUpdJawaban = $db->prepare("
@@ -559,15 +666,25 @@ function cbt_hitung_rekap_ujian(int $idUjianSiswa, PDO $db, ?array $manualScores
         $manualVal = $manualScores[$sid] ?? $sRow['nilai_soal'];
         $eval = cbt_evaluasi_soal($sRow, $sRow['jawaban_terpilih'], $manualVal);
 
+        $isManualType = ($eval['jenis'] === 'uraian');
+
         $totalSkorMaksimal += $eval['bobot_max'];
         $totalSkorDiperoleh += $eval['skor'];
 
-        if ($eval['is_correct']) {
-            $jumlahBenarSempurna++;
+        if ($isManualType) {
+            $totalManualSkor += $eval['skor'];
+            if ($manualVal !== null && $manualVal !== '') {
+                $hasManualInput = true;
+            }
+            if (!$eval['is_empty'] && $manualVal === null) {
+                $adaManualBelumDinilai = true;
+            }
+        } else {
+            $totalAutoSkor += $eval['skor'];
         }
 
-        if ($eval['jenis'] === 'uraian' && !$eval['is_empty'] && $manualVal === null) {
-            $adaUraianBelumDinilai = true;
+        if ($eval['is_correct']) {
+            $jumlahBenarSempurna++;
         }
 
         $stmtUpdJawaban->execute([
@@ -580,27 +697,30 @@ function cbt_hitung_rekap_ujian(int $idUjianSiswa, PDO $db, ?array $manualScores
     }
 
     if ($totalSkorMaksimal > 0) {
-        $nilaiAkhir = round(($totalSkorDiperoleh / $totalSkorMaksimal) * 100, 2);
+        $nilaiAkhir = max(0.00, round(($totalSkorDiperoleh / $totalSkorMaksimal) * 100, 2));
     } else {
         $nilaiAkhir = 0.00;
     }
 
-    // Update langsung ke ujian_siswa
+    // Update langsung ke ujian_siswa (nilai_pg untuk butir otomatis, nilai_essai untuk butir koreksi manual)
     $stmtUpdUs = $db->prepare("
         UPDATE ujian_siswa 
         SET jumlah_benar   = :benar,
             total_skor     = :tot_skor,
             skor_maksimal  = :tot_max,
             nilai_akhir    = :nilai,
-            nilai_pg       = :tot_skor
+            nilai_pg       = :tot_auto,
+            nilai_essai    = :tot_manual
         WHERE id_ujian_siswa = :us
     ");
     $stmtUpdUs->execute([
-        ':benar'    => $jumlahBenarSempurna,
-        ':tot_skor' => round($totalSkorDiperoleh, 2),
-        ':tot_max'  => round($totalSkorMaksimal, 2),
-        ':nilai'    => $nilaiAkhir,
-        ':us'       => $idUjianSiswa
+        ':benar'      => $jumlahBenarSempurna,
+        ':tot_skor'   => round($totalSkorDiperoleh, 2),
+        ':tot_max'    => round($totalSkorMaksimal, 2),
+        ':nilai'      => $nilaiAkhir,
+        ':tot_auto'   => round($totalAutoSkor, 2),
+        ':tot_manual' => $hasManualInput ? round($totalManualSkor, 2) : null,
+        ':us'         => $idUjianSiswa
     ]);
 
     return [
@@ -609,7 +729,10 @@ function cbt_hitung_rekap_ujian(int $idUjianSiswa, PDO $db, ?array $manualScores
         'total_skor_diperoleh'   => round($totalSkorDiperoleh, 2),
         'total_skor_maksimal'    => round($totalSkorMaksimal, 2),
         'nilai_akhir'            => $nilaiAkhir,
-        'ada_uraian_pending'     => $adaUraianBelumDinilai,
+        'total_auto_skor'        => round($totalAutoSkor, 2),
+        'total_manual_skor'      => round($totalManualSkor, 2),
+        'ada_uraian_pending'     => $adaManualBelumDinilai,
+        'ada_manual_pending'     => $adaManualBelumDinilai,
         'evaluasi'               => $evaluasiList
     ];
 }

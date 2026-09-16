@@ -324,9 +324,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $validKunci = [];
-                foreach ($kunciPairs as $pk => $jk) {
-                    if ($pk !== '' && $jk !== '') {
-                        $validKunci[$pk] = $jk;
+                if (is_array($kunciPairs)) {
+                    foreach ($kunciPairs as $pk => $jk) {
+                        if ($pk !== '' && $jk !== '') {
+                            $validKunci[$pk] = $jk;
+                        }
+                    }
+                }
+
+                // Default pairing jika belum ada kunci eksplisit (input baris demi baris):
+                // Setiap premis p1 dipasangkan dengan pilihan j1, p2 dengan j2, dst.
+                if (empty($validKunci)) {
+                    foreach ($premisList as $pIdx => $pItem) {
+                        if (isset($pilihanList[$pIdx])) {
+                            $validKunci[$pItem['id']] = $pilihanList[$pIdx]['id'];
+                        }
                     }
                 }
 
@@ -643,7 +655,7 @@ include __DIR__ . '/../layouts/header.php';
                             <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1rem 0;">
                             <label style="font-weight: 700; color: #c2410c; font-size: 0.9rem;">Kunci Jawaban Singkat (Gunakan tanda | jika ada alternatif):</label>
                             <input type="text" name="soal[<?= $idx ?>][kunci_ijs]" class="form-control mt-1" value="<?= sanitize($q['kunci_jawaban'] ?? '') ?>" placeholder="Contoh: Soekarno | Ir. Soekarno">
-                            <small style="color: var(--gray-500); font-size: 0.8rem;">Pemeriksaan otomatis bersifat fleksibel (tidak membedakan huruf besar/kecil dan spasi berlebih).</small>
+                            <small style="color: var(--gray-500); font-size: 0.8rem;">Kunci acuan untuk penilaian otomatis oleh sistem CBT. Gunakan tanda | untuk variasi/alternatif jawaban benar.</small>
                         </div>
 
                         <!-- F. URAIAN / ESSAI -->
@@ -693,7 +705,7 @@ include __DIR__ . '/../layouts/header.php';
 <script>
 const defaultBobotMap = {
     'pg_1': 2.0,
-    'pgk_l1': 3.0,
+    'pgk_l1': 2.0,
     'pgk_bs_1': 1.0,
     'pgk_bs_l1': 6.0,
     'mjdk': 6.0,
@@ -934,8 +946,9 @@ function tambahPertanyaan(jenis) {
 
             <div class="section-ijs" style="${jenis === 'ijs' ? '' : 'display: none;'}">
                 <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 1rem 0;">
-                <label style="font-weight: 700; color: #c2410c; font-size: 0.9rem;">Kunci Jawaban Singkat:</label>
+                <label style="font-weight: 700; color: #c2410c; font-size: 0.9rem;">Kunci Jawaban Singkat (Penilaian Otomatis):</label>
                 <input type="text" name="soal[${newIndex}][kunci_ijs]" class="form-control mt-1" placeholder="Contoh: Soekarno | Ir. Soekarno">
+                <small style="color: var(--gray-500); font-size: 0.8rem;">Kunci acuan untuk penilaian otomatis oleh sistem CBT. Gunakan tanda | untuk variasi/alternatif jawaban benar.</small>
             </div>
 
             <div class="section-uraian" style="${jenis === 'uraian' ? '' : 'display: none;'}">

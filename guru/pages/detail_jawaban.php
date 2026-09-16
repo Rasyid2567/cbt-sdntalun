@@ -671,11 +671,27 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
           <td>
             <div style="margin-bottom: 3px;">
               <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
-              <div class="essay-ans"><?= nl2br(htmlspecialchars((string)$s['jawaban_terpilih'], ENT_QUOTES, 'UTF-8')) ?: '<span style="color:#94a3b8;font-style:italic;">(Kosong)</span>' ?></div>
+              <?php if ($s['jenis_soal'] === 'mjdk' && !empty($s['eval']['detail']['rows'])): ?>
+                <div class="essay-ans" style="font-size: 8.5pt;">
+                  <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
+                    <div>• <?= sanitize($r['premis']) ?> ➔ <strong style="color:<?= $r['is_correct'] ? '#166534' : '#dc2626' ?>;"><?= sanitize($r['siswa']) ?: '(Kosong)' ?></strong></div>
+                  <?php endforeach; ?>
+                </div>
+              <?php else: ?>
+                <div class="essay-ans"><?= nl2br(htmlspecialchars((string)$s['jawaban_terpilih'], ENT_QUOTES, 'UTF-8')) ?: '<span style="color:#94a3b8;font-style:italic;">(Kosong)</span>' ?></div>
+              <?php endif; ?>
             </div>
             <div>
               <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
-              <div style="font-size: 9pt; color: #166534; font-weight: bold;"><?= htmlspecialchars((string)$s['kunci_jawaban'], ENT_QUOTES, 'UTF-8') ?: '-' ?></div>
+              <?php if ($s['jenis_soal'] === 'mjdk' && !empty($s['eval']['detail']['rows'])): ?>
+                <div style="font-size: 8.5pt; color: #166534; font-weight: bold;">
+                  <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
+                    <div>• <?= sanitize($r['premis']) ?> ➔ <?= sanitize($r['kunci']) ?></div>
+                  <?php endforeach; ?>
+                </div>
+              <?php else: ?>
+                <div style="font-size: 9pt; color: #166534; font-weight: bold;"><?= htmlspecialchars((string)$s['kunci_jawaban'], ENT_QUOTES, 'UTF-8') ?: '-' ?></div>
+              <?php endif; ?>
             </div>
           </td>
           <td style="text-align: center;">
@@ -1096,7 +1112,7 @@ include __DIR__ . '/../layouts/header.php';
                             <?php elseif (empty($s['jawaban_terpilih'])): ?>
                                 <span class="badge-status kosong">Kosong (0 / <?= $s['bobot_max'] ?>)</span>
                             <?php else: ?>
-                                <span class="badge-status salah">Salah (0 / <?= $s['bobot_max'] ?>)</span>
+                                <span class="badge-status salah"><?= ($s['skor'] < 0) ? 'Salah (Minus)' : 'Salah' ?> (<?= number_format((float)$s['skor'], 2) ?> / <?= $s['bobot_max'] ?>)</span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -1155,15 +1171,50 @@ include __DIR__ . '/../layouts/header.php';
                             </div>
                         </div>
 
-                    <!-- 2. ISIAN / JAWABAN SINGKAT (IJS) -->
+                    <!-- 2. ISIAN / JAWABAN SINGKAT (IJS - PENILAIAN OTOMATIS) -->
                     <?php elseif ($s['jenis_soal'] === 'ijs'): ?>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.75rem 1rem; margin-top:0.5rem;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-size:0.85rem;">
-                                <span><strong>Jawaban Siswa:</strong> <span style="font-size:1rem; font-weight:700; color:<?= $s['is_correct'] ? '#166534' : '#991b1b' ?>;"><?= sanitize($s['jawaban_terpilih']) ?: '<em style="color:#94a3b8;">(Kosong)</em>' ?></span></span>
-                                <span><strong>Kunci Jawaban:</strong> <code style="background:#e0f2fe; color:#0369a1; padding:0.2rem 0.5rem; border-radius:4px; font-weight:700;"><?= sanitize($s['kunci_jawaban']) ?></code></span>
+                        <div class="essay-box" style="border-left: 4px solid <?= $s['is_correct'] ? '#16a34a' : ($s['jawaban_terpilih'] === '' ? '#94a3b8' : '#dc2626') ?>;">
+                            <div style="margin-bottom: 0.85rem;">
+                                <div style="font-size:0.82rem;color:#475569;font-weight:700;margin-bottom:0.35rem;display:flex;align-items:center;gap:0.4rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    <span>Jawaban Siswa:</span>
+                                </div>
+                                <div style="background:#fff;border:1.5px solid <?= $s['is_correct'] ? '#86efac' : ($s['jawaban_terpilih'] === '' ? '#cbd5e1' : '#fca5a5') ?>;border-radius:6px;padding:0.75rem 1rem;font-size:1rem;font-weight:700;color:#1e293b;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-height:48px;">
+                                    <?php if (!empty($s['jawaban_terpilih'])): ?>
+                                        <?= sanitize($s['jawaban_terpilih']) ?>
+                                    <?php else: ?>
+                                        <span style="color:#94a3b8;font-style:italic;font-weight:normal;">(Siswa tidak mengisi jawaban)</span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <div style="font-size:0.82rem; color:#64748b;">
-                                <?= sanitize($s['keterangan']) ?>
+
+                            <?php if (!empty($s['kunci_jawaban'])): ?>
+                                <div style="margin-bottom: 0.85rem;">
+                                    <div style="font-size:0.8rem;color:#64748b;font-weight:600;margin-bottom:0.25rem;">Kunci Jawaban Acuan Sistem:</div>
+                                    <div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;padding:0.6rem 0.85rem;font-size:0.88rem;color:#334155;line-height:1.5;">
+                                        <code style="font-size: 0.95rem;"><?= sanitize($s['kunci_jawaban']) ?></code>
+                                        <small style="color:#64748b; margin-left:0.5rem;">(Cocok otomatis secara case-insensitive; dipisah tanda | jika ada variasi)</small>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:0.75rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                                <div style="font-size:0.85rem;color:#334155;">
+                                    <strong>Evaluasi Otomatis:</strong>
+                                    <?php if ($s['jawaban_terpilih'] === ''): ?>
+                                        <span class="badge-status kosong" style="margin-left: 0.35rem;">Kosong (0)</span>
+                                    <?php elseif ($s['is_correct']): ?>
+                                        <span class="badge-status benar" style="margin-left: 0.35rem;">Tepat Sesuai Kunci (Skor: <?= $s['skor'] ?> / <?= $s['bobot_max'] ?>)</span>
+                                    <?php else: ?>
+                                        <span class="badge-status salah" style="margin-left: 0.35rem;">Tidak Cocok (Skor: 0 / <?= $s['bobot_max'] ?>)</span>
+                                    <?php endif; ?>
+                                </div>
+
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                    <span style="font-size:0.8rem;color:#64748b;">Penyesuaian Nilai (Opsional):</span>
+                                    <input type="number" step="0.1" min="0" max="<?= $s['bobot_max'] ?>" name="nilai_soal[<?= $s['id_soal'] ?>]" value="<?= $s['nilai_soal'] !== null ? $s['nilai_soal'] : '' ?>" class="form-control" style="width: 85px; font-size:0.95rem; font-weight:700;" placeholder="<?= $s['skor'] ?>">
+                                    <span style="font-size:0.85rem;font-weight:600;color:#64748b;">/ <?= $s['bobot_max'] ?></span>
+                                </div>
                             </div>
                         </div>
 

@@ -758,6 +758,13 @@ include __DIR__ . '/../layouts/header.php';
                                                                         if (is_string($kunciMap)) {
                                                                             $kunciMap = json_decode($kunciMap, true) ?: [];
                                                                         }
+                                                                        if (empty($kunciMap) && !empty($premis)) {
+                                                                            foreach ($premis as $pIdx => $pItem) {
+                                                                                if (isset($pilihan[$pIdx])) {
+                                                                                    $kunciMap[$pItem['id']] = $pilihan[$pIdx]['id'];
+                                                                                }
+                                                                            }
+                                                                        }
                                                                         $pilihanById = [];
                                                                         foreach ($pilihan as $pil) {
                                                                             $pilihanById[$pil['id']] = $pil['teks'] ?? '';

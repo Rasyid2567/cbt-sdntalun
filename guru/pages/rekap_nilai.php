@@ -84,8 +84,8 @@ if ($selectedSesiId > 0) {
         if (!empty($sesiDetail['id_paket'])) {
             $stmtStat = $db->prepare("
                 SELECT COUNT(*) as total_soal,
-                       COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
-                       COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
+                       COUNT(CASE WHEN jenis_soal NOT IN ('uraian', 'essai') OR jenis_soal IS NULL THEN 1 END) as total_pg,
+                       COUNT(CASE WHEN jenis_soal IN ('uraian', 'essai') THEN 1 END) as total_essai
                 FROM bank_soal 
                 WHERE id_paket = :p
             ");
@@ -93,8 +93,8 @@ if ($selectedSesiId > 0) {
         } else {
             $stmtStat = $db->prepare("
                 SELECT COUNT(*) as total_soal,
-                       COUNT(CASE WHEN jenis_soal != 'essai' OR jenis_soal IS NULL THEN 1 END) as total_pg,
-                       COUNT(CASE WHEN jenis_soal = 'essai' THEN 1 END) as total_essai
+                       COUNT(CASE WHEN jenis_soal NOT IN ('uraian', 'essai') OR jenis_soal IS NULL THEN 1 END) as total_pg,
+                       COUNT(CASE WHEN jenis_soal IN ('uraian', 'essai') THEN 1 END) as total_essai
                 FROM bank_soal 
                 WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m)
             ");
@@ -436,7 +436,7 @@ include __DIR__ . '/../layouts/header.php';
 
             <?php if ($totalEssai > 0): ?>
                 <div class="alert alert-info mt-3 no-print" style="font-size: 0.85rem; padding: 0.65rem 0.95rem; margin-bottom: 0;">
-                    <strong>Keterangan:</strong> Terdapat <?= $totalEssai ?> butir soal uraian/essai pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai essai siswa.
+                    <strong>Keterangan:</strong> Terdapat <?= $totalEssai ?> butir soal uraian pada paket ini. Klik tombol <strong>Detail & Nilai</strong> untuk memeriksa lembar jawaban dan menginputkan nilai uraian siswa.
                 </div>
             <?php endif; ?>
 
