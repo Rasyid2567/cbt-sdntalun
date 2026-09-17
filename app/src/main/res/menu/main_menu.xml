@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_refresh"
+        android:title="@string/menu_refresh"
+        android:icon="@drawable/ic_refresh"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_clear_cache"
+        android:title="@string/menu_clear_cache"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_fullscreen"
+        android:title="@string/menu_fullscreen"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_about"
+        android:title="@string/menu_about"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_exit"
+        android:title="@string/menu_exit"
+        app:showAsAction="never" />
+</menu>

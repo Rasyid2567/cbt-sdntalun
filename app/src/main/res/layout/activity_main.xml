@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/cbt_primary"
+    android:fitsSystemWindows="true">
+
+    <!-- Top Web Loading Progress Bar -->
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:indeterminate="false"
+        android:max="100"
+        android:visibility="gone"
+        app:indicatorColor="@color/cbt_accent"
+        app:trackColor="@android:color/transparent" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/white">
+
+        <!-- Swipe Refresh Layout -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipeRefreshLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <!-- WebView Container -->
+            <WebView
+                android:id="@+id/webView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:overScrollMode="never"
+                android:scrollbars="vertical" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <!-- Error / Offline State View -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/layoutError"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#F8FAFC"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/imgError"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:contentDescription="@string/error_connection_title"
+                android:src="@drawable/ic_cloud_off"
+                app:tint="@color/cbt_primary"
+                app:layout_constraintBottom_toTopOf="@+id/tvErrorTitle"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed" />
+
+            <TextView
+                android:id="@+id/tvErrorTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/error_connection_title"
+                android:textColor="@color/cbt_text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintBottom_toTopOf="@+id/tvErrorMessage"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/imgError" />
+
+            <TextView
+                android:id="@+id/tvErrorMessage"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/error_connection_message"
+                android:textColor="@color/cbt_text_secondary"
+                android:textSize="14sp"
+                app:layout_constraintBottom_toTopOf="@+id/btnRetry"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/tvErrorTitle" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRetry"
+                android:layout_width="wrap_content"
+                android:layout_height="52dp"
+                android:layout_marginTop="28dp"
+                android:minWidth="180dp"
+                android:text="@string/action_retry"
+                android:textAllCaps="false"
+                android:textSize="15sp"
+                app:cornerRadius="26dp"
+                app:icon="@drawable/ic_refresh"
+                app:iconGravity="textStart"
+                app:backgroundTint="@color/cbt_primary"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/tvErrorMessage" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Initial Fullscreen Loading View -->
+        <FrameLayout
+            android:id="@+id/layoutLoading"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/cbt_primary"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:contentDescription="@string/app_name"
+                    android:src="@drawable/logo_sdntalun" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="sans-serif-bold"
+                    android:text="@string/app_name"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/app_subtitle"
+                    android:textColor="@color/cbt_subtitle_color"
+                    android:textSize="14sp" />
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:indeterminate="true"
+                    app:indicatorColor="@color/cbt_accent"
+                    app:trackColor="#33FFFFFF" />
+            </LinearLayout>
+        </FrameLayout>
+
+    </FrameLayout>
+
+    <!-- Bottom Taskbar (Exit Button Only) -->
+    <LinearLayout
+        android:id="@+id/bottomTaskbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="@color/cbt_primary_dark"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="10dp"
+        android:elevation="6dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExitExam"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:maxWidth="480dp"
+            android:text="@string/btn_exit_exam"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/white"
+            android:textAllCaps="false"
+            app:cornerRadius="10dp"
+            app:icon="@drawable/ic_exit"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white"
+            app:backgroundTint="@color/cbt_error"
+            app:elevation="2dp"
+            app:rippleColor="#40FFFFFF" />
+
+    </LinearLayout>
+
+</LinearLayout>

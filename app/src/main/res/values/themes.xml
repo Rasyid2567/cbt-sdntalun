@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base Application Theme (Material3 DayNight NoActionBar for clean full WebView experience) -->
+    <style name="Theme.SDN1TalunCBT" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/cbt_primary</item>
+        <item name="colorPrimaryVariant">@color/cbt_primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/cbt_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <!-- Status bar and navigation bar colors -->
+        <item name="android:statusBarColor">@color/cbt_primary</item>
+        <item name="android:navigationBarColor">@color/cbt_primary_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">@color/cbt_background</item>
+        <item name="android:fitsSystemWindows">false</item>
+    </style>
+
+    <!-- Dialog Theme -->
+    <style name="Theme.SDN1TalunCBT.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/cbt_primary</item>
+        <item name="colorSurface">@color/cbt_surface</item>
+    </style>
+</resources>

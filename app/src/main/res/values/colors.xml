@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SDN 1 Talun CBT Theme Colors -->
+    <color name="cbt_primary">#1E3A8A</color>
+    <color name="cbt_primary_dark">#172554</color>
+    <color name="cbt_primary_light">#3B82F6</color>
+    <color name="cbt_accent">#38BDF8</color>
+    <color name="cbt_background">#F8FAFC</color>
+    <color name="cbt_surface">#FFFFFF</color>
+    
+    <color name="cbt_text_primary">#0F172A</color>
+    <color name="cbt_text_secondary">#64748B</color>
+    <color name="cbt_subtitle_color">#93C5FD</color>
+    
+    <color name="cbt_success">#10B981</color>
+    <color name="cbt_warning">#F59E0B</color>
+    <color name="cbt_error">#EF4444</color>
+
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CBT SDN 1 Talun</string>
+    <string name="app_subtitle">Computer Based Test Examination</string>
+    <string name="cbt_url">https://cbt.sdnsatutalun.sch.id/</string>
+    
+    <!-- Error / Offline Strings -->
+    <string name="error_connection_title">Koneksi Terputus</string>
+    <string name="error_connection_message">Tidak dapat terhubung ke server ujian CBT.\nPastikan perangkat Anda terhubung ke jaringan internet/WiFi sekolah.</string>
+    <string name="action_retry">Coba Lagi</string>
+    
+    <!-- Dialog Exit Strings -->
+    <string name="btn_exit_exam">Keluar Ujian</string>
+    <string name="dialog_exit_title">Keluar dari Ujian?</string>
+    <string name="dialog_exit_message">Apakah Anda yakin ingin keluar dari aplikasi CBT SDN 1 Talun?\nPastikan semua jawaban ujian Anda sudah tersimpan sebelum keluar.</string>
+    <string name="dialog_yes">Ya, Keluar</string>
+    <string name="dialog_no">Batal</string>
+    
+    <!-- Menu Strings -->
+    <string name="menu_refresh">Muat Ulang (Refresh)</string>
+    <string name="menu_clear_cache">Hapus Cache &amp; Reset</string>
+    <string name="menu_fullscreen">Layar Penuh (Immersive)</string>
+    <string name="menu_about">Tentang Aplikasi</string>
+    <string name="menu_exit">Keluar</string>
+    
+    <!-- About Dialog -->
+    <string name="about_title">CBT SDN 1 Talun</string>
+    <string name="about_message">Aplikasi Resmi Ujian Berbasis Komputer (CBT)\nSD Negeri 1 Talun\n\nVersi: 2.0.0\nPortal: https://cbt.sdnsatutalun.sch.id/</string>
+    
+    <!-- Messages -->
+    <string name="msg_cache_cleared">Cache aplikasi berhasil dibersihkan</string>
+    <string name="msg_press_again_to_exit">Tekan sekali lagi untuk keluar dari CBT</string>
+    <string name="msg_downloading">Mengunduh berkas...</string>
+    <string name="msg_file_saved">Berkas tersimpan di folder Unduhan</string>
+    <string name="permission_camera_storage_rationale">Aplikasi memerlukan izin kamera dan penyimpanan untuk fitur unggah berkas ujian.</string>
+</resources>
