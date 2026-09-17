@@ -332,92 +332,6 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
     $filenameBase = "Lembar_Jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}";
 
-    // Paginate soal ke dalam lembaran-lembaran kertas A4 terpisah (menyerupai print preview browser)
-    $totalSoal = count($soalList);
-    $pageDefinitions = [];
-
-    if ($totalSoal <= 7) {
-        // 1 halaman muat seluruh data + tanda tangan
-        $pageDefinitions[] = [
-            'type' => 'single',
-            'soal' => $soalList,
-            'has_header' => true,
-            'has_signature' => true,
-        ];
-    } elseif ($totalSoal <= 14) {
-        // 2 halaman seimbang
-        $p1Count = (int)ceil($totalSoal / 2);
-        $pageDefinitions[] = [
-            'type' => 'first',
-            'soal' => array_slice($soalList, 0, $p1Count),
-            'has_header' => true,
-            'has_signature' => false,
-        ];
-        $pageDefinitions[] = [
-            'type' => 'last',
-            'soal' => array_slice($soalList, $p1Count),
-            'has_header' => false,
-            'has_signature' => true,
-        ];
-    } else {
-        // > 14 soal: Halaman 1 memuat kop, info siswa, ringkasan skor, dan 10 butir soal pertama
-        $p1Count = 10;
-        $pageDefinitions[] = [
-            'type' => 'first',
-            'soal' => array_slice($soalList, 0, $p1Count),
-            'has_header' => true,
-            'has_signature' => false,
-        ];
-
-        $offset = $p1Count;
-        $rem = $totalSoal - $offset;
-
-        while ($rem > 0) {
-            if ($rem <= 8) {
-                // Sisa soal muat bersama tanda tangan di halaman terakhir
-                $pageDefinitions[] = [
-                    'type' => 'last',
-                    'soal' => array_slice($soalList, $offset, $rem),
-                    'has_header' => false,
-                    'has_signature' => true,
-                ];
-                $offset += $rem;
-                $rem = 0;
-            } elseif ($rem <= 16) {
-                // Bagi rata antara halaman tengah dan halaman penutup
-                $mCount = (int)floor($rem / 2);
-                $lCount = $rem - $mCount;
-                $pageDefinitions[] = [
-                    'type' => 'middle',
-                    'soal' => array_slice($soalList, $offset, $mCount),
-                    'has_header' => false,
-                    'has_signature' => false,
-                ];
-                $offset += $mCount;
-                $pageDefinitions[] = [
-                    'type' => 'last',
-                    'soal' => array_slice($soalList, $offset, $lCount),
-                    'has_header' => false,
-                    'has_signature' => true,
-                ];
-                $offset += $lCount;
-                $rem = 0;
-            } else {
-                // Halaman tengah memuat 12 butir soal
-                $pageDefinitions[] = [
-                    'type' => 'middle',
-                    'soal' => array_slice($soalList, $offset, 12),
-                    'has_header' => false,
-                    'has_signature' => false,
-                ];
-                $offset += 12;
-                $rem = $totalSoal - $offset;
-            }
-        }
-    }
-
-    $totalPages = count($pageDefinitions);
-
     header('Content-Type: text/html; charset=utf-8');
     ?>
 <!DOCTYPE html>
@@ -430,7 +344,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 <style>
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm 10mm 12mm;
+    margin: 12mm 15mm 12mm 15mm;
   }
   * {
     box-sizing: border-box;
@@ -626,39 +540,22 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     padding: 24px 12px 60px 12px;
     box-sizing: border-box;
     overflow-x: auto;
-    gap: 26px; /* Jarak visual antar lembaran kertas fisik */
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Lembaran Kertas A4 Fisik */
+  /* Lembaran Kertas A4 Fisik - Menyambung Mulus Seluruh Soal Tanpa Celah Buatan */
   .paper-page {
     background: #ffffff !important;
     color: #0f172a;
     width: 210mm;
     min-height: 297mm;
+    height: auto;
     margin: 0 auto;
     padding: 15mm 18mm;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
     box-sizing: border-box;
     border-radius: 2px;
-    position: relative;
-    display: block;
-    page-break-after: always;
-    break-after: page;
   }
-
-  .paper-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  .page-content {
-    flex: 1 1 auto;
-  }
-
-  
-
-  
 
   table {
     border-collapse: collapse;
@@ -667,7 +564,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   }
   .tbl-info {
     margin-bottom: 12px;
-    font-size: 9pt;
+    font-size: 9.5pt;
     background-color: #ffffff;
   }
   .tbl-info td {
@@ -724,7 +621,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     border-left: 3px solid #64748b;
   }
   .signature-box {
-    margin-top: 20px;
+    margin-top: 25px;
     font-size: 9.5pt;
     border: none;
     background-color: #ffffff;
@@ -777,17 +674,15 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     }
     .preview-container {
       padding: 12px 8px 40px 8px;
-      gap: 16px;
     }
     .paper-page {
       width: 100% !important;
       min-width: 0 !important;
       max-width: 100% !important;
       min-height: auto !important;
-      padding: 14px 10px 8px 10px !important;
+      padding: 14px 10px 14px 10px !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.12) !important;
       border-radius: 4px !important;
-      gap: 10px;
     }
     .tbl-info {
       font-size: 8.5pt;
@@ -812,7 +707,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     }
   }
 
-  /* Cetak Printer Otentik A4 (Tanpa Margin Tambahan) */
+  /* Cetak Printer Otentik A4 (Auto Page Breaks Antar Baris) */
   @media print {
     .no-print, .no-print-bar {
       display: none !important;
@@ -829,7 +724,6 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       display: block !important;
       overflow: visible !important;
       min-height: auto !important;
-      gap: 0 !important;
     }
     .paper-page {
       width: 100% !important;
@@ -843,12 +737,6 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       border: none !important;
       zoom: 1.0 !important;
       transform: none !important;
-      page-break-after: always !important;
-      break-after: page !important;
-    }
-    .paper-page:last-child {
-      page-break-after: auto !important;
-      break-after: auto !important;
     }
     tr {
       page-break-inside: avoid;
@@ -875,7 +763,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       <span>Tutup</span>
     </button>
     <div class="doc-info">
-      <span class="doc-title">Lembar Hasil Ujian (<?= $totalPages ?> Halaman)</span>
+      <span class="doc-title">Lembar Hasil Ujian</span>
       <span class="doc-student"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></span>
     </div>
   </div>
@@ -906,180 +794,168 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </div>
 </div>
 
-<!-- Viewport Dokumen (Menampilkan Lembaran Kertas A4 Fisik Terpisah) -->
+<!-- Viewport Dokumen (Menampilkan Kertas A4 Otentik Menyambung Mulus) -->
 <div class="preview-container" id="printable-area">
-  <?php foreach ($pageDefinitions as $pageIdx => $pageDef): ?>
-  <div class="paper-page" id="paper-page-<?= $pageIdx + 1 ?>" data-page="<?= $pageIdx + 1 ?>">
-    <div class="page-content">
-      <?php if ($pageDef['has_header']): ?>
-        <!-- Kop Resmi Sekolah -->
-        <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 8px;">
-          <img src="<?= base_url("assets/img/sdntalun.png") ?>" alt="Logo SDN 1 Talun" style="width: 58px; height: 58px; object-fit: contain;">
-          <div style="text-align: center; flex: 1;">
-            <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
-            <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
-            <div style="font-size: 13.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 1px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
-            <div style="font-size: 8pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
-          </div>
-          <div style="width: 58px;"></div>
-        </div>
-        <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 10px;"></div>
-        <div style="text-align: center; font-size: 11pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 10px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
-
-        <!-- Tabel Data Siswa -->
-        <table class="tbl-info">
-          <tr>
-            <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
-            <td style="width: 2%;">:</td>
-            <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></td>
-            <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
-            <td style="width: 2%;">:</td>
-            <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_ujian"], ENT_QUOTES, "UTF-8") ?></td>
-          </tr>
-          <tr>
-            <td style="font-weight: bold;">NIS / Akun</td>
-            <td>:</td>
-            <td><?= htmlspecialchars((string)($detailUjian["nis"] ?: $detailUjian["username"]), ENT_QUOTES, "UTF-8") ?></td>
-            <td style="font-weight: bold;">Mata Pelajaran</td>
-            <td>:</td>
-            <td><?= htmlspecialchars($detailUjian["nama_mapel"], ENT_QUOTES, "UTF-8") ?></td>
-          </tr>
-          <tr>
-            <td style="font-weight: bold;">Kelas</td>
-            <td>:</td>
-            <td><?= htmlspecialchars($detailUjian["nama_kelas"], ENT_QUOTES, "UTF-8") ?></td>
-            <td style="font-weight: bold;">Guru Penguji</td>
-            <td>:</td>
-            <td><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "-"), ENT_QUOTES, "UTF-8") ?><?= !empty($detailUjian["nip_guru"]) ? ' <span style="font-size: 8.5pt; color: #475569;">(NIP. ' . htmlspecialchars($detailUjian["nip_guru"], ENT_QUOTES, "UTF-8") . ')</span>' : "" ?></td>
-          </tr>
-          <tr>
-            <td style="font-weight: bold;">Waktu Pengerjaan</td>
-            <td>:</td>
-            <td><?= htmlspecialchars($durasiKerjaText, ENT_QUOTES, "UTF-8") ?></td>
-            <td style="font-weight: bold;">Status Ujian</td>
-            <td>:</td>
-            <td><?= strtoupper($detailUjian["status"]) ?></td>
-          </tr>
-        </table>
-
-        <!-- Ringkasan Nilai Resmi -->
-        <table class="tbl-score">
-          <tr>
-            <th>Total Skor Diperoleh</th>
-            <th>Skor Maksimal</th>
-            <th style="background-color: #dbeafe; color: #1e40af;">Nilai Akhir (Skala 100)</th>
-            <th>Benar / Sebagian</th>
-            <th>Salah / Kosong</th>
-          </tr>
-          <tr>
-            <td style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?></td>
-            <td><?= number_format($totalSkorMaksimal, 2) ?></td>
-            <td style="background-color: #eff6ff; color: #1e3a8a; font-size: 13pt;"><?= number_format($calculatedNilaiAkhir, 2) ?></td>
-            <td style="color: #166534; font-size: 10.5pt;"><?= $statBenar ?> / <?= $statSebagian ?></td>
-            <td style="color: #dc2626; font-size: 10.5pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
-          </tr>
-        </table>
-      <?php endif; ?>
-
-      <!-- Tabel Rincian Butir Soal Pada Lembar Ini -->
-      <?php if (!empty($pageDef['soal'])): ?>
-        <table class="tbl-soal">
-          <thead>
-            <tr>
-              <th style="width: 5%;">No</th>
-              <th style="width: 14%;">Bentuk Soal</th>
-              <th style="width: 41%;">Pertanyaan</th>
-              <th style="width: 25%;">Jawaban Siswa &amp; Kunci</th>
-              <th style="width: 15%;">Skor &amp; Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($pageDef['soal'] as $s): ?>
-              <tr>
-                <td style="text-align: center; font-weight: bold;"><?= $s["nomor"] ?></td>
-                <td style="text-align: center;">
-                  <strong><?= htmlspecialchars($s["short_label"], ENT_QUOTES, "UTF-8") ?></strong>
-                  <div style="font-size: 8pt; color: #555;">(Max: <?= $s["bobot_max"] ?>)</div>
-                </td>
-                <td>
-                  <div style="font-weight: 500; margin-bottom: 4px;">
-                    <?= nl2br(htmlspecialchars(trim(strip_tags($s["pertanyaan"])), ENT_QUOTES, "UTF-8")) ?>
-                  </div>
-                </td>
-                <td>
-                  <div style="margin-bottom: 3px;">
-                    <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
-                    <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
-                      <div class="essay-ans" style="font-size: 8.5pt;">
-                        <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
-                          <div>• <?= sanitize($r["premis"]) ?> ➔ <strong style="color:<?= $r["is_correct"] ? "#166534" : "#dc2626" ?>;"><?= sanitize($r["siswa"]) ?: "(Kosong)" ?></strong></div>
-                        <?php endforeach; ?>
-                      </div>
-                    <?php else: ?>
-                      <span style="font-weight: bold; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
-                        <?= htmlspecialchars((string)($s["jawaban_terpilih"] ?: "(Kosong)"), ENT_QUOTES, "UTF-8") ?>
-                      </span>
-                    <?php endif; ?>
-                  </div>
-                  <div>
-                    <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
-                    <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
-                      <div class="essay-ans" style="font-size: 8pt; color: #166534;">
-                        <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
-                          <div>• <?= sanitize($r["premis"]) ?> ➔ <?= sanitize($r["kunci"]) ?></div>
-                        <?php endforeach; ?>
-                      </div>
-                    <?php else: ?>
-                      <span style="font-weight: bold; color: #166534;">
-                        <?= htmlspecialchars((string)$s["kunci_jawaban"], ENT_QUOTES, "UTF-8") ?>
-                      </span>
-                    <?php endif; ?>
-                  </div>
-                </td>
-                <td style="text-align: center;">
-                  <div style="font-size: 11pt; font-weight: 800; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
-                    <?= number_format($s["skor"], 2) ?> / <?= $s["bobot_max"] ?>
-                  </div>
-                  <div style="font-size: 8pt; font-weight: bold; color: #555;">
-                    <?= htmlspecialchars($s["status_label"], ENT_QUOTES, "UTF-8") ?>
-                  </div>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      <?php endif; ?>
-
-      <?php if ($pageDef['has_signature']): ?>
-        <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
-        <table class="signature-box" style="width: 100%; border: none; margin-top: 20px; font-size: 9.5pt; page-break-inside: avoid;">
-          <tr>
-            <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
-              Mengetahui,<br>
-              Kepala <?= defined("SEKOLAH_NAMA") ? sanitize(SEKOLAH_NAMA) : "SD Negeri 1 Talun" ?><br><br><br><br><br>
-              <strong><u><?= defined("KEPALA_SEKOLAH_NAMA") ? sanitize(KEPALA_SEKOLAH_NAMA) : "MASHURI, S.Pd." ?></u></strong><br>
-              <span style="font-size: 8.5pt; color: #475569;">NIP. <?= defined("KEPALA_SEKOLAH_NIP") ? sanitize(KEPALA_SEKOLAH_NIP) : "198511052022211001" ?></span>
-            </td>
-            <td style="width: 34%; text-align: center; border: none; vertical-align: top;">
-              Mengetahui,<br>
-              Orang Tua / Wali<br><br><br><br><br>
-              <strong><u><?= !empty($detailUjian["orang_tua"]) ? "( " . sanitize($detailUjian["orang_tua"]) . " )" : "( .................................................. )" ?></u></strong><br>
-              <span style="font-size: 8.5pt; color: #475569;">&nbsp;</span>
-            </td>
-            <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
-              Talun, <?= date("d/m/Y") ?><br>
-              Guru Penguji / Pengampu<br><br><br><br><br>
-              <strong><u><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "..................................................."), ENT_QUOTES, "UTF-8") ?></u></strong><br>
-              <span style="font-size: 8.5pt; color: #475569;">NIP. <?= htmlspecialchars((string)($detailUjian["nip_guru"] ?: "..........................................."), ENT_QUOTES, "UTF-8") ?></span>
-            </td>
-          </tr>
-        </table>
-      <?php endif; ?>
+  <div class="paper-page">
+    <!-- Kop Resmi Sekolah -->
+    <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 8px;">
+      <img src="<?= base_url("assets/img/sdntalun.png") ?>" alt="Logo SDN 1 Talun" style="width: 58px; height: 58px; object-fit: contain;">
+      <div style="text-align: center; flex: 1;">
+        <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
+        <div style="font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
+        <div style="font-size: 13.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 1px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
+        <div style="font-size: 8pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+      </div>
+      <div style="width: 58px;"></div>
     </div>
+    <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 10px;"></div>
+    <div style="text-align: center; font-size: 11pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 10px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
 
+    <!-- Tabel Data Siswa -->
+    <table class="tbl-info">
+      <tr>
+        <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
+        <td style="width: 2%;">:</td>
+        <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></td>
+        <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
+        <td style="width: 2%;">:</td>
+        <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_ujian"], ENT_QUOTES, "UTF-8") ?></td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold;">NIS / Akun</td>
+        <td>:</td>
+        <td><?= htmlspecialchars((string)($detailUjian["nis"] ?: $detailUjian["username"]), ENT_QUOTES, "UTF-8") ?></td>
+        <td style="font-weight: bold;">Mata Pelajaran</td>
+        <td>:</td>
+        <td><?= htmlspecialchars($detailUjian["nama_mapel"], ENT_QUOTES, "UTF-8") ?></td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold;">Kelas</td>
+        <td>:</td>
+        <td><?= htmlspecialchars($detailUjian["nama_kelas"], ENT_QUOTES, "UTF-8") ?></td>
+        <td style="font-weight: bold;">Guru Penguji</td>
+        <td>:</td>
+        <td><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "-"), ENT_QUOTES, "UTF-8") ?><?= !empty($detailUjian["nip_guru"]) ? ' <span style="font-size: 8.5pt; color: #475569;">(NIP. ' . htmlspecialchars($detailUjian["nip_guru"], ENT_QUOTES, "UTF-8") . ')</span>' : "" ?></td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold;">Waktu Pengerjaan</td>
+        <td>:</td>
+        <td><?= htmlspecialchars($durasiKerjaText, ENT_QUOTES, "UTF-8") ?></td>
+        <td style="font-weight: bold;">Status Ujian</td>
+        <td>:</td>
+        <td><?= strtoupper($detailUjian["status"]) ?></td>
+      </tr>
+    </table>
 
+    <!-- Ringkasan Nilai Resmi -->
+    <table class="tbl-score">
+      <tr>
+        <th>Total Skor Diperoleh</th>
+        <th>Skor Maksimal</th>
+        <th style="background-color: #dbeafe; color: #1e40af;">Nilai Akhir (Skala 100)</th>
+        <th>Benar / Sebagian</th>
+        <th>Salah / Kosong</th>
+      </tr>
+      <tr>
+        <td style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?></td>
+        <td><?= number_format($totalSkorMaksimal, 2) ?></td>
+        <td style="background-color: #eff6ff; color: #1e3a8a; font-size: 13pt;"><?= number_format($calculatedNilaiAkhir, 2) ?></td>
+        <td style="color: #166534; font-size: 10.5pt;"><?= $statBenar ?> / <?= $statSebagian ?></td>
+        <td style="color: #dc2626; font-size: 10.5pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
+      </tr>
+    </table>
+
+    <!-- Tabel Seluruh Butir Soal (Menyambung Mulus Tanpa Gap) -->
+    <table class="tbl-soal">
+      <thead>
+        <tr>
+          <th style="width: 5%;">No</th>
+          <th style="width: 14%;">Bentuk Soal</th>
+          <th style="width: 41%;">Pertanyaan</th>
+          <th style="width: 25%;">Jawaban Siswa &amp; Kunci</th>
+          <th style="width: 15%;">Skor &amp; Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($soalList as $s): ?>
+          <tr>
+            <td style="text-align: center; font-weight: bold;"><?= $s["nomor"] ?></td>
+            <td style="text-align: center;">
+              <strong><?= htmlspecialchars($s["short_label"], ENT_QUOTES, "UTF-8") ?></strong>
+              <div style="font-size: 8pt; color: #555;">(Max: <?= $s["bobot_max"] ?>)</div>
+            </td>
+            <td>
+              <div style="font-weight: 500; margin-bottom: 4px;">
+                <?= nl2br(htmlspecialchars(trim(strip_tags($s["pertanyaan"])), ENT_QUOTES, "UTF-8")) ?>
+              </div>
+            </td>
+            <td>
+              <div style="margin-bottom: 3px;">
+                <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
+                <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
+                  <div class="essay-ans" style="font-size: 8.5pt;">
+                    <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
+                      <div>• <?= sanitize($r["premis"]) ?> ➔ <strong style="color:<?= $r["is_correct"] ? "#166534" : "#dc2626" ?>;"><?= sanitize($r["siswa"]) ?: "(Kosong)" ?></strong></div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php else: ?>
+                  <span style="font-weight: bold; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
+                    <?= htmlspecialchars((string)($s["jawaban_terpilih"] ?: "(Kosong)"), ENT_QUOTES, "UTF-8") ?>
+                  </span>
+                <?php endif; ?>
+              </div>
+              <div>
+                <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
+                <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
+                  <div class="essay-ans" style="font-size: 8pt; color: #166534;">
+                    <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
+                      <div>• <?= sanitize($r["premis"]) ?> ➔ <?= sanitize($r["kunci"]) ?></div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php else: ?>
+                  <span style="font-weight: bold; color: #166534;">
+                    <?= htmlspecialchars((string)$s["kunci_jawaban"], ENT_QUOTES, "UTF-8") ?>
+                  </span>
+                <?php endif; ?>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <div style="font-size: 11pt; font-weight: 800; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
+                <?= number_format($s["skor"], 2) ?> / <?= $s["bobot_max"] ?>
+              </div>
+              <div style="font-size: 8pt; font-weight: bold; color: #555;">
+                <?= htmlspecialchars($s["status_label"], ENT_QUOTES, "UTF-8") ?>
+              </div>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+
+    <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
+    <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 9.5pt; page-break-inside: avoid;">
+      <tr>
+        <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
+          Mengetahui,<br>
+          Kepala <?= defined("SEKOLAH_NAMA") ? sanitize(SEKOLAH_NAMA) : "SD Negeri 1 Talun" ?><br><br><br><br><br>
+          <strong><u><?= defined("KEPALA_SEKOLAH_NAMA") ? sanitize(KEPALA_SEKOLAH_NAMA) : "MASHURI, S.Pd." ?></u></strong><br>
+          <span style="font-size: 8.5pt; color: #475569;">NIP. <?= defined("KEPALA_SEKOLAH_NIP") ? sanitize(KEPALA_SEKOLAH_NIP) : "198511052022211001" ?></span>
+        </td>
+        <td style="width: 34%; text-align: center; border: none; vertical-align: top;">
+          Mengetahui,<br>
+          Orang Tua / Wali<br><br><br><br><br>
+          <strong><u><?= !empty($detailUjian["orang_tua"]) ? "( " . sanitize($detailUjian["orang_tua"]) . " )" : "( .................................................. )" ?></u></strong><br>
+          <span style="font-size: 8.5pt; color: #475569;">&nbsp;</span>
+        </td>
+        <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
+          Talun, <?= date("d/m/Y") ?><br>
+          Guru Penguji / Pengampu<br><br><br><br><br>
+          <strong><u><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "..................................................."), ENT_QUOTES, "UTF-8") ?></u></strong><br>
+          <span style="font-size: 8.5pt; color: #475569;">NIP. <?= htmlspecialchars((string)($detailUjian["nip_guru"] ?: "..........................................."), ENT_QUOTES, "UTF-8") ?></span>
+        </td>
+      </tr>
+    </table>
   </div>
-  <?php endforeach; ?>
 </div>
 
 <script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
@@ -1149,11 +1025,14 @@ function downloadPdfDirectly() {
         btn.disabled = true;
         btn.innerHTML = "<span>⏳ Memproses PDF...</span>";
     }
-    const element = document.getElementById("printable-area");
-    const prevZoom = element.style.zoom;
-    const prevTransform = element.style.transform;
-    element.style.zoom = "1.0";
-    element.style.transform = "none";
+    const container = document.getElementById("printable-area");
+    const element = document.querySelector(".paper-page") || container;
+    const prevZoom = container ? container.style.zoom : "1.0";
+    const prevTransform = container ? container.style.transform : "none";
+    if (container) {
+        container.style.zoom = "1.0";
+        container.style.transform = "none";
+    }
 
     const opt = {
         margin:       [0, 0, 0, 0],
@@ -1161,18 +1040,22 @@ function downloadPdfDirectly() {
         image:        { type: "jpeg", quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 1024 },
         jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak:    { mode: ["css", "legacy"] }
+        pagebreak:    { mode: ["avoid-all", "css", "legacy"] }
     };
     html2pdf().set(opt).from(element).save().then(function() {
-        element.style.zoom = prevZoom;
-        element.style.transform = prevTransform;
+        if (container) {
+            container.style.zoom = prevZoom;
+            container.style.transform = prevTransform;
+        }
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
         }
     }).catch(function(err) {
-        element.style.zoom = prevZoom;
-        element.style.transform = prevTransform;
+        if (container) {
+            container.style.zoom = prevZoom;
+            container.style.transform = prevTransform;
+        }
         console.error(err);
         if (btn) {
             btn.disabled = false;
