@@ -153,7 +153,7 @@ foreach ($urutanIds as $index => $sid) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title><?= sanitize($ujianSiswa['nama_ujian']) ?> - CBT Ruang Ujian</title>
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/sdntalun.png') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/cbt-style.css') ?>">
 </head>
 <body class="cbt-fullscreen app-webview-body">
