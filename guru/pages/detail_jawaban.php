@@ -981,6 +981,14 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
           <td>:</td>
           <td><?= !empty($detailUjian["waktu_mulai"]) ? date("d/m/Y H:i", strtotime($detailUjian["waktu_mulai"])) : "-" ?></td>
         </tr>
+        <tr>
+          <td style="font-weight: bold;">No. HP</td>
+          <td>:</td>
+          <td><?= htmlspecialchars((string)($detailUjian["no_hp_siswa"] ?? ($detailUjian["no_hp"] ?? "-")) ?: "-", ENT_QUOTES, "UTF-8") ?></td>
+          <td style="font-weight: bold;">No. HP Ortu</td>
+          <td>:</td>
+          <td><?= htmlspecialchars((string)($detailUjian["no_hp_ortu"] ?? "-") ?: "-", ENT_QUOTES, "UTF-8") ?></td>
+        </tr>
       </table>
 
       <!-- Ringkasan Nilai & Statistik -->
