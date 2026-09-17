@@ -291,10 +291,9 @@ if (!empty($detailUjian['waktu_mulai'])) {
         $endSec   = strtotime($detailUjian['waktu_selesai']);
         $diffSec  = max(0, $endSec - $startSec);
         $menit    = (int)floor($diffSec / 60);
-        $detik    = $diffSec % 60;
-        $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
-        $durasiKerjaText  = "{$menit} Menit {$detik} Detik " . ($alokasiMenit > 0 ? "({$alokasiMenit} Menit)" : "") . " ({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)";
-        $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> " . ($alokasiMenit > 0 ? "<span class=\"badge\" style=\"background:#e0f2fe; color:#0369a1; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">Alokasi: {$alokasiMenit} Menit</span> " : "") . "<span style=\"font-size:0.85rem; color:var(--gray-600);\">({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)</span>";
+        $durasiLaporan    = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
+        $durasiKerjaText  = $durasiLaporan;
+        $durasiKerjaMenit = "<strong>{$menit} Menit</strong>" . ($alokasiMenit > 0 ? " <span style=\"color:var(--gray-600); font-weight:normal;\">({$alokasiMenit} Menit)</span>" : "");
     } elseif ($detailUjian['status'] === 'sedang') {
         // Cek aktivitas jawaban terakhir siswa
         $stmtLastAct = $db->prepare("
@@ -307,19 +306,16 @@ if (!empty($detailUjian['waktu_mulai'])) {
         if ($lastAct) {
             $actSec   = strtotime($lastAct);
             $diffSec  = max(0, $actSec - $startSec);
-            $menit    = floor($diffSec / 60);
-            $detik    = $diffSec % 60;
-            $jamTerakhir = date('H:i', $actSec);
-            $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
-            $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)";
-            $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)</span>";
+            $menit    = (int)floor($diffSec / 60);
+            $durasiLaporan    = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
+            $durasiKerjaText  = $durasiLaporan . " (Sedang Berjalan)";
+            $durasiKerjaMenit = "<strong>{$menit} Menit</strong>" . ($alokasiMenit > 0 ? " <span style=\"color:var(--gray-600); font-weight:normal;\">({$alokasiMenit} Menit)</span>" : "") . " <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span>";
         } else {
             $diffSec  = max(0, time() - $startSec);
-            $menit    = floor($diffSec / 60);
-            $detik    = $diffSec % 60;
-            $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
-            $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB)";
-            $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB)</span>";
+            $menit    = (int)floor($diffSec / 60);
+            $durasiLaporan    = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
+            $durasiKerjaText  = $durasiLaporan . " (Sedang Berjalan)";
+            $durasiKerjaMenit = "<strong>{$menit} Menit</strong>" . ($alokasiMenit > 0 ? " <span style=\"color:var(--gray-600); font-weight:normal;\">({$alokasiMenit} Menit)</span>" : "") . " <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span>";
         }
     }
 }
