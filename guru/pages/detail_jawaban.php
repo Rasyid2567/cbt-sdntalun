@@ -339,8 +339,8 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($filenameBase, ENT_QUOTES, 'UTF-8') ?></title>
-<link rel="icon" type="image/svg+xml" href="<?= base_url('assets/img/favicon.svg') ?>">
+<title><?= htmlspecialchars($filenameBase, ENT_QUOTES, "UTF-8") ?></title>
+<link rel="icon" type="image/svg+xml" href="<?= base_url("assets/img/favicon.svg") ?>">
 <style>
   @page {
     size: A4 portrait;
@@ -350,113 +350,221 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     box-sizing: border-box;
   }
   body {
-    background-color: #f1f5f9;
+    background-color: #383d41; /* Chrome PDF Reader Dark Slate */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 10pt;
     line-height: 1.4;
     color: #0f172a;
     margin: 0;
     padding: 0;
+    overflow-x: auto;
   }
+
+  /* Browser PDF Viewer Style Top Bar */
   .no-print-bar {
     position: sticky;
     top: 0;
     z-index: 1000;
-    background: #1e293b;
-    color: #f8fafc;
-    padding: 0.75rem 1.5rem;
+    background: #202124; /* Google Chrome PDF viewer toolbar */
+    color: #f1f5f9;
+    padding: 0.45rem 1rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     font-family: sans-serif;
-  }
-  .no-print-bar .title-group {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .no-print-bar .title-group span {
-    font-weight: 700;
-    font-size: 0.95rem;
-  }
-  .no-print-bar .badge-user {
-    background: #334155;
-    color: #93c5fd;
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 0.25rem 0.6rem;
-    border-radius: 4px;
-  }
-  .no-print-bar .btn-group {
-    display: flex;
-    align-items: center;
     gap: 0.5rem;
   }
+
+  .bar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+  }
+
+  .btn-close-action {
+    background: rgba(255,255,255,0.12);
+    color: #f1f5f9;
+    border: 1px solid rgba(255,255,255,0.18);
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn-close-action:hover {
+    background: rgba(255,255,255,0.22);
+  }
+
+  .doc-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .doc-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: #ffffff;
+  }
+  .doc-student {
+    font-size: 0.74rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .bar-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 6px;
+    padding: 2px 4px;
+    gap: 3px;
+  }
+
+  .btn-zoom {
+    background: transparent;
+    color: #cbd5e1;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    padding: 0;
+  }
+  .btn-zoom:hover {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+  }
+
+  .zoom-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    min-width: 36px;
+    text-align: center;
+    user-select: none;
+  }
+
+  .btn-zoom-preset {
+    background: transparent;
+    color: #cbd5e1;
+    border: none;
+    padding: 0.12rem 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-zoom-preset:hover,
+  .btn-zoom-preset.active {
+    background: rgba(255,255,255,0.22);
+    color: #ffffff;
+  }
+
+  .bar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
   .btn-print-action {
     background: #2563eb;
     color: #ffffff;
     border: none;
-    padding: 0.45rem 1rem;
+    padding: 0.35rem 0.75rem;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     transition: background 0.15s;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    white-space: nowrap;
   }
   .btn-print-action:hover {
     background: #1d4ed8;
   }
+
   .btn-download-action {
     background: #059669;
     color: #ffffff;
     border: none;
-    padding: 0.45rem 0.9rem;
+    padding: 0.35rem 0.75rem;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     transition: background 0.15s;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    white-space: nowrap;
   }
   .btn-download-action:hover {
     background: #047857;
   }
-  .btn-close-action {
-    background: #475569;
-    color: #ffffff;
-    border: none;
-    padding: 0.45rem 0.8rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s;
+
+  /* Paper Canvas Viewport */
+  .preview-container {
+    width: 100%;
+    min-height: calc(100vh - 50px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 8px 50px 8px;
+    box-sizing: border-box;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  .btn-close-action:hover {
-    background: #334155;
+
+  .paper-scaler {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    transition: height 0.12s ease;
   }
-  .print-hint {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-right: 0.5rem;
-  }
+
+  /* Kertas A4 Otentik (Bentuk Kertas Nyata dengan Bayangan Lembar Cetak) */
   .paper-page {
     background: #ffffff;
     width: 210mm;
+    min-width: 210mm;
+    max-width: 210mm;
     min-height: 297mm;
-    margin: 20px auto 40px auto;
+    margin: 0 auto;
     padding: 15mm 18mm;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
     box-sizing: border-box;
-    border-radius: 4px;
+    border-radius: 2px;
+    transform-origin: top center;
+    transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   }
+
   table {
     border-collapse: collapse;
     width: 100%;
@@ -525,166 +633,50 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     padding: 4px;
   }
 
-  /* Mobile Responsive View (<= 768px) */
+  /* Penyesuaian Toolbar Khusus Mobile */
   @media screen and (max-width: 768px) {
-    body {
-      background-color: #f8fafc;
-      overflow-x: hidden;
-      -webkit-text-size-adjust: 100%;
-    }
     .no-print-bar {
-      padding: 0.6rem 0.75rem !important;
-      flex-direction: column !important;
-      gap: 0.5rem !important;
-      align-items: stretch !important;
+      padding: 0.4rem 0.5rem;
+      flex-wrap: wrap;
     }
-    .no-print-bar .title-group {
-      width: 100% !important;
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      gap: 0.5rem !important;
+    .bar-left {
+      order: 1;
+      flex: 1 1 auto;
+      gap: 0.4rem;
     }
-    .no-print-bar .title-group span {
-      font-size: 0.85rem !important;
-      white-space: nowrap !important;
+    .doc-student {
+      max-width: 120px;
     }
-    .no-print-bar .badge-user {
-      max-width: 140px !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      white-space: nowrap !important;
-      font-size: 0.75rem !important;
-      padding: 0.2rem 0.5rem !important;
-    }
-    .no-print-bar .print-hint {
-      display: none !important;
-    }
-    .no-print-bar .btn-group {
-      width: 100% !important;
-      gap: 0.35rem !important;
-      display: flex !important;
-      justify-content: space-between !important;
+    .bar-right {
+      order: 2;
+      flex: 0 0 auto;
+      gap: 0.3rem;
     }
     .btn-print-action,
-    .btn-download-action,
+    .btn-download-action {
+      padding: 0.32rem 0.55rem;
+      font-size: 0.74rem;
+    }
+    .btn-close-action span {
+      display: none;
+    }
     .btn-close-action {
-      flex: 1 !important;
-      padding: 0.45rem 0.3rem !important;
-      font-size: 0.76rem !important;
-      justify-content: center !important;
-      text-align: center !important;
-      white-space: nowrap !important;
-      gap: 0.25rem !important;
-      min-height: 36px !important;
+      padding: 0.32rem 0.45rem;
     }
-    .paper-page {
-      width: 100% !important;
-      max-width: 100% !important;
-      min-width: 0 !important;
-      min-height: auto !important;
-      margin: 10px 0 30px 0 !important;
-      padding: 14px 10px !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-      box-sizing: border-box !important;
-      overflow-x: hidden !important;
+    .bar-center {
+      order: 3;
+      width: 100%;
+      justify-content: center;
+      margin-top: 2px;
+      padding-top: 3px;
+      border-top: 1px solid rgba(255,255,255,0.08);
     }
-    .kop-header {
-      gap: 8px !important;
-      margin-bottom: 8px !important;
-    }
-    .kop-logo {
-      width: 44px !important;
-      height: 44px !important;
-    }
-    .kop-spacer {
-      display: none !important;
-    }
-    .kop-line-1,
-    .kop-line-2 {
-      font-size: 8.5pt !important;
-    }
-    .kop-line-title {
-      font-size: 11pt !important;
-    }
-    .kop-line-address {
-      font-size: 7.2pt !important;
-    }
-    .paper-doc-title {
-      font-size: 10.5pt !important;
-      margin-bottom: 10px !important;
-    }
-    .tbl-info {
-      font-size: 8.5pt !important;
-      margin-bottom: 10px !important;
-    }
-    .tbl-info, .tbl-info tbody, .tbl-info tr, .tbl-info td {
-      display: block !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
-    }
-    .tbl-info tr {
-      display: flex !important;
-      flex-wrap: wrap !important;
-      padding: 3px 0 !important;
-      border-bottom: 1px dashed #e2e8f0 !important;
-    }
-    .tbl-info td {
-      padding: 1px 2px !important;
-    }
-    .tbl-info td:nth-child(1),
-    .tbl-info td:nth-child(4) {
-      width: 38% !important;
-      color: #64748b !important;
-      font-size: 8.5pt !important;
-      font-weight: bold !important;
-    }
-    .tbl-info td:nth-child(2),
-    .tbl-info td:nth-child(5) {
-      width: 4% !important;
-      text-align: center !important;
-    }
-    .tbl-info td:nth-child(3),
-    .tbl-info td:nth-child(6) {
-      width: 58% !important;
-      font-size: 8.5pt !important;
-    }
-    .tbl-score {
-      font-size: 8pt !important;
-      margin-bottom: 12px !important;
-    }
-    .tbl-score th {
-      padding: 4px 2px !important;
-      font-size: 7.2pt !important;
-    }
-    .tbl-score td {
-      padding: 4px 2px !important;
-      font-size: 8.5pt !important;
-    }
-    .tbl-score td:nth-child(3) {
-      font-size: 10.5pt !important;
-    }
-    .tbl-soal-wrapper {
-      width: 100% !important;
-      overflow-x: auto !important;
-      -webkit-overflow-scrolling: touch !important;
-      margin-top: 10px !important;
-    }
-    .tbl-soal {
-      min-width: 580px !important;
-      font-size: 8.5pt !important;
-      margin-top: 0 !important;
-    }
-    .signature-box {
-      font-size: 7.8pt !important;
-      margin-top: 18px !important;
-    }
-    .signature-box td {
-      padding: 2px !important;
+    .preview-container {
+      padding: 12px 4px 40px 4px;
     }
   }
 
+  /* Cetak Printer Otentik A4 (Tanpa Skala / Bebas Margin Browser) */
   @media print {
     .no-print, .no-print-bar {
       display: none !important;
@@ -694,13 +686,25 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       padding: 0 !important;
       margin: 0 !important;
     }
+    .preview-container {
+      padding: 0 !important;
+      overflow: visible !important;
+      min-height: auto !important;
+    }
+    .paper-scaler {
+      height: auto !important;
+      display: block !important;
+    }
     .paper-page {
       width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
       min-height: auto !important;
       margin: 0 !important;
       padding: 0 !important;
       box-shadow: none !important;
       border: none !important;
+      transform: none !important;
     }
     tr {
       page-break-inside: avoid;
@@ -719,249 +723,345 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 </head>
 <body>
 
+<!-- Browser-style Toolbar -->
 <div class="no-print-bar no-print">
-  <div class="title-group">
-    <span>📄 Lembar Hasil Siswa</span>
-    <span class="badge-user"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></span>
-  </div>
-  <div class="btn-group">
-    <span class="print-hint">Pilih "Save as PDF" pada jendela cetak</span>
-    <button type="button" class="btn-print-action" onclick="window.print()">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-      <span>Cetak PDF</span>
+  <div class="bar-left">
+    <button type="button" class="btn-close-action" onclick="window.close()" title="Tutup">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      <span>Tutup</span>
     </button>
-    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    <div class="doc-info">
+      <span class="doc-title">Lembar Hasil Ujian</span>
+      <span class="doc-student"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></span>
+    </div>
+  </div>
+
+  <div class="bar-center">
+    <div class="zoom-controls">
+      <button type="button" class="btn-zoom" onclick="changeZoom(-0.1)" title="Perkecil">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+      <span id="zoom-label" class="zoom-label">Fit</span>
+      <button type="button" class="btn-zoom" onclick="changeZoom(0.1)" title="Perbesar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+      <button type="button" class="btn-zoom-preset active" id="btn-zoom-fit" onclick="setZoomMode('fit')">Fit</button>
+      <button type="button" class="btn-zoom-preset" id="btn-zoom-100" onclick="setZoomMode(1.0)">100%</button>
+    </div>
+  </div>
+
+  <div class="bar-right">
+    <button type="button" class="btn-print-action" onclick="window.print()" title="Cetak Dokumen">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      <span>Cetak</span>
+    </button>
+    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()" title="Unduh Berkas PDF">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       <span>Unduh PDF</span>
     </button>
-    <button type="button" class="btn-close-action" onclick="window.close()">Tutup</button>
   </div>
 </div>
 
-<div class="paper-page" id="printable-area">
-  <!-- Kop Resmi Sekolah -->
-  <div class="kop-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px;">
-    <img class="kop-logo" src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="width: 62px; height: 62px; object-fit: contain;">
-    <div class="kop-text" style="text-align: center; flex: 1;">
-      <div class="kop-line-1" style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
-      <div class="kop-line-2" style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
-      <div class="kop-line-title" style="font-size: 14pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
-      <div class="kop-line-address" style="font-size: 8.5pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
-    </div>
-    <div class="kop-spacer" style="width: 62px;"></div>
-  </div>
-  <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 14px;"></div>
-  <div class="paper-doc-title" style="text-align: center; font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 14px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
+<!-- Viewport Kertas (Menampilkan Kertas A4 Otentik) -->
+<div class="preview-container">
+  <div class="paper-scaler" id="paper-scaler">
+    <div class="paper-page" id="printable-area">
+      <!-- Kop Resmi Sekolah -->
+      <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px;">
+        <img src="<?= base_url("assets/img/sdntalun.png") ?>" alt="Logo SDN 1 Talun" style="width: 62px; height: 62px; object-fit: contain;">
+        <div style="text-align: center; flex: 1;">
+          <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
+          <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
+          <div style="font-size: 14pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
+          <div style="font-size: 8.5pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+        </div>
+        <div style="width: 62px;"></div>
+      </div>
+      <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 14px;"></div>
+      <div style="text-align: center; font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 14px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
 
-  <table class="tbl-info">
-    <tr>
-      <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
-      <td style="width: 2%;">:</td>
-      <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></td>
-      <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
-      <td style="width: 2%;">:</td>
-      <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian['nama_ujian'], ENT_QUOTES, 'UTF-8') ?></td>
-    </tr>
-    <tr>
-      <td style="font-weight: bold;">NIS / Akun</td>
-      <td>:</td>
-      <td><?= htmlspecialchars((string)($detailUjian['nis'] ?: $detailUjian['username']), ENT_QUOTES, 'UTF-8') ?></td>
-      <td style="font-weight: bold;">Mata Pelajaran</td>
-      <td>:</td>
-      <td><?= htmlspecialchars($detailUjian['nama_mapel'], ENT_QUOTES, 'UTF-8') ?></td>
-    </tr>
-    <tr>
-      <td style="font-weight: bold;">Kelas</td>
-      <td>:</td>
-      <td><?= htmlspecialchars($detailUjian['nama_kelas'], ENT_QUOTES, 'UTF-8') ?></td>
-      <td style="font-weight: bold;">Guru Penguji</td>
-      <td>:</td>
-      <td><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '-'), ENT_QUOTES, 'UTF-8') ?><?= !empty($detailUjian['nip_guru']) ? ' <span style="font-size: 8.5pt; color: #475569;">(NIP. ' . htmlspecialchars($detailUjian['nip_guru'], ENT_QUOTES, 'UTF-8') . ')</span>' : '' ?></td>
-    </tr>
-    <tr>
-      <td style="font-weight: bold;">Waktu Pengerjaan</td>
-      <td>:</td>
-      <td><?= htmlspecialchars($durasiKerjaText, ENT_QUOTES, 'UTF-8') ?></td>
-      <td style="font-weight: bold;">Status Ujian</td>
-      <td>:</td>
-      <td><?= strtoupper($detailUjian['status']) ?></td>
-    </tr>
-  </table>
-
-  <!-- Ringkasan Nilai Resmi -->
-  <table class="tbl-score">
-    <tr>
-      <th>Total Skor Diperoleh</th>
-      <th>Skor Maksimal</th>
-      <th style="background-color: #dbeafe; color: #1e40af;">Nilai Akhir (Skala 100)</th>
-      <th>Benar / Sebagian</th>
-      <th>Salah / Kosong</th>
-    </tr>
-    <tr>
-      <td style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?></td>
-      <td><?= number_format($totalSkorMaksimal, 2) ?></td>
-      <td style="background-color: #eff6ff; color: #1e3a8a; font-size: 14pt;"><?= number_format($calculatedNilaiAkhir, 2) ?></td>
-      <td style="color: #166534; font-size: 11pt;"><?= $statBenar ?> / <?= $statSebagian ?></td>
-      <td style="color: #dc2626; font-size: 11pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
-    </tr>
-  </table>
-
-  <!-- Tabel Rincian Butir Soal -->
-  <div class="tbl-soal-wrapper">
-    <table class="tbl-soal">
-    <thead>
-      <tr>
-        <th style="width: 5%;">No</th>
-        <th style="width: 14%;">Bentuk Soal</th>
-        <th style="width: 41%;">Pertanyaan</th>
-        <th style="width: 25%;">Jawaban Siswa &amp; Kunci</th>
-        <th style="width: 15%;">Skor &amp; Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($soalList as $s): ?>
+      <!-- Tabel Data Siswa -->
+      <table class="tbl-info">
         <tr>
-          <td style="text-align: center; font-weight: bold;"><?= $s['nomor'] ?></td>
-          <td style="text-align: center;">
-            <strong><?= htmlspecialchars($s['short_label'], ENT_QUOTES, 'UTF-8') ?></strong>
-            <div style="font-size: 8pt; color: #555;">(Max: <?= $s['bobot_max'] ?>)</div>
-          </td>
-          <td>
-            <div style="font-weight: 500; margin-bottom: 4px;">
-              <?= nl2br(htmlspecialchars(trim(strip_tags($s['pertanyaan'])), ENT_QUOTES, 'UTF-8')) ?>
-            </div>
-          </td>
-          <td>
-            <div style="margin-bottom: 3px;">
-              <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
-              <?php if ($s['jenis_soal'] === 'mjdk' && !empty($s['eval']['detail']['rows'])): ?>
-                <div class="essay-ans" style="font-size: 8.5pt;">
-                  <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
-                    <div>• <?= sanitize($r['premis']) ?> ➔ <strong style="color:<?= $r['is_correct'] ? '#166534' : '#dc2626' ?>;"><?= sanitize($r['siswa']) ?: '(Kosong)' ?></strong></div>
-                  <?php endforeach; ?>
+          <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
+          <td style="width: 2%;">:</td>
+          <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></td>
+          <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
+          <td style="width: 2%;">:</td>
+          <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_ujian"], ENT_QUOTES, "UTF-8") ?></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">NIS / Akun</td>
+          <td>:</td>
+          <td><?= htmlspecialchars((string)($detailUjian["nis"] ?: $detailUjian["username"]), ENT_QUOTES, "UTF-8") ?></td>
+          <td style="font-weight: bold;">Mata Pelajaran</td>
+          <td>:</td>
+          <td><?= htmlspecialchars($detailUjian["nama_mapel"], ENT_QUOTES, "UTF-8") ?></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Kelas</td>
+          <td>:</td>
+          <td><?= htmlspecialchars($detailUjian["nama_kelas"], ENT_QUOTES, "UTF-8") ?></td>
+          <td style="font-weight: bold;">Guru Penguji</td>
+          <td>:</td>
+          <td><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "-"), ENT_QUOTES, "UTF-8") ?><?= !empty($detailUjian["nip_guru"]) ? ' <span style="font-size: 8.5pt; color: #475569;">(NIP. ' . htmlspecialchars($detailUjian["nip_guru"], ENT_QUOTES, "UTF-8") . ')</span>' : "" ?></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Waktu Pengerjaan</td>
+          <td>:</td>
+          <td><?= htmlspecialchars($durasiKerjaText, ENT_QUOTES, "UTF-8") ?></td>
+          <td style="font-weight: bold;">Status Ujian</td>
+          <td>:</td>
+          <td><?= strtoupper($detailUjian["status"]) ?></td>
+        </tr>
+      </table>
+
+      <!-- Ringkasan Nilai Resmi -->
+      <table class="tbl-score">
+        <tr>
+          <th>Total Skor Diperoleh</th>
+          <th>Skor Maksimal</th>
+          <th style="background-color: #dbeafe; color: #1e40af;">Nilai Akhir (Skala 100)</th>
+          <th>Benar / Sebagian</th>
+          <th>Salah / Kosong</th>
+        </tr>
+        <tr>
+          <td style="color: #0284c7;"><?= number_format($totalSkorDiperoleh, 2) ?></td>
+          <td><?= number_format($totalSkorMaksimal, 2) ?></td>
+          <td style="background-color: #eff6ff; color: #1e3a8a; font-size: 14pt;"><?= number_format($calculatedNilaiAkhir, 2) ?></td>
+          <td style="color: #166534; font-size: 11pt;"><?= $statBenar ?> / <?= $statSebagian ?></td>
+          <td style="color: #dc2626; font-size: 11pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
+        </tr>
+      </table>
+
+      <!-- Tabel Rincian Butir Soal -->
+      <table class="tbl-soal">
+        <thead>
+          <tr>
+            <th style="width: 5%;">No</th>
+            <th style="width: 14%;">Bentuk Soal</th>
+            <th style="width: 41%;">Pertanyaan</th>
+            <th style="width: 25%;">Jawaban Siswa &amp; Kunci</th>
+            <th style="width: 15%;">Skor &amp; Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($soalList as $s): ?>
+            <tr>
+              <td style="text-align: center; font-weight: bold;"><?= $s["nomor"] ?></td>
+              <td style="text-align: center;">
+                <strong><?= htmlspecialchars($s["short_label"], ENT_QUOTES, "UTF-8") ?></strong>
+                <div style="font-size: 8pt; color: #555;">(Max: <?= $s["bobot_max"] ?>)</div>
+              </td>
+              <td>
+                <div style="font-weight: 500; margin-bottom: 4px;">
+                  <?= nl2br(htmlspecialchars(trim(strip_tags($s["pertanyaan"])), ENT_QUOTES, "UTF-8")) ?>
                 </div>
-              <?php else: ?>
-                <div class="essay-ans"><?= nl2br(htmlspecialchars((string)$s['jawaban_terpilih'], ENT_QUOTES, 'UTF-8')) ?: '<span style="color:#94a3b8;font-style:italic;">(Kosong)</span>' ?></div>
-              <?php endif; ?>
-            </div>
-            <div>
-              <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
-              <?php if ($s['jenis_soal'] === 'mjdk' && !empty($s['eval']['detail']['rows'])): ?>
-                <div style="font-size: 8.5pt; color: #166534; font-weight: bold;">
-                  <?php foreach ($s['eval']['detail']['rows'] as $r): ?>
-                    <div>• <?= sanitize($r['premis']) ?> ➔ <?= sanitize($r['kunci']) ?></div>
-                  <?php endforeach; ?>
+              </td>
+              <td>
+                <div style="margin-bottom: 3px;">
+                  <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Siswa:</span>
+                  <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
+                    <div class="essay-ans" style="font-size: 8.5pt;">
+                      <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
+                        <div>• <?= sanitize($r["premis"]) ?> ➔ <strong style="color:<?= $r["is_correct"] ? "#166534" : "#dc2626" ?>;"><?= sanitize($r["siswa"]) ?: "(Kosong)" ?></strong></div>
+                      <?php endforeach; ?>
+                    </div>
+                  <?php else: ?>
+                    <span style="font-weight: bold; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
+                      <?= htmlspecialchars((string)($s["jawaban_terpilih"] ?: "(Kosong)"), ENT_QUOTES, "UTF-8") ?>
+                    </span>
+                  <?php endif; ?>
                 </div>
-              <?php else: ?>
-                <div style="font-size: 9pt; color: #166534; font-weight: bold;"><?= htmlspecialchars((string)$s['kunci_jawaban'], ENT_QUOTES, 'UTF-8') ?: '-' ?></div>
-              <?php endif; ?>
-            </div>
+                <div>
+                  <span style="font-size: 8.5pt; color: #64748b; font-weight: bold;">Kunci:</span>
+                  <?php if ($s["jenis_soal"] === "mjdk" && !empty($s["eval"]["detail"]["rows"])): ?>
+                    <div class="essay-ans" style="font-size: 8pt; color: #166534;">
+                      <?php foreach ($s["eval"]["detail"]["rows"] as $r): ?>
+                        <div>• <?= sanitize($r["premis"]) ?> ➔ <?= sanitize($r["kunci"]) ?></div>
+                      <?php endforeach; ?>
+                    </div>
+                  <?php else: ?>
+                    <span style="font-weight: bold; color: #166534;">
+                      <?= htmlspecialchars((string)$s["kunci_jawaban"], ENT_QUOTES, "UTF-8") ?>
+                    </span>
+                  <?php endif; ?>
+                </div>
+              </td>
+              <td style="text-align: center;">
+                <div style="font-size: 11pt; font-weight: 800; color: <?= $s["skor"] > 0 ? "#166534" : "#dc2626" ?>;">
+                  <?= number_format($s["skor"], 2) ?> / <?= $s["bobot_max"] ?>
+                </div>
+                <div style="font-size: 8pt; font-weight: bold; color: #555;">
+                  <?= htmlspecialchars($s["status_label"], ENT_QUOTES, "UTF-8") ?>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+
+      <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
+      <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 10pt; page-break-inside: avoid;">
+        <tr>
+          <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
+            Mengetahui,<br>
+            Kepala <?= defined("SEKOLAH_NAMA") ? sanitize(SEKOLAH_NAMA) : "SD Negeri 1 Talun" ?><br><br><br><br><br>
+            <strong><u><?= defined("KEPALA_SEKOLAH_NAMA") ? sanitize(KEPALA_SEKOLAH_NAMA) : "MASHURI, S.Pd." ?></u></strong><br>
+            <span style="font-size: 9pt; color: #475569;">NIP. <?= defined("KEPALA_SEKOLAH_NIP") ? sanitize(KEPALA_SEKOLAH_NIP) : "198511052022211001" ?></span>
           </td>
-          <td style="text-align: center;">
-            <div style="font-size: 11pt; font-weight: bold; color: <?= $s['is_correct'] ? '#166534' : ($s['is_partial'] ? '#ca8a04' : '#dc2626') ?>;">
-              <?= number_format($s['skor'], 2) ?> / <?= $s['bobot_max'] ?>
-            </div>
-            <div style="font-size: 8pt; font-weight: bold; color: #555;">
-              <?= htmlspecialchars($s['status_label'], ENT_QUOTES, 'UTF-8') ?>
-            </div>
+          <td style="width: 34%; text-align: center; border: none; vertical-align: top;">
+            Mengetahui,<br>
+            Orang Tua / Wali<br><br><br><br><br>
+            <strong><u><?= !empty($detailUjian["orang_tua"]) ? "( " . sanitize($detailUjian["orang_tua"]) . " )" : "( .................................................. )" ?></u></strong><br>
+            <span style="font-size: 9pt; color: #475569;">&nbsp;</span>
+          </td>
+          <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
+            Talun, <?= date("d/m/Y") ?><br>
+            Guru Penguji / Pengampu<br><br><br><br><br>
+            <strong><u><?= htmlspecialchars((string)($detailUjian["nama_guru"] ?: "..................................................."), ENT_QUOTES, "UTF-8") ?></u></strong><br>
+            <span style="font-size: 9pt; color: #475569;">NIP. <?= htmlspecialchars((string)($detailUjian["nip_guru"] ?: "..........................................."), ENT_QUOTES, "UTF-8") ?></span>
           </td>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+      </table>
+
+    </div>
   </div>
-
-  <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
-  <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 10pt; page-break-inside: avoid;">
-    <tr>
-      <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
-        Mengetahui,<br>
-        Kepala <?= defined('SEKOLAH_NAMA') ? sanitize(SEKOLAH_NAMA) : 'SD Negeri 1 Talun' ?><br><br><br><br><br>
-        <strong><u><?= defined('KEPALA_SEKOLAH_NAMA') ? sanitize(KEPALA_SEKOLAH_NAMA) : 'MASHURI, S.Pd.' ?></u></strong><br>
-        <span style="font-size: 9pt; color: #475569;">NIP. <?= defined('KEPALA_SEKOLAH_NIP') ? sanitize(KEPALA_SEKOLAH_NIP) : '198511052022211001' ?></span>
-      </td>
-      <td style="width: 34%; text-align: center; border: none; vertical-align: top;">
-        Mengetahui,<br>
-        Orang Tua / Wali<br><br><br><br><br>
-        <strong><u><?= !empty($detailUjian['orang_tua']) ? '( ' . sanitize($detailUjian['orang_tua']) . ' )' : '( .................................................. )' ?></u></strong><br>
-        <span style="font-size: 9pt; color: #475569;">&nbsp;</span>
-      </td>
-      <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
-        Talun, <?= date('d/m/Y') ?><br>
-        Guru Penguji / Pengampu<br><br><br><br><br>
-        <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
-        <span style="font-size: 9pt; color: #475569;">NIP. <?= htmlspecialchars((string)($detailUjian['nip_guru'] ?: '...........................................'), ENT_QUOTES, 'UTF-8') ?></span>
-      </td>
-    </tr>
-  </table>
-
 </div>
 
-<script src="<?= base_url('assets/js/html2pdf.bundle.min.js') ?>"></script>
+<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
 <script>
+let currentScale = 1.0;
+let isFitMode = true;
+
+function calculateFitScale() {
+    const container = document.querySelector(".preview-container");
+    const paper = document.getElementById("printable-area");
+    if (!container || !paper) return 1.0;
+    
+    // Lebar kertas A4 standar adalah 210mm (~794px pada 96 DPI)
+    const paperWidth = 794;
+    const availWidth = container.clientWidth - 16;
+    if (availWidth < paperWidth) {
+        return Math.max(0.35, Math.min(1.0, availWidth / paperWidth));
+    }
+    return 1.0;
+}
+
+function updatePaperTransform() {
+    const paper = document.getElementById("printable-area");
+    const scaler = document.getElementById("paper-scaler");
+    const label = document.getElementById("zoom-label");
+    const fitBtn = document.getElementById("btn-zoom-fit");
+    const btn100 = document.getElementById("btn-zoom-100");
+    if (!paper || !scaler) return;
+
+    let scale = currentScale;
+    if (isFitMode) {
+        scale = calculateFitScale();
+    }
+
+    paper.style.transform = `scale(${scale})`;
+    paper.style.transformOrigin = "top center";
+
+    // Sesuaikan tinggi container scaler agar scroll vertikal pas sempurna
+    const unscaledHeight = paper.offsetHeight;
+    scaler.style.height = `${Math.ceil(unscaledHeight * scale)}px`;
+
+    if (label) {
+        label.textContent = isFitMode ? "Fit" : `${Math.round(scale * 100)}%`;
+    }
+    if (fitBtn) fitBtn.classList.toggle("active", isFitMode);
+    if (btn100) btn100.classList.toggle("active", !isFitMode && Math.abs(scale - 1.0) < 0.05);
+}
+
+function setZoomMode(mode) {
+    if (mode === "fit") {
+        isFitMode = true;
+        currentScale = calculateFitScale();
+    } else {
+        isFitMode = false;
+        currentScale = parseFloat(mode) || 1.0;
+    }
+    updatePaperTransform();
+}
+
+function changeZoom(delta) {
+    if (isFitMode) {
+        isFitMode = false;
+        currentScale = calculateFitScale();
+    }
+    currentScale = Math.max(0.35, Math.min(2.0, currentScale + delta));
+    updatePaperTransform();
+}
+
+window.addEventListener("resize", () => {
+    if (isFitMode) {
+        updatePaperTransform();
+    }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+    // Di mobile / layar kecil langsung default ke Fit to Width
+    setZoomMode("fit");
+});
+
 function downloadPdfDirectly() {
-    const btn = document.getElementById('btn-download-pdf');
-    if (typeof html2pdf === 'undefined') {
+    const btn = document.getElementById("btn-download-pdf");
+    if (typeof html2pdf === "undefined") {
         window.print();
         return;
     }
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span>⏳ Memproses PDF...</span>';
+        btn.innerHTML = "<span>⏳ Memproses PDF...</span>";
     }
-    const element = document.getElementById('printable-area');
-    const prevWidth = element.style.width;
-    const prevMaxWidth = element.style.maxWidth;
-    const prevPadding = element.style.padding;
-    const prevMargin = element.style.margin;
+    const element = document.getElementById("printable-area");
+    const prevTransform = element.style.transform;
+    const prevTransformOrigin = element.style.transformOrigin;
 
-    // Pastikan ukuran A4 standar saat digenerate html2canvas
-    element.style.width = '210mm';
-    element.style.maxWidth = '210mm';
-    element.style.padding = '15mm 18mm';
-    element.style.margin = '0 auto';
+    // Hilangkan skala CSS sementara agar html2canvas menangkap resolusi A4 asli
+    element.style.transform = "none";
+    element.style.transformOrigin = "initial";
 
     const opt = {
         margin:       [10, 12, 10, 12],
-        filename:     '<?= $filenameBase ?>.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
+        filename:     "<?= $filenameBase ?>.pdf",
+        image:        { type: "jpeg", quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 1024 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+        jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak:    { mode: ["avoid-all", "css", "legacy"] }
     };
     html2pdf().set(opt).from(element).save().then(function() {
-        element.style.width = prevWidth;
-        element.style.maxWidth = prevMaxWidth;
-        element.style.padding = prevPadding;
-        element.style.margin = prevMargin;
+        element.style.transform = prevTransform;
+        element.style.transformOrigin = prevTransformOrigin;
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
         }
     }).catch(function(err) {
-        element.style.width = prevWidth;
-        element.style.maxWidth = prevMaxWidth;
-        element.style.padding = prevPadding;
-        element.style.margin = prevMargin;
+        element.style.transform = prevTransform;
+        element.style.transformOrigin = prevTransformOrigin;
         console.error(err);
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<span>Unduh PDF</span>';
+            btn.innerHTML = "<span>Unduh PDF</span>";
         }
         window.print();
     });
 }
 
-window.addEventListener('load', function() {
+window.addEventListener("load", function() {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('download') === '1') {
+    if (urlParams.get("download") === "1") {
         setTimeout(downloadPdfDirectly, 300);
     }
 });
 </script>
 </body>
 </html>
-    <?php
+
+<?php
     exit;
 }
 
