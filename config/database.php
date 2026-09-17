@@ -356,3 +356,30 @@ function tambah_durasi_sesi(int $idSesi, int $tambahMenit, ?int $idGuru = null):
     ];
 }
 
+/**
+ * Membersihkan format nomor HP (hanya menyisakan angka dan tanda + di awal jika ada)
+ *
+ * @param string|null $phone
+ * @return string
+ */
+function clean_phone(?string $phone): string {
+    if ($phone === null) return "";
+    $val = trim($phone);
+    // Hapus karakter selain digit dan tanda + di awal
+    return preg_replace("/(?!^\+)[^\d]/", "", $val);
+}
+
+/**
+ * Memvalidasi nomor HP agar hanya berisi angka yang sesuai (awalan 0, 62, atau +62, panjang 9-15 digit)
+ *
+ * @param string|null $phone
+ * @return bool
+ */
+function is_valid_phone(?string $phone): bool {
+    if ($phone === null || trim($phone) === "") {
+        return true;
+    }
+    $clean = clean_phone($phone);
+    // Nomor HP yang valid di Indonesia: diawali 0, 62, atau +62, diikuti 8-13 digit angka
+    return (bool)preg_match("/^(\+?62|0)[0-9]{8,13}$/", $clean);
+}

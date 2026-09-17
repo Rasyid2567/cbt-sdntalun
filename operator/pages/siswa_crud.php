@@ -51,12 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama       = trim($_POST['nama_lengkap'] ?? '');
         $password   = trim($_POST['password'] ?? '');
         $id_kelas   = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
-        $no_hp      = trim($_POST['no_hp'] ?? '');
+        $no_hp      = clean_phone($_POST['no_hp'] ?? '');
         $orang_tua  = trim($_POST['orang_tua'] ?? '');
-        $no_hp_ortu = trim($_POST['no_hp_ortu'] ?? '');
+        $no_hp_ortu = clean_phone($_POST['no_hp_ortu'] ?? '');
 
         if ($username === '' || $nama === '' || $password === '' || $nis === '') {
             flash_set('danger', 'Seluruh field wajib diisi (NIS, Username, Nama, Password).');
+        } elseif ($no_hp !== '' && !is_valid_phone($no_hp)) {
+            flash_set('danger', 'Nomor HP Siswa tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081234567890).');
+        } elseif ($no_hp_ortu !== '' && !is_valid_phone($no_hp_ortu)) {
+            flash_set('danger', 'Nomor HP Orang Tua/Wali tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081298765432).');
         } else {
             // Cek duplikasi username atau nis
             $cek = $db->prepare("SELECT id_user FROM users WHERE username = :u OR (nis = :nis AND nis IS NOT NULL)");
@@ -95,12 +99,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama       = trim($_POST['nama_lengkap'] ?? '');
         $password   = trim($_POST['password'] ?? '');
         $id_kelas   = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
-        $no_hp      = trim($_POST['no_hp'] ?? '');
+        $no_hp      = clean_phone($_POST['no_hp'] ?? '');
         $orang_tua  = trim($_POST['orang_tua'] ?? '');
-        $no_hp_ortu = trim($_POST['no_hp_ortu'] ?? '');
+        $no_hp_ortu = clean_phone($_POST['no_hp_ortu'] ?? '');
 
         if ($id_user <= 0 || $username === '' || $nama === '' || $nis === '') {
             flash_set('danger', 'Data tidak valid. NIS, Username, dan Nama wajib diisi.');
+        } elseif ($no_hp !== '' && !is_valid_phone($no_hp)) {
+            flash_set('danger', 'Nomor HP Siswa tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081234567890).');
+        } elseif ($no_hp_ortu !== '' && !is_valid_phone($no_hp_ortu)) {
+            flash_set('danger', 'Nomor HP Orang Tua/Wali tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081298765432).');
         } else {
             // Cek duplikasi username atau nis untuk user lain
             $cek = $db->prepare("SELECT id_user FROM users WHERE (username = :u OR (nis = :nis AND nis IS NOT NULL)) AND id_user != :id");
@@ -239,9 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $nama   = trim($row[2] ?? '');
                     $pwd    = trim($row[3] ?? '');
                     $kNama  = trim($row[4] ?? '');
-                    $noHp   = trim($row[5] ?? '');
+                    $noHp   = clean_phone($row[5] ?? '');
                     $ortu   = trim($row[6] ?? '');
-                    $noHpO  = trim($row[7] ?? '');
+                    $noHpO  = clean_phone($row[7] ?? '');
+                    if ($noHp !== '' && !is_valid_phone($noHp)) $noHp = '';
+                    if ($noHpO !== '' && !is_valid_phone($noHpO)) $noHpO = '';
 
                     if ($nis === '' || $uUser === '' || $nama === '') {
                         $skipped++;
@@ -552,7 +562,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP Siswa</label>
-                <input type="text" name="no_hp" class="form-control" placeholder="Contoh: 081234567890 (Opsional)">
+                <input type="tel" inputmode="numeric" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890 (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
             </div>
             <div class="form-group">
                 <label>Nama Orang Tua / Wali</label>
@@ -560,7 +571,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP Orang Tua / Wali</label>
-                <input type="text" name="no_hp_ortu" class="form-control" placeholder="Contoh: 081298765432 (Opsional)">
+                <input type="tel" inputmode="numeric" name="no_hp_ortu" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081298765432 (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081298765432)</small>
             </div>
             <div class="form-group">
                 <label>Status Akun</label>
@@ -614,7 +626,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP Siswa</label>
-                <input type="text" id="edit-no_hp" name="no_hp" class="form-control" placeholder="Nomor HP siswa (Opsional)">
+                <input type="tel" inputmode="numeric" id="edit-no_hp" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Nomor HP siswa (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
             </div>
             <div class="form-group">
                 <label>Nama Orang Tua / Wali</label>
@@ -622,7 +635,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP Orang Tua / Wali</label>
-                <input type="text" id="edit-no_hp_ortu" name="no_hp_ortu" class="form-control" placeholder="Nomor HP orang tua/wali (Opsional)">
+                <input type="tel" inputmode="numeric" id="edit-no_hp_ortu" name="no_hp_ortu" class="form-control input-phone" maxlength="16" placeholder="Nomor HP orang tua/wali (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081298765432)</small>
             </div>
             <div class="form-group">
                 <label>Status Akun</label>

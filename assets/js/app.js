@@ -471,3 +471,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Real-time filter: nomor HP hanya bisa diisi angka (dan tanda + di awal jika diperlukan)
+document.addEventListener("input", function(e) {
+    const el = e.target;
+    if (!el || !el.matches) return;
+    if (el.classList.contains("input-phone") || el.name === "no_hp" || el.name === "no_hp_ortu") {
+        const start = el.selectionStart;
+        const prevLen = el.value.length;
+        let clean = el.value.replace(/(?!^\+)[^\d]/g, "");
+        if (clean.length > 16) {
+            clean = clean.slice(0, 16);
+        }
+        if (el.value !== clean) {
+            el.value = clean;
+            const diff = prevLen - clean.length;
+            el.setSelectionRange(Math.max(0, start - diff), Math.max(0, start - diff));
+        }
+    }
+});
+
+document.addEventListener("keypress", function(e) {
+    const el = e.target;
+    if (!el || !el.matches) return;
+    if (el.classList.contains("input-phone") || el.name === "no_hp" || el.name === "no_hp_ortu") {
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        const char = e.key;
+        if (char === "+" && el.selectionStart === 0 && !el.value.includes("+")) {
+            return;
+        }
+        if (!/^[0-9]$/.test(char)) {
+            e.preventDefault();
+        }
+    }
+});

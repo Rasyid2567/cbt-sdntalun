@@ -35,10 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'update_profil_guru') {
         $nama  = trim($_POST['nama_lengkap'] ?? '');
         $nip   = trim($_POST['nip'] ?? '');
-        $no_hp = trim($_POST['no_hp'] ?? '');
+        $no_hp = clean_phone($_POST['no_hp'] ?? '');
 
         if ($nama === '') {
             flash_set('danger', 'Nama lengkap tidak boleh kosong.');
+        } elseif ($no_hp !== '' && !is_valid_phone($no_hp)) {
+            flash_set('danger', 'Nomor HP tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081234567890).');
         } else {
             $upd = $db->prepare("UPDATE users SET nama_lengkap = :n, nip = :nip, no_hp = :hp WHERE id_user = :id AND role = 'guru'");
             $upd->execute([':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':id' => $idGuru]);
@@ -411,7 +413,8 @@ $modalFormAction = base_url('guru');
             </div>
             <div class="form-group mb-3">
                 <label style="font-weight: 700;">No. HP / WhatsApp Guru</label>
-                <input type="text" name="no_hp" class="form-control" value="<?= sanitize($currentUser['no_hp'] ?? '') ?>" placeholder="Contoh: 081234567890">
+                <input type="tel" inputmode="numeric" name="no_hp" class="form-control input-phone" maxlength="16" value="<?= sanitize($currentUser['no_hp'] ?? '') ?>" placeholder="Contoh: 081234567890 (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-profil-guru')">Batal</button>

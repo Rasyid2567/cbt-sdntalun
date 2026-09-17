@@ -22,12 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $nama     = trim($_POST['nama_lengkap'] ?? '');
         $nip      = trim($_POST['nip'] ?? '');
-        $no_hp    = trim($_POST['no_hp'] ?? '');
+        $no_hp    = clean_phone($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
 
         if ($username === '' || $nama === '' || $password === '') {
             flash_set('danger', 'Semua kolom guru wajib diisi.');
+        } elseif ($no_hp !== '' && !is_valid_phone($no_hp)) {
+            flash_set('danger', 'Nomor HP Guru tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081234567890).');
         } else {
             $cek = $db->prepare("SELECT id_user FROM users WHERE username = :u");
             $cek->execute([':u' => $username]);
@@ -58,12 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $nama     = trim($_POST['nama_lengkap'] ?? '');
         $nip      = trim($_POST['nip'] ?? '');
-        $no_hp    = trim($_POST['no_hp'] ?? '');
+        $no_hp    = clean_phone($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
 
         if ($id_user <= 0 || $username === '' || $nama === '') {
             flash_set('danger', 'Data guru tidak valid.');
+        } elseif ($no_hp !== '' && !is_valid_phone($no_hp)) {
+            flash_set('danger', 'Nomor HP Guru tidak valid. Hanya boleh diisi angka yang sesuai (contoh: 081234567890).');
         } else {
             $cek = $db->prepare("SELECT id_user FROM users WHERE username = :u AND id_user != :id");
             $cek->execute([':u' => $username, ':id' => $id_user]);
@@ -419,7 +423,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP / WhatsApp Guru (Opsional)</label>
-                <input type="text" name="no_hp" class="form-control" placeholder="Contoh: 081234567890">
+                <input type="tel" inputmode="numeric" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890 (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
             </div>
             <div class="form-group">
                 <label>Kata Sandi</label>
@@ -472,7 +477,8 @@ include __DIR__ . '/../layouts/header.php';
             </div>
             <div class="form-group">
                 <label>No. HP / WhatsApp Guru (Opsional)</label>
-                <input type="text" id="edit-guru-no_hp" name="no_hp" class="form-control" placeholder="Contoh: 081234567890">
+                <input type="tel" inputmode="numeric" id="edit-guru-no_hp" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890 (Hanya Angka)">
+                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
             </div>
             <div class="form-group">
                 <label>Ganti Kata Sandi (Kosongkan jika tidak diubah)</label>
