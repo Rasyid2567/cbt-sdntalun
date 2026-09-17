@@ -331,6 +331,9 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     $rawNis       = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($detailUjian['nis'] ?: $detailUjian['username']));
     $rawUjian     = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)$detailUjian['nama_ujian']);
     $filenameBase = "Lembar_Jawaban_{$rawNis}_{$rawNamaSiswa}_{$rawUjian}";
+    $totalSkor  = (float)($detailUjian["total_skor"] ?? $totalSkorDiperoleh);
+    $totalMax   = (float)($detailUjian["skor_maksimal"] ?? $totalSkorMaksimal);
+    $nilaiAkhir = (float)($detailUjian["nilai_akhir"] ?? $calculatedNilaiAkhir);
 
     // Paginate soal ke dalam lembaran-lembaran kertas A4 terpisah (menyerupai print preview browser)
     $totalSoal = count($soalList);
