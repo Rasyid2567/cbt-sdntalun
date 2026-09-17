@@ -525,6 +525,166 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     padding: 4px;
   }
 
+  /* Mobile Responsive View (<= 768px) */
+  @media screen and (max-width: 768px) {
+    body {
+      background-color: #f8fafc;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    .no-print-bar {
+      padding: 0.6rem 0.75rem !important;
+      flex-direction: column !important;
+      gap: 0.5rem !important;
+      align-items: stretch !important;
+    }
+    .no-print-bar .title-group {
+      width: 100% !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+    }
+    .no-print-bar .title-group span {
+      font-size: 0.85rem !important;
+      white-space: nowrap !important;
+    }
+    .no-print-bar .badge-user {
+      max-width: 140px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      font-size: 0.75rem !important;
+      padding: 0.2rem 0.5rem !important;
+    }
+    .no-print-bar .print-hint {
+      display: none !important;
+    }
+    .no-print-bar .btn-group {
+      width: 100% !important;
+      gap: 0.35rem !important;
+      display: flex !important;
+      justify-content: space-between !important;
+    }
+    .btn-print-action,
+    .btn-download-action,
+    .btn-close-action {
+      flex: 1 !important;
+      padding: 0.45rem 0.3rem !important;
+      font-size: 0.76rem !important;
+      justify-content: center !important;
+      text-align: center !important;
+      white-space: nowrap !important;
+      gap: 0.25rem !important;
+      min-height: 36px !important;
+    }
+    .paper-page {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      min-height: auto !important;
+      margin: 10px 0 30px 0 !important;
+      padding: 14px 10px !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      overflow-x: hidden !important;
+    }
+    .kop-header {
+      gap: 8px !important;
+      margin-bottom: 8px !important;
+    }
+    .kop-logo {
+      width: 44px !important;
+      height: 44px !important;
+    }
+    .kop-spacer {
+      display: none !important;
+    }
+    .kop-line-1,
+    .kop-line-2 {
+      font-size: 8.5pt !important;
+    }
+    .kop-line-title {
+      font-size: 11pt !important;
+    }
+    .kop-line-address {
+      font-size: 7.2pt !important;
+    }
+    .paper-doc-title {
+      font-size: 10.5pt !important;
+      margin-bottom: 10px !important;
+    }
+    .tbl-info {
+      font-size: 8.5pt !important;
+      margin-bottom: 10px !important;
+    }
+    .tbl-info, .tbl-info tbody, .tbl-info tr, .tbl-info td {
+      display: block !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .tbl-info tr {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      padding: 3px 0 !important;
+      border-bottom: 1px dashed #e2e8f0 !important;
+    }
+    .tbl-info td {
+      padding: 1px 2px !important;
+    }
+    .tbl-info td:nth-child(1),
+    .tbl-info td:nth-child(4) {
+      width: 38% !important;
+      color: #64748b !important;
+      font-size: 8.5pt !important;
+      font-weight: bold !important;
+    }
+    .tbl-info td:nth-child(2),
+    .tbl-info td:nth-child(5) {
+      width: 4% !important;
+      text-align: center !important;
+    }
+    .tbl-info td:nth-child(3),
+    .tbl-info td:nth-child(6) {
+      width: 58% !important;
+      font-size: 8.5pt !important;
+    }
+    .tbl-score {
+      font-size: 8pt !important;
+      margin-bottom: 12px !important;
+    }
+    .tbl-score th {
+      padding: 4px 2px !important;
+      font-size: 7.2pt !important;
+    }
+    .tbl-score td {
+      padding: 4px 2px !important;
+      font-size: 8.5pt !important;
+    }
+    .tbl-score td:nth-child(3) {
+      font-size: 10.5pt !important;
+    }
+    .tbl-soal-wrapper {
+      width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      margin-top: 10px !important;
+    }
+    .tbl-soal {
+      min-width: 580px !important;
+      font-size: 8.5pt !important;
+      margin-top: 0 !important;
+    }
+    .signature-box {
+      font-size: 7.8pt !important;
+      margin-top: 18px !important;
+    }
+    .signature-box td {
+      padding: 2px !important;
+    }
+  }
+
   @media print {
     .no-print, .no-print-bar {
       display: none !important;
@@ -561,18 +721,18 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 
 <div class="no-print-bar no-print">
   <div class="title-group">
-    <span>📄 Lembar Hasil &amp; Jawaban Siswa</span>
+    <span>📄 Lembar Hasil Siswa</span>
     <span class="badge-user"><?= htmlspecialchars($detailUjian['nama_siswa'], ENT_QUOTES, 'UTF-8') ?></span>
   </div>
   <div class="btn-group">
     <span class="print-hint">Pilih "Save as PDF" pada jendela cetak</span>
     <button type="button" class="btn-print-action" onclick="window.print()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-      <span>Cetak / Simpan PDF</span>
+      <span>Cetak PDF</span>
     </button>
     <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      <span>Unduh File .PDF</span>
+      <span>Unduh PDF</span>
     </button>
     <button type="button" class="btn-close-action" onclick="window.close()">Tutup</button>
   </div>
@@ -580,18 +740,18 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 
 <div class="paper-page" id="printable-area">
   <!-- Kop Resmi Sekolah -->
-  <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px;">
-    <img src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="width: 62px; height: 62px; object-fit: contain;">
-    <div style="text-align: center; flex: 1;">
-      <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
-      <div style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
-      <div style="font-size: 14pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
-      <div style="font-size: 8.5pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
+  <div class="kop-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px;">
+    <img class="kop-logo" src="<?= base_url('assets/img/sdntalun.png') ?>" alt="Logo SDN 1 Talun" style="width: 62px; height: 62px; object-fit: contain;">
+    <div class="kop-text" style="text-align: center; flex: 1;">
+      <div class="kop-line-1" style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">PEMERINTAH KABUPATEN PONOROGO</div>
+      <div class="kop-line-2" style="font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;">DINAS PENDIDIKAN</div>
+      <div class="kop-line-title" style="font-size: 14pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; margin: 2px 0; line-height: 1.2;">SD NEGERI 1 TALUN</div>
+      <div class="kop-line-address" style="font-size: 8.5pt; color: #475569; line-height: 1.2;">Jalan Sukowati No. 23 Desa Talun, Kecamatan Ngebel, Kabupaten Ponorogo, Jawa Timur 63493</div>
     </div>
-    <div style="width: 62px;"></div>
+    <div class="kop-spacer" style="width: 62px;"></div>
   </div>
   <div style="border-bottom: 2px solid #0f172a; border-top: 1px solid #0f172a; height: 2px; margin-bottom: 14px;"></div>
-  <div style="text-align: center; font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 14px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
+  <div class="paper-doc-title" style="text-align: center; font-size: 12pt; font-weight: 800; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase; color: #0f172a; margin-bottom: 14px;">LEMBAR HASIL &amp; JAWABAN SISWA (CBT)</div>
 
   <table class="tbl-info">
     <tr>
@@ -647,7 +807,8 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </table>
 
   <!-- Tabel Rincian Butir Soal -->
-  <table class="tbl-soal">
+  <div class="tbl-soal-wrapper">
+    <table class="tbl-soal">
     <thead>
       <tr>
         <th style="width: 5%;">No</th>
@@ -708,6 +869,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       <?php endforeach; ?>
     </tbody>
   </table>
+  </div>
 
   <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
   <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 10pt; page-break-inside: avoid;">
@@ -748,24 +910,43 @@ function downloadPdfDirectly() {
         btn.innerHTML = '<span>⏳ Memproses PDF...</span>';
     }
     const element = document.getElementById('printable-area');
+    const prevWidth = element.style.width;
+    const prevMaxWidth = element.style.maxWidth;
+    const prevPadding = element.style.padding;
+    const prevMargin = element.style.margin;
+
+    // Pastikan ukuran A4 standar saat digenerate html2canvas
+    element.style.width = '210mm';
+    element.style.maxWidth = '210mm';
+    element.style.padding = '15mm 18mm';
+    element.style.margin = '0 auto';
+
     const opt = {
         margin:       [10, 12, 10, 12],
         filename:     '<?= $filenameBase ?>.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 1024 },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
     html2pdf().set(opt).from(element).save().then(function() {
+        element.style.width = prevWidth;
+        element.style.maxWidth = prevMaxWidth;
+        element.style.padding = prevPadding;
+        element.style.margin = prevMargin;
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh File .PDF</span>';
+            btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
         }
     }).catch(function(err) {
+        element.style.width = prevWidth;
+        element.style.maxWidth = prevMaxWidth;
+        element.style.padding = prevPadding;
+        element.style.margin = prevMargin;
         console.error(err);
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<span>Unduh File .PDF</span>';
+            btn.innerHTML = '<span>Unduh PDF</span>';
         }
         window.print();
     });
