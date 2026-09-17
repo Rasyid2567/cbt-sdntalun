@@ -238,6 +238,18 @@ $flash = flash_get();
                         <td style="font-weight: 600;">Nama Lengkap Peserta</td>
                         <td>: <?= sanitize($currentUser['nama_lengkap']) ?></td>
                     </tr>
+                    <?php if (!empty($currentUser['no_hp'])): ?>
+                    <tr>
+                        <td style="font-weight: 600;">No. HP Siswa</td>
+                        <td>: <span style="font-family: monospace;"><?= sanitize($currentUser['no_hp']) ?></span></td>
+                    </tr>
+                    <?php endif; ?>
+                    <?php if (!empty($currentUser['orang_tua'])): ?>
+                    <tr>
+                        <td style="font-weight: 600;">Orang Tua / Wali</td>
+                        <td>: <?= sanitize($currentUser['orang_tua']) ?><?= !empty($currentUser['no_hp_ortu']) ? ' <span style="font-family: monospace; color: #475569;">(' . sanitize($currentUser['no_hp_ortu']) . ')</span>' : '' ?></td>
+                    </tr>
+                    <?php endif; ?>
                     <tr>
                         <td style="font-weight: 600;">Status Sesi Perangkat</td>
                         <td>: <span class="badge badge-online">TERVERIFIKASI ONLINE</span></td>

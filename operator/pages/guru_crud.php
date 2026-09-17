@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $nama     = trim($_POST['nama_lengkap'] ?? '');
         $nip      = trim($_POST['nip'] ?? '');
+        $no_hp    = trim($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
 
@@ -35,12 +36,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 $hash = password_hash($password, PASSWORD_BCRYPT);
-                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, role, id_kelas, status_login, status_akun) VALUES (:u, :p, :n, :nip, 'guru', :k, 'offline', :sa)");
+                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, no_hp, role, id_kelas, status_login, status_akun) VALUES (:u, :p, :n, :nip, :hp, 'guru', :k, 'offline', :sa)");
                 $ins->execute([
                     ':u'   => $username,
                     ':p'   => $hash,
                     ':n'   => $nama,
                     ':nip' => ($nip !== '' ? $nip : null),
+                    ':hp'  => ($no_hp !== '' ? $no_hp : null),
                     ':k'   => $id_kelas,
                     ':sa'  => $status_akun
                 ]);
@@ -56,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $nama     = trim($_POST['nama_lengkap'] ?? '');
         $nip      = trim($_POST['nip'] ?? '');
+        $no_hp    = trim($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
 
@@ -71,11 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $extraSql = ($status_akun === 'nonaktif') ? ", status_login = 'offline'" : "";
                 if ($password !== '') {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
                 } else {
-                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
                 }
                 flash_set('success', 'Data guru berhasil diperbarui.');
             }
@@ -178,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $activeTab  = $_GET['tab'] ?? 'guru';
 try {
     $guruList = $db->query("
-        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
+        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.no_hp, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
         FROM users u 
         LEFT JOIN kelas k ON u.id_kelas = k.id_kelas 
         WHERE u.role = 'guru' 
@@ -253,6 +256,13 @@ include __DIR__ . '/../layouts/header.php';
                                         <strong><?= sanitize($g['nama_lengkap']) ?></strong>
                                         <?php if (!empty($g['nip'])): ?>
                                             <div class="text-xs text-muted">NIP. <?= sanitize($g['nip']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($g['no_hp'])): ?>
+                                            <div class="text-xs" style="margin-top: 2px;">
+                                                <a href="tel:<?= sanitize($g['no_hp']) ?>" class="badge" style="background:#ecfdf5; color:#047857; font-family:monospace; text-decoration:none; padding: 1px 6px;">
+                                                    📞 <?= sanitize($g['no_hp']) ?>
+                                                </a>
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Tingkat Kelas">
@@ -408,6 +418,10 @@ include __DIR__ . '/../layouts/header.php';
                 <input type="text" name="nip" class="form-control" placeholder="Contoh: 198501012010011005">
             </div>
             <div class="form-group">
+                <label>No. HP / WhatsApp Guru (Opsional)</label>
+                <input type="text" name="no_hp" class="form-control" placeholder="Contoh: 081234567890">
+            </div>
+            <div class="form-group">
                 <label>Kata Sandi</label>
                 <input type="password" name="password" class="form-control" required placeholder="Kata sandi akun guru...">
             </div>
@@ -455,6 +469,10 @@ include __DIR__ . '/../layouts/header.php';
             <div class="form-group">
                 <label>NIP Guru (Nomor Induk Pegawai - Opsional)</label>
                 <input type="text" id="edit-guru-nip" name="nip" class="form-control" placeholder="Contoh: 198501012010011005">
+            </div>
+            <div class="form-group">
+                <label>No. HP / WhatsApp Guru (Opsional)</label>
+                <input type="text" id="edit-guru-no_hp" name="no_hp" class="form-control" placeholder="Contoh: 081234567890">
             </div>
             <div class="form-group">
                 <label>Ganti Kata Sandi (Kosongkan jika tidak diubah)</label>
@@ -534,6 +552,7 @@ function openEditGuruModal(data) {
     document.getElementById("edit-guru-username").value = data.username;
     document.getElementById("edit-guru-nama").value = data.nama_lengkap;
     document.getElementById("edit-guru-nip").value = data.nip || "";
+    document.getElementById("edit-guru-no_hp").value = data.no_hp || "";
     document.getElementById("edit-guru-kelas").value = data.id_kelas || "";
     document.getElementById("edit-guru-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit-guru");

@@ -74,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
                     $_SESSION['role']         = $user['role'];
                     $_SESSION['id_kelas']     = $user['id_kelas'];
+                    $_SESSION['no_hp']        = $user['no_hp'] ?? null;
+                    $_SESSION['orang_tua']    = $user['orang_tua'] ?? null;
+                    $_SESSION['no_hp_ortu']   = $user['no_hp_ortu'] ?? null;
 
                     // Regenerate session id untuk mencegah session fixation
                     session_regenerate_id(true);

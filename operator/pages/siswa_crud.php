@@ -27,10 +27,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
     // Beritahu Excel untuk memecah kolom dengan koma secara otomatis
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['nis', 'username', 'nama_lengkap', 'password', 'nama_kelas']);
-    fputcsv($output, ['2024001', 'siswa1', 'Budi Pratama', 'siswa123', 'Kelas 6']);
-    fputcsv($output, ['2024002', 'siswa2', 'Dewi Lestari', 'siswa123', 'Kelas 6']);
-    fputcsv($output, ['2024003', 'siswa3', 'Rian Hidayat', 'siswa123', 'Kelas 5']);
+    fputcsv($output, ['nis', 'username', 'nama_lengkap', 'password', 'nama_kelas', 'no_hp', 'orang_tua', 'no_hp_ortu']);
+    fputcsv($output, ['2024001', 'siswa1', 'Budi Pratama', 'siswa123', 'Kelas 6', '081234567890', 'Ahmad Santoso', '081298765432']);
+    fputcsv($output, ['2024002', 'siswa2', 'Dewi Lestari', 'siswa123', 'Kelas 6', '081234567891', 'Siti Rahayu', '081298765433']);
+    fputcsv($output, ['2024003', 'siswa3', 'Rian Hidayat', 'siswa123', 'Kelas 5', '', 'Bambang Sudiro', '081298765434']);
     fclose($output);
     exit;
 }
@@ -46,11 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // TAMBAH SISWA
     if ($action === 'tambah') {
-        $nis      = trim($_POST['nis'] ?? '');
-        $username = trim($_POST['username'] ?? '');
-        $nama     = trim($_POST['nama_lengkap'] ?? '');
-        $password = trim($_POST['password'] ?? '');
-        $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $nis        = trim($_POST['nis'] ?? '');
+        $username   = trim($_POST['username'] ?? '');
+        $nama       = trim($_POST['nama_lengkap'] ?? '');
+        $password   = trim($_POST['password'] ?? '');
+        $id_kelas   = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $no_hp      = trim($_POST['no_hp'] ?? '');
+        $orang_tua  = trim($_POST['orang_tua'] ?? '');
+        $no_hp_ortu = trim($_POST['no_hp_ortu'] ?? '');
 
         if ($username === '' || $nama === '' || $password === '' || $nis === '') {
             flash_set('danger', 'Seluruh field wajib diisi (NIS, Username, Nama, Password).');
@@ -64,16 +67,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hash = password_hash($password, PASSWORD_BCRYPT);
                 $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 $ins = $db->prepare("
-                    INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login, status_akun) 
-                    VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline', :sa)
+                    INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login, status_akun, no_hp, orang_tua, no_hp_ortu) 
+                    VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline', :sa, :hp, :ot, :hpot)
                 ");
                 $ins->execute([
-                    ':nis' => $nis,
-                    ':u'   => $username,
-                    ':p'   => $hash,
-                    ':n'   => $nama,
-                    ':k'   => $id_kelas,
-                    ':sa'  => $status_akun
+                    ':nis'  => $nis,
+                    ':u'    => $username,
+                    ':p'    => $hash,
+                    ':n'    => $nama,
+                    ':k'    => $id_kelas,
+                    ':sa'   => $status_akun,
+                    ':hp'   => ($no_hp !== '' ? $no_hp : null),
+                    ':ot'   => ($orang_tua !== '' ? $orang_tua : null),
+                    ':hpot' => ($no_hp_ortu !== '' ? $no_hp_ortu : null)
                 ]);
                 flash_set('success', 'Data siswa berhasil ditambahkan.');
             }
@@ -83,12 +89,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // EDIT SISWA
     if ($action === 'edit') {
-        $id_user  = (int)($_POST['id_user'] ?? 0);
-        $nis      = trim($_POST['nis'] ?? '');
-        $username = trim($_POST['username'] ?? '');
-        $nama     = trim($_POST['nama_lengkap'] ?? '');
-        $password = trim($_POST['password'] ?? '');
-        $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $id_user    = (int)($_POST['id_user'] ?? 0);
+        $nis        = trim($_POST['nis'] ?? '');
+        $username   = trim($_POST['username'] ?? '');
+        $nama       = trim($_POST['nama_lengkap'] ?? '');
+        $password   = trim($_POST['password'] ?? '');
+        $id_kelas   = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $no_hp      = trim($_POST['no_hp'] ?? '');
+        $orang_tua  = trim($_POST['orang_tua'] ?? '');
+        $no_hp_ortu = trim($_POST['no_hp_ortu'] ?? '');
 
         if ($id_user <= 0 || $username === '' || $nama === '' || $nis === '') {
             flash_set('danger', 'Data tidak valid. NIS, Username, dan Nama wajib diisi.');
@@ -104,17 +113,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
                     $upd = $db->prepare("
                         UPDATE users 
-                        SET nis = :nis, username = :u, password = :p, nama_lengkap = :n, id_kelas = :k, status_akun = :sa 
+                        SET nis = :nis, username = :u, password = :p, nama_lengkap = :n, id_kelas = :k, status_akun = :sa,
+                            no_hp = :hp, orang_tua = :ot, no_hp_ortu = :hpot
                         WHERE id_user = :id AND role = 'siswa'
                     ");
-                    $upd->execute([':nis' => $nis, ':u' => $username, ':p' => $hash, ':n' => $nama, ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd->execute([
+                        ':nis'  => $nis,
+                        ':u'    => $username,
+                        ':p'    => $hash,
+                        ':n'    => $nama,
+                        ':k'    => $id_kelas,
+                        ':sa'   => $status_akun,
+                        ':hp'   => ($no_hp !== '' ? $no_hp : null),
+                        ':ot'   => ($orang_tua !== '' ? $orang_tua : null),
+                        ':hpot' => ($no_hp_ortu !== '' ? $no_hp_ortu : null),
+                        ':id'   => $id_user
+                    ]);
                 } else {
                     $upd = $db->prepare("
                         UPDATE users 
-                        SET nis = :nis, username = :u, nama_lengkap = :n, id_kelas = :k, status_akun = :sa 
+                        SET nis = :nis, username = :u, nama_lengkap = :n, id_kelas = :k, status_akun = :sa,
+                            no_hp = :hp, orang_tua = :ot, no_hp_ortu = :hpot
                         WHERE id_user = :id AND role = 'siswa'
                     ");
-                    $upd->execute([':nis' => $nis, ':u' => $username, ':n' => $nama, ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd->execute([
+                        ':nis'  => $nis,
+                        ':u'    => $username,
+                        ':n'    => $nama,
+                        ':k'    => $id_kelas,
+                        ':sa'   => $status_akun,
+                        ':hp'   => ($no_hp !== '' ? $no_hp : null),
+                        ':ot'   => ($orang_tua !== '' ? $orang_tua : null),
+                        ':hpot' => ($no_hp_ortu !== '' ? $no_hp_ortu : null),
+                        ':id'   => $id_user
+                    ]);
                 }
                 if ($status_akun === 'nonaktif') {
                     $db->prepare("UPDATE users SET status_login = 'offline' WHERE id_user = :id")->execute([':id' => $id_user]);
@@ -207,6 +239,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $nama   = trim($row[2] ?? '');
                     $pwd    = trim($row[3] ?? '');
                     $kNama  = trim($row[4] ?? '');
+                    $noHp   = trim($row[5] ?? '');
+                    $ortu   = trim($row[6] ?? '');
+                    $noHpO  = trim($row[7] ?? '');
 
                     if ($nis === '' || $uUser === '' || $nama === '') {
                         $skipped++;
@@ -232,16 +267,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     try {
                         $stmtIns = $db->prepare("
-                            INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login)
-                            VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline')
-                            ON CONFLICT (username) DO NOTHING
+                            INSERT INTO users (nis, username, password, nama_lengkap, role, id_kelas, status_login, no_hp, orang_tua, no_hp_ortu)
+                            VALUES (:nis, :u, :p, :n, 'siswa', :k, 'offline', :hp, :ot, :hpot)
+                            ON CONFLICT (username) DO UPDATE 
+                            SET nis = EXCLUDED.nis,
+                                nama_lengkap = EXCLUDED.nama_lengkap,
+                                id_kelas = COALESCE(EXCLUDED.id_kelas, users.id_kelas),
+                                no_hp = COALESCE(EXCLUDED.no_hp, users.no_hp),
+                                orang_tua = COALESCE(EXCLUDED.orang_tua, users.orang_tua),
+                                no_hp_ortu = COALESCE(EXCLUDED.no_hp_ortu, users.no_hp_ortu)
                         ");
                         $stmtIns->execute([
-                            ':nis' => $nis,
-                            ':u'   => $uUser,
-                            ':p'   => $pwdHash,
-                            ':n'   => $nama,
-                            ':k'   => $targetKelasId
+                            ':nis'  => $nis,
+                            ':u'    => $uUser,
+                            ':p'    => $pwdHash,
+                            ':n'    => $nama,
+                            ':k'    => $targetKelasId,
+                            ':hp'   => ($noHp !== '' ? $noHp : null),
+                            ':ot'   => ($ortu !== '' ? $ortu : null),
+                            ':hpot' => ($noHpO !== '' ? $noHpO : null)
                         ]);
                         if ($stmtIns->rowCount() > 0) {
                             $imported++;
@@ -268,7 +312,8 @@ $filterKelas = !empty($_GET['filter_kelas']) ? (int)$_GET['filter_kelas'] : null
 $search      = trim($_GET['search'] ?? '');
 
 $sql = "
-    SELECT u.id_user, u.nis, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas
+    SELECT u.id_user, u.nis, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, 
+           u.id_kelas, k.nama_kelas, u.no_hp, u.orang_tua, u.no_hp_ortu
     FROM users u
     LEFT JOIN kelas k ON u.id_kelas = k.id_kelas
     WHERE u.role = 'siswa'
@@ -281,7 +326,7 @@ if ($filterKelas) {
 }
 
 if ($search !== '') {
-    $sql .= " AND (u.username ILIKE :q OR u.nis ILIKE :q OR u.nama_lengkap ILIKE :q)";
+    $sql .= " AND (u.username ILIKE :q OR u.nis ILIKE :q OR u.nama_lengkap ILIKE :q OR u.orang_tua ILIKE :q OR u.no_hp ILIKE :q OR u.no_hp_ortu ILIKE :q)";
     $params[':q'] = "%{$search}%";
 }
 
@@ -357,6 +402,9 @@ include __DIR__ . '/../layouts/header.php';
                         <th>Username</th>
                         <th>Nama Lengkap</th>
                         <th>Kelas</th>
+                        <th>No. HP Siswa</th>
+                        <th>Orang Tua</th>
+                        <th>No. HP Ortu</th>
                         <th>Status Akun</th>
                         <th>Status Sesi</th>
                         <th style="width: 250px; text-align: center;">Aksi</th>
@@ -365,7 +413,7 @@ include __DIR__ . '/../layouts/header.php';
                 <tbody>
                     <?php if (empty($siswaList)): ?>
                         <tr>
-                            <td colspan="7" class="text-center text-muted" style="padding: 2rem;">Tidak ada data siswa yang ditemukan.</td>
+                            <td colspan="11" class="text-center text-muted" style="padding: 2rem;">Tidak ada data siswa yang ditemukan.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($siswaList as $idx => $s): ?>
@@ -375,6 +423,25 @@ include __DIR__ . '/../layouts/header.php';
                                 <td data-label="Username"><strong><?= sanitize($s['username']) ?></strong></td>
                                 <td data-label="Nama Lengkap"><?= sanitize($s['nama_lengkap']) ?></td>
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas'] ?? 'Belum ada') ?></td>
+                                <td data-label="No. HP Siswa">
+                                    <?php if (!empty($s['no_hp'])): ?>
+                                        <a href="tel:<?= sanitize($s['no_hp']) ?>" class="badge" style="background:#ecfdf5; color:#047857; font-family:monospace; text-decoration:none;">
+                                            <?= sanitize($s['no_hp']) ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="text-muted text-xs">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td data-label="Orang Tua"><?= sanitize($s['orang_tua'] ?? '-') ?></td>
+                                <td data-label="No. HP Ortu">
+                                    <?php if (!empty($s['no_hp_ortu'])): ?>
+                                        <a href="tel:<?= sanitize($s['no_hp_ortu']) ?>" class="badge" style="background:#eff6ff; color:#1d4ed8; font-family:monospace; text-decoration:none;">
+                                            <?= sanitize($s['no_hp_ortu']) ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="text-muted text-xs">-</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td data-label="Status Akun">
                                     <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
                                         <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 700;">Aktif</span>
@@ -465,6 +532,18 @@ include __DIR__ . '/../layouts/header.php';
                 </select>
             </div>
             <div class="form-group">
+                <label>No. HP Siswa</label>
+                <input type="text" name="no_hp" class="form-control" placeholder="Contoh: 081234567890 (Opsional)">
+            </div>
+            <div class="form-group">
+                <label>Nama Orang Tua / Wali</label>
+                <input type="text" name="orang_tua" class="form-control" placeholder="Nama ayah / ibu / wali murid (Opsional)">
+            </div>
+            <div class="form-group">
+                <label>No. HP Orang Tua / Wali</label>
+                <input type="text" name="no_hp_ortu" class="form-control" placeholder="Contoh: 081298765432 (Opsional)">
+            </div>
+            <div class="form-group">
                 <label>Status Akun</label>
                 <select name="status_akun" class="form-control" required>
                     <option value="aktif" selected>Aktif (Dapat Login)</option>
@@ -515,6 +594,18 @@ include __DIR__ . '/../layouts/header.php';
                 </select>
             </div>
             <div class="form-group">
+                <label>No. HP Siswa</label>
+                <input type="text" id="edit-no_hp" name="no_hp" class="form-control" placeholder="Nomor HP siswa (Opsional)">
+            </div>
+            <div class="form-group">
+                <label>Nama Orang Tua / Wali</label>
+                <input type="text" id="edit-orang_tua" name="orang_tua" class="form-control" placeholder="Nama orang tua/wali (Opsional)">
+            </div>
+            <div class="form-group">
+                <label>No. HP Orang Tua / Wali</label>
+                <input type="text" id="edit-no_hp_ortu" name="no_hp_ortu" class="form-control" placeholder="Nomor HP orang tua/wali (Opsional)">
+            </div>
+            <div class="form-group">
                 <label>Status Akun</label>
                 <select id="edit-status_akun" name="status_akun" class="form-control" required>
                     <option value="aktif">Aktif (Dapat Login)</option>
@@ -534,7 +625,7 @@ include __DIR__ . '/../layouts/header.php';
 <div id="modal-import" class="modal-overlay">
     <div class="modal-box">
         <h2 class="card-title mb-2">Import Data Siswa via CSV</h2>
-        <p class="text-sm text-muted mb-3">Format kolom CSV: <code>nis, username, nama_lengkap, password, nama_kelas</code></p>
+        <p class="text-sm text-muted mb-3">Format kolom CSV: <code>nis, username, nama_lengkap, password, nama_kelas, no_hp, orang_tua, no_hp_ortu</code></p>
         
         <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" enctype="multipart/form-data">
             <?= csrf_field() ?>
@@ -562,6 +653,9 @@ function openEditModal(data) {
     document.getElementById("edit-username").value = data.username;
     document.getElementById("edit-nama").value = data.nama_lengkap;
     document.getElementById("edit-kelas").value = data.id_kelas || "";
+    document.getElementById("edit-no_hp").value = data.no_hp || "";
+    document.getElementById("edit-orang_tua").value = data.orang_tua || "";
+    document.getElementById("edit-no_hp_ortu").value = data.no_hp_ortu || "";
     document.getElementById("edit-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit");
 }

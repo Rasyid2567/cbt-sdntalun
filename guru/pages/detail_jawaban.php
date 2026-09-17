@@ -24,6 +24,7 @@ try {
     $stmtUjian = $db->prepare("
         SELECT us.*, 
                u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
+               u.no_hp as no_hp_siswa, u.orang_tua, u.no_hp_ortu,
                s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
                s.status as status_sesi, s.created_at as created_at_sesi,
                p.nama_paket,
@@ -1021,6 +1022,18 @@ include __DIR__ . '/../layouts/header.php';
                 <span class="info-label">Kelas</span>
                 <span class="info-val"><?= sanitize($detailUjian['nama_kelas']) ?></span>
             </div>
+            <?php if (!empty($detailUjian['no_hp_siswa'])): ?>
+            <div class="info-row">
+                <span class="info-label">No. HP Siswa</span>
+                <span class="info-val"><?= sanitize($detailUjian['no_hp_siswa']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($detailUjian['orang_tua'])): ?>
+            <div class="info-row">
+                <span class="info-label">Orang Tua / Wali</span>
+                <span class="info-val"><?= sanitize($detailUjian['orang_tua']) ?><?= !empty($detailUjian['no_hp_ortu']) ? ' (' . sanitize($detailUjian['no_hp_ortu']) . ')' : '' ?></span>
+            </div>
+            <?php endif; ?>
             <div class="info-row">
                 <span class="info-label">Status Ujian</span>
                 <span class="info-val">

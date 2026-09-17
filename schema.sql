@@ -49,6 +49,9 @@ CREATE TABLE users (
     id_kelas INT REFERENCES kelas(id_kelas) ON DELETE SET NULL,
     status_login login_status DEFAULT 'offline',
     status_akun VARCHAR(20) DEFAULT 'aktif', -- 'aktif' atau 'nonaktif'
+    no_hp VARCHAR(30) NULL,      -- Nomor HP / WhatsApp
+    orang_tua VARCHAR(100) NULL, -- Nama Orang Tua / Wali
+    no_hp_ortu VARCHAR(30) NULL, -- Nomor HP Orang Tua / Wali
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

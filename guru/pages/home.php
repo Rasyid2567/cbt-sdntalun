@@ -33,17 +33,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'update_profil_guru') {
-        $nama = trim($_POST['nama_lengkap'] ?? '');
-        $nip  = trim($_POST['nip'] ?? '');
+        $nama  = trim($_POST['nama_lengkap'] ?? '');
+        $nip   = trim($_POST['nip'] ?? '');
+        $no_hp = trim($_POST['no_hp'] ?? '');
 
         if ($nama === '') {
             flash_set('danger', 'Nama lengkap tidak boleh kosong.');
         } else {
-            $upd = $db->prepare("UPDATE users SET nama_lengkap = :n, nip = :nip WHERE id_user = :id AND role = 'guru'");
-            $upd->execute([':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':id' => $idGuru]);
+            $upd = $db->prepare("UPDATE users SET nama_lengkap = :n, nip = :nip, no_hp = :hp WHERE id_user = :id AND role = 'guru'");
+            $upd->execute([':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':id' => $idGuru]);
             $_SESSION['nama_lengkap'] = $nama;
             $_SESSION['nip'] = ($nip !== '' ? $nip : null);
-            flash_set('success', 'Profil dan NIP guru berhasil diperbarui.');
+            $_SESSION['no_hp'] = ($no_hp !== '' ? $no_hp : null);
+            flash_set('success', 'Profil, NIP, dan No. HP guru berhasil diperbarui.');
         }
         redirect(base_url('guru'));
     }
@@ -406,6 +408,10 @@ $modalFormAction = base_url('guru');
                 <label style="font-weight: 700;">Nomor Induk Pegawai (NIP)</label>
                 <input type="text" name="nip" class="form-control" value="<?= sanitize($currentUser['nip'] ?? '') ?>" placeholder="Contoh: 198501012010011005">
                 <div class="text-xs text-muted mt-1">NIP akan otomatis dicetak pada tanda tangan Guru Penguji di lembar hasil ujian siswa (PDF).</div>
+            </div>
+            <div class="form-group mb-3">
+                <label style="font-weight: 700;">No. HP / WhatsApp Guru</label>
+                <input type="text" name="no_hp" class="form-control" value="<?= sanitize($currentUser['no_hp'] ?? '') ?>" placeholder="Contoh: 081234567890">
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-profil-guru')">Batal</button>
