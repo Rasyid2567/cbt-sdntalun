@@ -637,14 +637,12 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     width: 210mm;
     min-height: 297mm;
     margin: 0 auto;
-    padding: 14mm 16mm 10mm 16mm;
+    padding: 15mm 18mm;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
     box-sizing: border-box;
     border-radius: 2px;
     position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    display: block;
     page-break-after: always;
     break-after: page;
   }
@@ -658,18 +656,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     flex: 1 1 auto;
   }
 
-  /* Footer Nomor Halaman di Bawah Lembar Kertas */
-  .page-footer {
-    flex: 0 0 auto;
-    font-size: 8pt;
-    color: #64748b;
-    border-top: 1px solid #cbd5e1;
-    padding-top: 5px;
-    margin-top: 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+  
 
   /* Running Header untuk Halaman Lanjutan (Halaman 2 dst) */
   .running-header {
@@ -859,9 +846,10 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       width: 100% !important;
       min-width: 100% !important;
       max-width: 100% !important;
-      min-height: 297mm !important;
+      min-height: auto !important;
+      height: auto !important;
       margin: 0 !important;
-      padding: 10mm 12mm !important;
+      padding: 0 !important;
       box-shadow: none !important;
       border: none !important;
       zoom: 1.0 !important;
@@ -1106,11 +1094,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       <?php endif; ?>
     </div>
 
-    <!-- Nomor Halaman Fisik Dokumen -->
-    <div class="page-footer">
-      <span>SD Negeri 1 Talun &bull; LEMBAR HASIL CBT</span>
-      <span style="font-weight: 700;">Halaman <?= $pageIdx + 1 ?> dari <?= $totalPages ?></span>
-    </div>
+
   </div>
   <?php endforeach; ?>
 </div>
