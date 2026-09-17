@@ -2688,3 +2688,226 @@ td[data-label="Aksi"] .btn {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
+
+
+/* ==========================================================================
+   CARDS GRID LAYOUT (3 PER ROW ON DESKTOP) - .cards-grid-3
+   ========================================================================== */
+.cards-grid-3 {
+    overflow: visible !important;
+}
+
+.cards-grid-3 table,
+.cards-grid-3 thead,
+.cards-grid-3 tbody,
+.cards-grid-3 th,
+.cards-grid-3 td,
+.cards-grid-3 tr {
+    display: block;
+}
+
+.cards-grid-3 thead {
+    display: none !important;
+}
+
+.cards-grid-3 tbody {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 1rem !important;
+    align-items: start !important;
+    width: 100% !important;
+}
+
+@media (max-width: 1024px) {
+    .cards-grid-3 tbody {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .cards-grid-3 tbody {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+.cards-grid-3 tbody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1px solid var(--gray-200) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 0.75rem 0.95rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    transition: border-color 0.22s ease, box-shadow 0.22s ease !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+}
+
+.cards-grid-3 tbody tr:hover {
+    border-color: var(--gray-300) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+}
+
+.cards-grid-3 tbody tr.expanded {
+    border-color: var(--primary-light) !important;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.09) !important;
+}
+
+.cards-grid-3 tbody tr:has(td[colspan]) {
+    grid-column: 1 / -1 !important;
+    display: block !important;
+    text-align: center !important;
+    padding: 2rem !important;
+}
+
+.cards-grid-3 td.mobile-primary-cell {
+    order: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    border: none !important;
+    padding: 0.15rem 0 !important;
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    color: var(--gray-900) !important;
+    cursor: pointer !important;
+    width: 100% !important;
+    user-select: none !important;
+    box-sizing: border-box !important;
+}
+
+.cards-grid-3 tr.expanded td.mobile-primary-cell {
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid var(--gray-200) !important;
+}
+
+.cards-grid-3 td.mobile-primary-cell::before {
+    display: none !important;
+}
+
+.cards-grid-3 td.mobile-detail-cell {
+    order: 10 !important;
+    display: none !important;
+    border: none !important;
+    border-top: 1px dashed var(--gray-200) !important;
+    padding: 0.42rem 0 !important;
+    font-size: 0.84rem !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    text-align: right !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.cards-grid-3 tr.expanded td.mobile-detail-cell {
+    display: flex !important;
+}
+
+.cards-grid-3 tr.expanded td.mobile-detail-cell:first-of-type {
+    border-top: none !important;
+    margin-top: 0.35rem !important;
+}
+
+.cards-grid-3 td.mobile-detail-cell::before {
+    content: attr(data-label) !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    color: var(--gray-500) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.4px !important;
+    text-align: left !important;
+    margin-right: 0.5rem !important;
+    flex-shrink: 0 !important;
+}
+
+.cards-grid-3 td.mobile-no-cell,
+.cards-grid-3 td[data-label="No"] {
+    display: none !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] {
+    order: 99 !important;
+    display: none !important;
+    border-top: 1px solid var(--gray-200) !important;
+    padding-top: 0.65rem !important;
+    margin-top: 0.45rem !important;
+    text-align: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.cards-grid-3 tr.expanded td[data-label="Aksi"] {
+    display: block !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"]::before {
+    display: none !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] .flex {
+    display: flex !important;
+    width: 100% !important;
+    gap: 0.4rem !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] .btn {
+    flex: 1 !important;
+    min-height: 35px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    padding: 0.25rem 0.4rem !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] form {
+    flex: 1 !important;
+    display: flex !important;
+    margin: 0 !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] form .btn {
+    width: 100% !important;
+}
+
+.cards-grid-3 .cbt-mobile-extend-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #f1f5f9 !important;
+    border: 1px solid var(--gray-300) !important;
+    border-radius: 50% !important;
+    color: var(--gray-600) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.cards-grid-3 .cbt-mobile-extend-btn:hover {
+    background: #e2e8f0 !important;
+    border-color: var(--primary-light) !important;
+    color: var(--primary) !important;
+}
+
+.cards-grid-3 .cbt-mobile-extend-btn svg {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.cards-grid-3 tr.expanded .cbt-mobile-extend-btn {
+    background: #eff6ff !important;
+    border-color: var(--primary-light) !important;
+    color: var(--primary) !important;
+}
+
+.cards-grid-3 tr.expanded .cbt-mobile-extend-btn svg {
+    transform: rotate(180deg) !important;
+}
