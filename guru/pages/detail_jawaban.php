@@ -46,6 +46,7 @@ try {
     $stmtUjian = $db->prepare("
         SELECT us.*, 
                u.id_user as id_siswa, u.nis, u.username, u.nama_lengkap as nama_siswa,
+               u.no_hp as no_hp_siswa, u.orang_tua, u.no_hp_ortu,
                s.id_sesi, s.nama_ujian, s.id_paket, s.id_guru, s.durasi_menit,
                s.status as status_sesi, s.created_at as created_at_sesi,
                p.nama_paket,
@@ -708,16 +709,22 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     </tbody>
   </table>
 
-  <!-- Tanda Tangan Pengesahan -->
+  <!-- Tanda Tangan Pengesahan (Kepala Sekolah, Orang Tua / Wali, Guru Pengampu) -->
   <table class="signature-box" style="width: 100%; border: none; margin-top: 25px; font-size: 10pt; page-break-inside: avoid;">
     <tr>
-      <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
+      <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
         Mengetahui,<br>
         Kepala <?= defined('SEKOLAH_NAMA') ? sanitize(SEKOLAH_NAMA) : 'SD Negeri 1 Talun' ?><br><br><br><br><br>
         <strong><u><?= defined('KEPALA_SEKOLAH_NAMA') ? sanitize(KEPALA_SEKOLAH_NAMA) : 'MASHURI, S.Pd.' ?></u></strong><br>
         <span style="font-size: 9pt; color: #475569;">NIP. <?= defined('KEPALA_SEKOLAH_NIP') ? sanitize(KEPALA_SEKOLAH_NIP) : '198511052022211001' ?></span>
       </td>
-      <td style="width: 50%; text-align: center; border: none; vertical-align: top;">
+      <td style="width: 34%; text-align: center; border: none; vertical-align: top;">
+        Mengetahui,<br>
+        Orang Tua / Wali<br><br><br><br><br>
+        <strong><u><?= !empty($detailUjian['orang_tua']) ? '( ' . sanitize($detailUjian['orang_tua']) . ' )' : '( .................................................. )' ?></u></strong><br>
+        <span style="font-size: 9pt; color: #475569;">&nbsp;</span>
+      </td>
+      <td style="width: 33%; text-align: center; border: none; vertical-align: top;">
         Talun, <?= date('d/m/Y') ?><br>
         Guru Penguji / Pengampu<br><br><br><br><br>
         <strong><u><?= htmlspecialchars((string)($detailUjian['nama_guru'] ?: '...................................................'), ENT_QUOTES, 'UTF-8') ?></u></strong><br>
