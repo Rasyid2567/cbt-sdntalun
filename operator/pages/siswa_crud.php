@@ -392,22 +392,22 @@ include __DIR__ . '/../layouts/header.php';
     </div>
 
     <!-- Data Table Siswa (Auto-Card on Mobile) -->
-    <div class="card">
+    <div class="card" style="padding: 1rem 1.25rem;">
         <div class="table-responsive table-mobile-cards">
-            <table class="table">
+            <table class="table" style="font-size: 0.88rem;">
                 <thead>
                     <tr>
-                        <th style="width: 50px;">No</th>
-                        <th>NIS</th>
-                        <th>Username</th>
-                        <th>Nama Lengkap</th>
-                        <th>Kelas</th>
-                        <th>No. HP Siswa</th>
-                        <th>Orang Tua</th>
-                        <th>No. HP Ortu</th>
-                        <th>Status Akun</th>
-                        <th>Status Sesi</th>
-                        <th style="width: 250px; text-align: center;">Aksi</th>
+                        <th style="width: 40px; text-align: center; white-space: nowrap;">No</th>
+                        <th style="white-space: nowrap;">NIS</th>
+                        <th style="white-space: nowrap;">Username</th>
+                        <th style="white-space: nowrap; min-width: 170px;">Nama Lengkap</th>
+                        <th style="white-space: nowrap;">Kelas</th>
+                        <th style="white-space: nowrap;">No. HP</th>
+                        <th style="white-space: nowrap;">Orang Tua</th>
+                        <th style="white-space: nowrap;">No. HP Ortu</th>
+                        <th style="text-align: center; white-space: nowrap;">Status</th>
+                        <th style="text-align: center; white-space: nowrap;">Sesi</th>
+                        <th style="text-align: center; width: 185px; white-space: nowrap;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -418,12 +418,12 @@ include __DIR__ . '/../layouts/header.php';
                     <?php else: ?>
                         <?php foreach ($siswaList as $idx => $s): ?>
                             <tr>
-                                <td data-label="No"><?= $idx + 1 ?></td>
-                                <td data-label="NIS"><span class="badge" style="background:#e0f2fe; color:#0369a1; font-family:monospace; font-size:0.85rem; font-weight:700;"><?= sanitize($s['nis'] ?? '-') ?></span></td>
-                                <td data-label="Username"><strong><?= sanitize($s['username']) ?></strong></td>
+                                <td data-label="No" style="text-align: center;"><?= $idx + 1 ?></td>
+                                <td data-label="NIS" style="white-space: nowrap;"><span class="badge" style="background:#e0f2fe; color:#0369a1; font-family:monospace; font-size:0.85rem; font-weight:700;"><?= sanitize($s['nis'] ?? '-') ?></span></td>
+                                <td data-label="Username" style="white-space: nowrap;"><strong><?= sanitize($s['username']) ?></strong></td>
                                 <td data-label="Nama Lengkap"><?= sanitize($s['nama_lengkap']) ?></td>
-                                <td data-label="Kelas"><?= sanitize($s['nama_kelas'] ?? 'Belum ada') ?></td>
-                                <td data-label="No. HP Siswa">
+                                <td data-label="Kelas" style="white-space: nowrap;"><?= sanitize($s['nama_kelas'] ?? 'Belum ada') ?></td>
+                                <td data-label="No. HP" style="white-space: nowrap;">
                                     <?php if (!empty($s['no_hp'])): ?>
                                         <a href="tel:<?= sanitize($s['no_hp']) ?>" class="badge" style="background:#ecfdf5; color:#047857; font-family:monospace; text-decoration:none;">
                                             <?= sanitize($s['no_hp']) ?>
@@ -432,8 +432,8 @@ include __DIR__ . '/../layouts/header.php';
                                         <span class="text-muted text-xs">-</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Orang Tua"><?= sanitize($s['orang_tua'] ?? '-') ?></td>
-                                <td data-label="No. HP Ortu">
+                                <td data-label="Orang Tua" style="white-space: nowrap;"><?= sanitize($s['orang_tua'] ?? '-') ?></td>
+                                <td data-label="No. HP Ortu" style="white-space: nowrap;">
                                     <?php if (!empty($s['no_hp_ortu'])): ?>
                                         <a href="tel:<?= sanitize($s['no_hp_ortu']) ?>" class="badge" style="background:#eff6ff; color:#1d4ed8; font-family:monospace; text-decoration:none;">
                                             <?= sanitize($s['no_hp_ortu']) ?>
@@ -442,22 +442,22 @@ include __DIR__ . '/../layouts/header.php';
                                         <span class="text-muted text-xs">-</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Status Akun">
+                                <td data-label="Status Akun" style="text-align: center; white-space: nowrap;">
                                     <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
                                         <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 700;">Aktif</span>
                                     <?php else: ?>
                                         <span class="badge" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-weight: 700;">Nonaktif</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Status Sesi">
+                                <td data-label="Status Sesi" style="text-align: center; white-space: nowrap;">
                                     <?php if ($s['status_login'] === 'online'): ?>
                                         <span class="badge badge-online">Online</span>
                                     <?php else: ?>
                                         <span class="badge badge-offline">Offline</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Aksi">
-                                    <div class="flex" style="gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                <td data-label="Aksi" style="text-align: center; white-space: nowrap;">
+                                    <div class="flex" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
                                         <!-- Tombol Toggle Status Akun -->
                                         <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline-flex; margin:0;"
                                               data-confirm="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '? Akun ini tidak akan dapat login ke CBT.' : 'Aktifkan kembali akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '?' ?>"
@@ -468,24 +468,24 @@ include __DIR__ . '/../layouts/header.php';
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
                                             <?php if (($s['status_akun'] ?? 'aktif') === 'aktif'): ?>
-                                                <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Nonaktifkan Akun Siswa">
+                                                <button type="submit" class="btn btn-sm" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600; white-space: nowrap;" title="Nonaktifkan Akun Siswa">
                                                     Nonaktifkan
                                                 </button>
                                             <?php else: ?>
-                                                <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 600;" title="Aktifkan Akun Siswa">
+                                                <button type="submit" class="btn btn-sm" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600; white-space: nowrap;" title="Aktifkan Akun Siswa">
                                                     Aktifkan
                                                 </button>
                                             <?php endif; ?>
                                         </form>
 
-                                        <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;"
+                                        <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600; white-space: nowrap;"
                                             onclick='openEditModal(<?= json_encode($s) ?>)'>Edit</button>
                                         
                                         <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Yakin ingin menghapus data siswa <?= sanitize($s['nama_lengkap']) ?>?" data-confirm-title="Hapus Data Siswa" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="hapus">
                                             <input type="hidden" name="id_user" value="<?= $s['id_user'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Hapus</button>
+                                            <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600; white-space: nowrap;">Hapus</button>
                                         </form>
                                     </div>
                                 </td>

@@ -1016,7 +1016,7 @@ body.page-login #cbt-toast-container {
 
 .table th,
 .table td {
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid var(--gray-200);
 }
@@ -1025,9 +1025,10 @@ body.page-login #cbt-toast-container {
     background-color: var(--gray-50);
     font-weight: 700;
     color: var(--gray-700);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
 }
 
 .table tbody tr {
@@ -1811,11 +1812,16 @@ body.app-webview-body {
 
 
 /* Desktop Table Action Buttons Styling */
+td[data-label="Aksi"] {
+    text-align: center;
+    white-space: nowrap;
+}
+
 td[data-label="Aksi"] .flex {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     flex-wrap: nowrap;
 }
 
