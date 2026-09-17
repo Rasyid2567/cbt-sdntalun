@@ -658,18 +658,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
 
   
 
-  /* Running Header untuk Halaman Lanjutan (Halaman 2 dst) */
-  .running-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 8pt;
-    color: #475569;
-    border-bottom: 1.5px solid #0f172a;
-    padding-bottom: 5px;
-    margin-bottom: 12px;
-    font-weight: 600;
-  }
+  
 
   table {
     border-collapse: collapse;
@@ -990,12 +979,6 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
             <td style="color: #dc2626; font-size: 10.5pt;"><?= $statSalah ?> / <?= $statKosong ?></td>
           </tr>
         </table>
-      <?php else: ?>
-        <!-- Running Header Halaman Lanjutan -->
-        <div class="running-header">
-          <span>SD NEGERI 1 TALUN &bull; LEMBAR HASIL UJIAN (LANJUTAN)</span>
-          <span>Siswa: <?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?> (<?= htmlspecialchars($detailUjian["nama_mapel"], ENT_QUOTES, "UTF-8") ?>)</span>
-        </div>
       <?php endif; ?>
 
       <!-- Tabel Rincian Butir Soal Pada Lembar Ini -->
