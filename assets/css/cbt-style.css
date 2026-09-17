@@ -304,9 +304,15 @@ body {
 
 /* Main Container */
 .container {
-    max-width: 1200px;
+    max-width: 1560px;
+    width: 96%;
     margin: 1.5rem auto;
     padding: 0 1rem;
+}
+
+.container-wide {
+    max-width: 1760px;
+    width: 98%;
 }
 
 .container-fluid {

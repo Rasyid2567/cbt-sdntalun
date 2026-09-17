@@ -342,7 +342,7 @@ $flash = flash_get();
 include __DIR__ . '/../layouts/header.php';
 ?>
 
-<main class="container">
+<main class="container container-wide" style="max-width: 1760px; width: 98%;">
     <?php if ($flash): ?>
         <div class="alert alert-<?= sanitize($flash['type']) ?>">
             <?= sanitize($flash['message']) ?>
@@ -392,7 +392,7 @@ include __DIR__ . '/../layouts/header.php';
     </div>
 
     <!-- Data Table Siswa (Auto-Card on Mobile) -->
-    <div class="card" style="padding: 1rem 1.25rem;">
+    <div class="card" style="padding: 1.25rem 1.5rem;">
         <div class="table-responsive table-mobile-cards">
             <table class="table" style="font-size: 0.88rem;">
                 <thead>
@@ -407,7 +407,7 @@ include __DIR__ . '/../layouts/header.php';
                         <th style="white-space: nowrap;">No. HP Ortu</th>
                         <th style="text-align: center; white-space: nowrap;">Status</th>
                         <th style="text-align: center; white-space: nowrap;">Sesi</th>
-                        <th style="text-align: center; width: 185px; white-space: nowrap;">Aksi</th>
+                        <th style="text-align: center; width: 230px; min-width: 220px; white-space: nowrap;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -456,8 +456,8 @@ include __DIR__ . '/../layouts/header.php';
                                         <span class="badge badge-offline">Offline</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Aksi" style="text-align: center; white-space: nowrap;">
-                                    <div class="flex" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                <td data-label="Aksi" style="text-align: center; width: 230px; min-width: 220px; white-space: nowrap;">
+                                    <div class="flex" style="gap: 0.4rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
                                         <!-- Tombol Toggle Status Akun -->
                                         <form action="<?= base_url('operator?page=siswa_crud') ?>" method="POST" style="display:inline-flex; margin:0;"
                                               data-confirm="<?= ($s['status_akun'] ?? 'aktif') === 'aktif' ? 'Nonaktifkan akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '? Akun ini tidak akan dapat login ke CBT.' : 'Aktifkan kembali akun siswa ' . sanitize(addslashes($s['nama_lengkap'])) . '?' ?>"
