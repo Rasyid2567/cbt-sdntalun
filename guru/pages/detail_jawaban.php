@@ -279,8 +279,10 @@ if (abs((float)($detailUjian['nilai_akhir'] ?? -1) - $calculatedNilaiAkhir) > 0.
 // Durasi Pengerjaan
 $durasiKerjaMenit    = '-';
 $durasiKerjaText     = '-';
+$durasiLaporan       = '-';
 $waktuMulaiFormatted = !empty($detailUjian['waktu_mulai']) ? date('H:i', strtotime($detailUjian['waktu_mulai'])) : null;
 $waktuSelesaiFormatted = !empty($detailUjian['waktu_selesai']) ? date('H:i', strtotime($detailUjian['waktu_selesai'])) : null;
+$alokasiMenit = (int)($detailUjian['durasi_menit'] ?? 0);
 
 if (!empty($detailUjian['waktu_mulai'])) {
     $startSec = strtotime($detailUjian['waktu_mulai']);
@@ -288,10 +290,11 @@ if (!empty($detailUjian['waktu_mulai'])) {
     if (!empty($detailUjian['waktu_selesai'])) {
         $endSec   = strtotime($detailUjian['waktu_selesai']);
         $diffSec  = max(0, $endSec - $startSec);
-        $menit    = floor($diffSec / 60);
+        $menit    = (int)floor($diffSec / 60);
         $detik    = $diffSec % 60;
-        $durasiKerjaText  = "{$menit} Menit {$detik} Detik ({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)";
-        $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span style=\"font-size:0.85rem; color:var(--gray-600);\">({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)</span>";
+        $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
+        $durasiKerjaText  = "{$menit} Menit {$detik} Detik " . ($alokasiMenit > 0 ? "({$alokasiMenit} Menit)" : "") . " ({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)";
+        $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> " . ($alokasiMenit > 0 ? "<span class=\"badge\" style=\"background:#e0f2fe; color:#0369a1; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">Alokasi: {$alokasiMenit} Menit</span> " : "") . "<span style=\"font-size:0.85rem; color:var(--gray-600);\">({$waktuMulaiFormatted} - {$waktuSelesaiFormatted} WIB)</span>";
     } elseif ($detailUjian['status'] === 'sedang') {
         // Cek aktivitas jawaban terakhir siswa
         $stmtLastAct = $db->prepare("
@@ -307,12 +310,14 @@ if (!empty($detailUjian['waktu_mulai'])) {
             $menit    = floor($diffSec / 60);
             $detik    = $diffSec % 60;
             $jamTerakhir = date('H:i', $actSec);
+            $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
             $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)";
             $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB, Terakhir {$jamTerakhir} WIB)</span>";
         } else {
             $diffSec  = max(0, time() - $startSec);
             $menit    = floor($diffSec / 60);
             $detik    = $diffSec % 60;
+            $durasiLaporan = $alokasiMenit > 0 ? "{$menit} Menit ({$alokasiMenit} Menit)" : "{$menit} Menit";
             $durasiKerjaText  = "{$menit} Menit {$detik} Detik (Sedang Berjalan - Mulai {$waktuMulaiFormatted} WIB)";
             $durasiKerjaMenit = "<strong>{$menit} Menit {$detik} Detik</strong> <span class=\"badge\" style=\"background:#fef3c7; color:#92400e; font-size:0.75rem; vertical-align:middle; margin-left:4px;\">SEDANG BERJALAN</span> <span style=\"font-size:0.85rem; color:var(--gray-600);\">(Mulai {$waktuMulaiFormatted} WIB)</span>";
         }
@@ -985,6 +990,14 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
           <td style="font-weight: bold;">No. HP</td>
           <td>:</td>
           <td><?= htmlspecialchars((string)($detailUjian["no_hp_siswa"] ?? ($detailUjian["no_hp"] ?? "-")) ?: "-", ENT_QUOTES, "UTF-8") ?></td>
+          <td style="font-weight: bold;">Waktu Pengerjaan</td>
+          <td>:</td>
+          <td><?= htmlspecialchars($durasiLaporan, ENT_QUOTES, "UTF-8") ?></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Orang Tua</td>
+          <td>:</td>
+          <td><?= htmlspecialchars((string)($detailUjian["orang_tua"] ?: "-"), ENT_QUOTES, "UTF-8") ?></td>
           <td style="font-weight: bold;">No. HP Ortu</td>
           <td>:</td>
           <td><?= htmlspecialchars((string)($detailUjian["no_hp_ortu"] ?? "-") ?: "-", ENT_QUOTES, "UTF-8") ?></td>
