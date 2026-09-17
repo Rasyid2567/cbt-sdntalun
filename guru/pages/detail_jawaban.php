@@ -986,7 +986,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
           <td style="font-weight: bold;">No. HP</td>
           <td>:</td>
           <td><?= htmlspecialchars((string)($detailUjian["no_hp_siswa"] ?? ($detailUjian["no_hp"] ?? "-")) ?: "-", ENT_QUOTES, "UTF-8") ?></td>
-          <td style="font-weight: bold;">Waktu Pengerjaan</td>
+          <td style="font-weight: bold;">Durasi</td>
           <td>:</td>
           <td><?= htmlspecialchars($durasiLaporan, ENT_QUOTES, "UTF-8") ?></td>
         </tr>
@@ -1524,7 +1524,7 @@ include __DIR__ . '/../layouts/header.php';
                 <span class="info-val"><?= sanitize($detailUjian['nama_mapel']) ?></span>
             </div>
             <div class="info-row">
-                <span class="info-label">Waktu Pengerjaan</span>
+                <span class="info-label">Durasi</span>
                 <span class="info-val"><?= $durasiKerjaMenit ?></span>
             </div>
         </div>
