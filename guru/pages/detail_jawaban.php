@@ -350,7 +350,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     box-sizing: border-box;
   }
   body {
-    background-color: #383d41; /* Chrome PDF Reader Dark Slate */
+    background-color: #383d41; /* Chrome PDF Reader Canvas */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 10pt;
     line-height: 1.4;
@@ -529,14 +529,15 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     background: #047857;
   }
 
-  /* Paper Canvas Viewport */
+  /* Canvas Penampil Kertas */
   .preview-container {
     width: 100%;
     min-height: calc(100vh - 50px);
+    background-color: #383d41;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px 8px 50px 8px;
+    padding: 24px 12px 60px 12px;
     box-sizing: border-box;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -546,41 +547,46 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     display: flex;
     justify-content: center;
     width: 100%;
-    transition: height 0.12s ease;
+    height: auto;
   }
 
-  /* Kertas A4 Otentik (Bentuk Kertas Nyata dengan Bayangan Lembar Cetak) */
+  /* Lembaran Kertas A4 Otentik - Selalu Memanjang Utuh Mengikuti Seluruh Isi */
   .paper-page {
-    background: #ffffff;
+    background: #ffffff !important;
+    color: #0f172a;
     width: 210mm;
     min-width: 210mm;
     max-width: 210mm;
     min-height: 297mm;
+    height: auto !important;
     margin: 0 auto;
     padding: 15mm 18mm;
-    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.15);
     box-sizing: border-box;
     border-radius: 2px;
-    transform-origin: top center;
-    transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
   }
 
   table {
     border-collapse: collapse;
     width: 100%;
+    background-color: #ffffff;
   }
   .tbl-info {
     margin-bottom: 14px;
     font-size: 9.5pt;
+    background-color: #ffffff;
   }
   .tbl-info td {
     padding: 3px 4px;
     vertical-align: top;
+    background-color: #ffffff;
   }
   .tbl-score {
     margin-bottom: 16px;
     font-size: 9.5pt;
     border: 1px solid #334155;
+    background-color: #ffffff;
   }
   .tbl-score th {
     background-color: #f1f5f9;
@@ -595,11 +601,13 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     text-align: center;
     font-weight: 700;
     font-size: 11pt;
+    background-color: #ffffff;
   }
   .tbl-soal {
     border: 1px solid #334155;
     font-size: 9.5pt;
     margin-top: 10px;
+    background-color: #ffffff;
   }
   .tbl-soal th {
     background-color: #e2e8f0;
@@ -612,6 +620,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     border: 1px solid #334155;
     padding: 6px 6px;
     vertical-align: top;
+    background-color: #ffffff;
   }
   .essay-ans {
     font-size: 9pt;
@@ -625,15 +634,17 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     margin-top: 25px;
     font-size: 10pt;
     border: none;
+    background-color: #ffffff;
     page-break-inside: avoid;
     break-inside: avoid;
   }
   .signature-box td {
     border: none;
     padding: 4px;
+    background-color: #ffffff;
   }
 
-  /* Penyesuaian Toolbar Khusus Mobile */
+  /* Penyesuaian Tampilan Layar HP / Mobile */
   @media screen and (max-width: 768px) {
     .no-print-bar {
       padding: 0.4rem 0.5rem;
@@ -672,11 +683,42 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       border-top: 1px solid rgba(255,255,255,0.08);
     }
     .preview-container {
-      padding: 12px 4px 40px 4px;
+      padding: 10px 8px 40px 8px;
+    }
+    .paper-page {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      min-height: auto !important;
+      padding: 14px 10px !important;
+      margin: 0 auto !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.12) !important;
+      border-radius: 4px !important;
+    }
+    .tbl-info {
+      font-size: 8.5pt;
+    }
+    .tbl-info td {
+      padding: 2px 2px;
+    }
+    .tbl-score {
+      font-size: 8pt;
+    }
+    .tbl-score th, .tbl-score td {
+      padding: 4px 2px;
+    }
+    .tbl-score td {
+      font-size: 10pt;
+    }
+    .tbl-soal {
+      font-size: 8.5pt;
+    }
+    .tbl-soal th, .tbl-soal td {
+      padding: 4px 4px;
     }
   }
 
-  /* Cetak Printer Otentik A4 (Tanpa Skala / Bebas Margin Browser) */
+  /* Cetak Printer Otentik A4 */
   @media print {
     .no-print, .no-print-bar {
       display: none !important;
@@ -688,12 +730,15 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     }
     .preview-container {
       padding: 0 !important;
+      margin: 0 !important;
+      background: #ffffff !important;
+      display: block !important;
       overflow: visible !important;
       min-height: auto !important;
     }
     .paper-scaler {
-      height: auto !important;
       display: block !important;
+      height: auto !important;
     }
     .paper-page {
       width: 100% !important;
@@ -704,6 +749,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       padding: 0 !important;
       box-shadow: none !important;
       border: none !important;
+      zoom: 1.0 !important;
       transform: none !important;
     }
     tr {
@@ -745,8 +791,8 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       <button type="button" class="btn-zoom" onclick="changeZoom(0.1)" title="Perbesar">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       </button>
-      <button type="button" class="btn-zoom-preset active" id="btn-zoom-fit" onclick="setZoomMode('fit')">Fit</button>
-      <button type="button" class="btn-zoom-preset" id="btn-zoom-100" onclick="setZoomMode(1.0)">100%</button>
+      <button type="button" class="btn-zoom-preset active" id="btn-zoom-fit" onclick="setZoomPreset('fit')">Fit</button>
+      <button type="button" class="btn-zoom-preset" id="btn-zoom-100" onclick="setZoomPreset(1.0)">100%</button>
     </div>
   </div>
 
@@ -929,81 +975,58 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </div>
 </div>
 
-<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
-<script>
-let currentScale = 1.0;
-let isFitMode = true;
+<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></scri<script>
+let currentZoom = 1.0;
 
-function calculateFitScale() {
-    const container = document.querySelector(".preview-container");
+function applyZoom(z) {
     const paper = document.getElementById("printable-area");
-    if (!container || !paper) return 1.0;
-    
-    // Lebar kertas A4 standar adalah 210mm (~794px pada 96 DPI)
-    const paperWidth = 794;
-    const availWidth = container.clientWidth - 16;
-    if (availWidth < paperWidth) {
-        return Math.max(0.35, Math.min(1.0, availWidth / paperWidth));
-    }
-    return 1.0;
-}
-
-function updatePaperTransform() {
-    const paper = document.getElementById("printable-area");
-    const scaler = document.getElementById("paper-scaler");
     const label = document.getElementById("zoom-label");
-    const fitBtn = document.getElementById("btn-zoom-fit");
     const btn100 = document.getElementById("btn-zoom-100");
-    if (!paper || !scaler) return;
+    const fitBtn = document.getElementById("btn-zoom-fit");
+    if (!paper) return;
 
-    let scale = currentScale;
-    if (isFitMode) {
-        scale = calculateFitScale();
+    currentZoom = Math.max(0.4, Math.min(2.0, z));
+
+    // Gunakan CSS zoom standar browser modern (Brave, Chrome, Firefox 126+)
+    // CSS zoom menjaga seluruh konten kertas memanjang utuh dan tidak pernah terpotong
+    if ("zoom" in paper.style) {
+        paper.style.zoom = currentZoom;
+        paper.style.transform = "none";
+    } else {
+        paper.style.transform = `scale(${currentZoom})`;
+        paper.style.transformOrigin = "top center";
     }
-
-    paper.style.transform = `scale(${scale})`;
-    paper.style.transformOrigin = "top center";
-
-    // Sesuaikan tinggi container scaler agar scroll vertikal pas sempurna
-    const unscaledHeight = paper.offsetHeight;
-    scaler.style.height = `${Math.ceil(unscaledHeight * scale)}px`;
 
     if (label) {
-        label.textContent = isFitMode ? "Fit" : `${Math.round(scale * 100)}%`;
+        label.textContent = `${Math.round(currentZoom * 100)}%`;
     }
-    if (fitBtn) fitBtn.classList.toggle("active", isFitMode);
-    if (btn100) btn100.classList.toggle("active", !isFitMode && Math.abs(scale - 1.0) < 0.05);
-}
-
-function setZoomMode(mode) {
-    if (mode === "fit") {
-        isFitMode = true;
-        currentScale = calculateFitScale();
-    } else {
-        isFitMode = false;
-        currentScale = parseFloat(mode) || 1.0;
+    if (btn100) {
+        btn100.classList.toggle("active", Math.abs(currentZoom - 1.0) < 0.05);
     }
-    updatePaperTransform();
 }
 
 function changeZoom(delta) {
-    if (isFitMode) {
-        isFitMode = false;
-        currentScale = calculateFitScale();
-    }
-    currentScale = Math.max(0.35, Math.min(2.0, currentScale + delta));
-    updatePaperTransform();
+    applyZoom(currentZoom + delta);
 }
 
-window.addEventListener("resize", () => {
-    if (isFitMode) {
-        updatePaperTransform();
+function setZoomPreset(mode) {
+    const container = document.querySelector(".preview-container");
+    if (mode === "fit") {
+        if (window.innerWidth <= 768) {
+            applyZoom(1.0);
+        } else if (container && container.clientWidth < 840) {
+            const fitRatio = Math.max(0.4, (container.clientWidth - 32) / 794);
+            applyZoom(fitRatio);
+        } else {
+            applyZoom(1.0);
+        }
+    } else {
+        applyZoom(1.0);
     }
-});
+}
 
 window.addEventListener("DOMContentLoaded", () => {
-    // Di mobile / layar kecil langsung default ke Fit to Width
-    setZoomMode("fit");
+    applyZoom(1.0);
 });
 
 function downloadPdfDirectly() {
@@ -1017,12 +1040,10 @@ function downloadPdfDirectly() {
         btn.innerHTML = "<span>⏳ Memproses PDF...</span>";
     }
     const element = document.getElementById("printable-area");
+    const prevZoom = element.style.zoom;
     const prevTransform = element.style.transform;
-    const prevTransformOrigin = element.style.transformOrigin;
-
-    // Hilangkan skala CSS sementara agar html2canvas menangkap resolusi A4 asli
+    element.style.zoom = "1.0";
     element.style.transform = "none";
-    element.style.transformOrigin = "initial";
 
     const opt = {
         margin:       [10, 12, 10, 12],
@@ -1033,15 +1054,15 @@ function downloadPdfDirectly() {
         pagebreak:    { mode: ["avoid-all", "css", "legacy"] }
     };
     html2pdf().set(opt).from(element).save().then(function() {
+        element.style.zoom = prevZoom;
         element.style.transform = prevTransform;
-        element.style.transformOrigin = prevTransformOrigin;
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
         }
     }).catch(function(err) {
+        element.style.zoom = prevZoom;
         element.style.transform = prevTransform;
-        element.style.transformOrigin = prevTransformOrigin;
         console.error(err);
         if (btn) {
             btn.disabled = false;
@@ -1057,7 +1078,7 @@ window.addEventListener("load", function() {
         setTimeout(downloadPdfDirectly, 300);
     }
 });
-</script>
+</script>ipt>
 </body>
 </html>
 
