@@ -1704,6 +1704,10 @@ body.page-login #cbt-toast-container {
         box-shadow: none;
         padding: 0;
     }
+
+    .card-status-collapsed {
+        display: none !important;
+    }
 }
 
 /* ==========================================================================
@@ -2910,4 +2914,42 @@ td[data-label="Aksi"] .btn {
 
 .cards-grid-3 tr.expanded .cbt-mobile-extend-btn svg {
     transform: rotate(180deg) !important;
+}
+
+/* Status badge di header kartu saat collapsed (di sebelah kiri tombol dropdown) */
+.card-status-collapsed {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
+}
+
+.card-status-collapsed .badge {
+    font-size: 0.72rem !important;
+    padding: 0.2rem 0.55rem !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+}
+
+/* Saat kartu dibuka (expanded), status di header disembunyikan karena kembali ke bawah (detail list) */
+.cards-grid-3 tr.expanded .card-status-collapsed,
+.table-mobile-cards tr.expanded .card-status-collapsed {
+    display: none !important;
+}
+
+.cards-grid-3 .card-student-name,
+.table-mobile-cards .card-student-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gray-900);
+}
+
+.cards-grid-3 tr.expanded .card-student-name,
+.table-mobile-cards tr.expanded .card-student-name {
+    white-space: normal;
+    word-break: break-word;
 }

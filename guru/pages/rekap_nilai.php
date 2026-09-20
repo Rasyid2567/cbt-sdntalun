@@ -339,6 +339,45 @@ include __DIR__ . '/../layouts/header.php';
     .cards-grid-3 td.mobile-no-cell { display: table-cell !important; }
     .cards-grid-3 td::before { display: none !important; }
     .cards-grid-3 .cbt-mobile-extend-btn { display: none !important; }
+    .card-status-collapsed { display: none !important; }
+}
+
+/* Status badge di header kartu saat collapsed (di sebelah kiri tombol dropdown) */
+.card-status-collapsed {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
+}
+
+.card-status-collapsed .badge {
+    font-size: 0.72rem !important;
+    padding: 0.2rem 0.55rem !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+}
+
+/* Saat kartu dibuka (expanded), status di header disembunyikan karena kembali ke bawah (detail list) */
+.cards-grid-3 tr.expanded .card-status-collapsed,
+.table-mobile-cards tr.expanded .card-status-collapsed {
+    display: none !important;
+}
+
+.cards-grid-3 .card-student-name,
+.table-mobile-cards .card-student-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gray-900);
+}
+
+.cards-grid-3 tr.expanded .card-student-name,
+.table-mobile-cards tr.expanded .card-student-name {
+    white-space: normal;
+    word-break: break-word;
 }
 </style>
 
@@ -475,7 +514,16 @@ include __DIR__ . '/../layouts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Nama Siswa">
-                                        <strong style="color: var(--gray-900);"><?= sanitize($r['nama_lengkap']) ?></strong>
+                                        <strong class="card-student-name"><?= sanitize($r['nama_lengkap']) ?></strong>
+                                        <span class="card-status-collapsed">
+                                            <?php if ($r['status_ujian'] === 'selesai'): ?>
+                                                <span class="badge badge-online">SELESAI</span>
+                                            <?php elseif ($r['status_ujian'] === 'sedang'): ?>
+                                                <span class="badge badge-aktif">SEDANG</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-offline">BELUM</span>
+                                            <?php endif; ?>
+                                        </span>
                                     </td>
                                     <td data-label="Waktu">
                                         <?php if ($r['waktu_mulai']): ?>
@@ -505,9 +553,9 @@ include __DIR__ . '/../layouts/header.php';
                                         <?php if ($r['status_ujian'] === 'selesai'): ?>
                                             <span class="badge badge-online">SELESAI</span>
                                         <?php elseif ($r['status_ujian'] === 'sedang'): ?>
-                                            <span class="badge badge-aktif">SEDANG MENGERJAKAN</span>
+                                            <span class="badge badge-aktif">SEDANG</span>
                                         <?php else: ?>
-                                            <span class="badge badge-offline">BELUM MENGERJAKAN</span>
+                                            <span class="badge badge-offline">BELUM</span>
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Benar" style="text-align: center; font-weight: 600;">
