@@ -2804,6 +2804,7 @@ td[data-label="Aksi"] .btn {
     text-align: right !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    min-height: 35px !important;
 }
 
 .cards-grid-3 tr.expanded td.mobile-detail-cell {
@@ -2837,7 +2838,8 @@ td[data-label="Aksi"] .btn {
     display: none !important;
     border-top: 1px solid var(--gray-200) !important;
     padding-top: 0.65rem !important;
-    margin-top: 0.45rem !important;
+    margin-top: auto !important;
+    min-height: 48px !important;
     text-align: center !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -2875,6 +2877,14 @@ td[data-label="Aksi"] .btn {
 
 .cards-grid-3 td[data-label="Aksi"] form .btn {
     width: 100% !important;
+}
+
+.cards-grid-3 td[data-label="Aksi"] .btn[disabled] {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #cbd5e1 !important;
 }
 
 .cards-grid-3 .cbt-mobile-extend-btn {

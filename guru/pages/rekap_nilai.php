@@ -379,6 +379,27 @@ include __DIR__ . '/../layouts/header.php';
     white-space: normal;
     word-break: break-word;
 }
+
+/* Samakan tinggi dan struktur tiap baris kartu agar kartu belum selesai & selesai berukuran persis sama */
+.cards-grid-3 td.mobile-primary-cell {
+    min-height: 36px !important;
+}
+.cards-grid-3 td.mobile-detail-cell {
+    min-height: 35px !important;
+    box-sizing: border-box !important;
+}
+.cards-grid-3 td[data-label="Aksi"] {
+    min-height: 48px !important;
+    margin-top: auto !important;
+    box-sizing: border-box !important;
+}
+.cards-grid-3 td[data-label="Aksi"] .btn[disabled] {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #cbd5e1 !important;
+}
 </style>
 
 <main class="container" style="max-width: 1380px;">
@@ -591,7 +612,16 @@ include __DIR__ . '/../layouts/header.php';
                                                 </a>
                                             </div>
                                         <?php else: ?>
-                                            <span class="text-muted text-xs font-bold">-</span>
+                                            <div class="flex" style="gap: 0.35rem; align-items: center; justify-content: center; width: 100%;">
+                                                <button type="button" class="btn btn-sm btn-secondary" disabled style="opacity: 0.45; cursor: not-allowed; padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Siswa belum mengerjakan ujian">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                    <span>Detail & Nilai</span>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-secondary" disabled style="opacity: 0.45; cursor: not-allowed; padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Siswa belum mengerjakan ujian">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                                    <span>Ekspor PDF</span>
+                                                </button>
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
