@@ -1,10 +1,11 @@
 <?php
 /**
  * Modul Rekapitulasi Nilai Ujian Siswa (Guru Penguji)
- * Mendukung Ekspor CSV dan Tampilan Cetak (Printable View)
+ * Mendukung Ekspor CSV dengan Rincian Skor Tiap Soal
  */
 
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../config/scoring.php';
 
 $currentUser = auth_check(['guru', 'operator']);
 $db = get_db();
@@ -56,7 +57,13 @@ $selectedSesiId = !empty($_GET['id_sesi']) ? (int)$_GET['id_sesi'] : ($allSessio
 
 $sesiDetail = null;
 $rekapList = [];
+$daftarSoal = [];
+$soalMeta = [];
+$jawabanMap = [];
 $totalSoalUjian = 0;
+$totalPG = 0;
+$totalEssai = 0;
+$totalBobotMaksimal = 0.00;
 
 if ($selectedSesiId > 0) {
     // Detail Sesi
@@ -81,30 +88,50 @@ if ($selectedSesiId > 0) {
     $sesiDetail = $stmtDet->fetch();
 
     if ($sesiDetail) {
+        // Ambil Daftar Butir Soal Sesi Ujian (Master Urutan Soal 1..N)
         if (!empty($sesiDetail['id_paket'])) {
-            $stmtStat = $db->prepare("
-                SELECT COUNT(*) as total_soal,
-                       COUNT(CASE WHEN jenis_soal NOT IN ('uraian', 'essai') OR jenis_soal IS NULL THEN 1 END) as total_pg,
-                       COUNT(CASE WHEN jenis_soal IN ('uraian', 'essai') THEN 1 END) as total_essai
+            $stmtSoalList = $db->prepare("
+                SELECT id_soal, jenis_soal, bobot_soal, kunci_jawaban, pertanyaan
                 FROM bank_soal 
                 WHERE id_paket = :p
+                ORDER BY id_soal ASC
             ");
-            $stmtStat->execute([':p' => $sesiDetail['id_paket']]);
+            $stmtSoalList->execute([':p' => $sesiDetail['id_paket']]);
         } else {
-            $stmtStat = $db->prepare("
-                SELECT COUNT(*) as total_soal,
-                       COUNT(CASE WHEN jenis_soal NOT IN ('uraian', 'essai') OR jenis_soal IS NULL THEN 1 END) as total_pg,
-                       COUNT(CASE WHEN jenis_soal IN ('uraian', 'essai') THEN 1 END) as total_essai
+            $stmtSoalList = $db->prepare("
+                SELECT id_soal, jenis_soal, bobot_soal, kunci_jawaban, pertanyaan
                 FROM bank_soal 
                 WHERE id_paket IN (SELECT id_paket FROM paket_soal WHERE id_mapel = :m)
+                ORDER BY id_soal ASC
             ");
-            $stmtStat->execute([':m' => $sesiDetail['id_mapel']]);
+            $stmtSoalList->execute([':m' => $sesiDetail['id_mapel']]);
         }
-        $statRow = $stmtStat->fetch();
+        $daftarSoal = $stmtSoalList->fetchAll();
 
-        $totalSoalUjian = (int)($statRow['total_soal'] ?? 0);
-        $totalPG        = (int)($statRow['total_pg'] ?? 0);
-        $totalEssai     = (int)($statRow['total_essai'] ?? 0);
+        foreach ($daftarSoal as $idx => $s) {
+            $normJenis = cbt_normalize_jenis_soal($s['jenis_soal'] ?? 'pg_1', $s['kunci_jawaban'] ?? null);
+            $meta = cbt_get_soal_meta($normJenis, $s['kunci_jawaban'] ?? null);
+            $bobot = ($s['bobot_soal'] !== null && $s['bobot_soal'] !== '' && is_numeric($s['bobot_soal']) && (float)$s['bobot_soal'] > 0)
+                ? (float)$s['bobot_soal']
+                : cbt_get_default_bobot($normJenis, $s['kunci_jawaban'] ?? null);
+            $totalBobotMaksimal += $bobot;
+
+            if ($normJenis === 'uraian') {
+                $totalEssai++;
+            } else {
+                $totalPG++;
+            }
+
+            $soalMeta[$s['id_soal']] = [
+                'index'      => $idx + 1,
+                'id_soal'    => $s['id_soal'],
+                'norm_jenis' => $normJenis,
+                'meta'       => $meta,
+                'bobot'      => $bobot,
+                'pertanyaan' => $s['pertanyaan'],
+            ];
+        }
+        $totalSoalUjian = count($daftarSoal);
 
         // Auto-finalize ujian siswa jika sesi ujian SUDAH ditutup/nonaktif oleh guru
         $stmtAutoClose = $db->prepare("
@@ -159,10 +186,25 @@ if ($selectedSesiId > 0) {
         ");
         $stmtRekap->execute([':sesi' => $selectedSesiId, ':kelas' => $sesiDetail['id_kelas']]);
         $rekapList = $stmtRekap->fetchAll();
+
+        // Ambil data jawaban dan skor butir per siswa
+        $ujianSiswaIds = array_filter(array_column($rekapList, 'id_ujian_siswa'));
+        if (!empty($ujianSiswaIds)) {
+            $placeholders = implode(',', array_fill(0, count($ujianSiswaIds), '?'));
+            $stmtJwb = $db->prepare("
+                SELECT id_ujian_siswa, id_soal, jawaban_terpilih, nilai_soal
+                FROM jawaban_siswa
+                WHERE id_ujian_siswa IN ($placeholders)
+            ");
+            $stmtJwb->execute(array_values($ujianSiswaIds));
+            while ($jRow = $stmtJwb->fetch()) {
+                $jawabanMap[$jRow['id_ujian_siswa']][$jRow['id_soal']] = $jRow;
+            }
+        }
     }
 }
 
-// Tangani Export CSV
+// Tangani Export CSV (Lengkap dengan Skor Tiap Butir Soal)
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     if (!$sesiDetail) {
         flash_set('danger', 'Sesi ujian tidak ditemukan untuk diekspor.');
@@ -184,7 +226,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
     $output = fopen('php://output', 'w');
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
     fwrite($output, "sep=,\n");
-    fputcsv($output, ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Pengerjaan', 'Status Ujian', 'Jumlah Benar', 'Total Butir Soal', 'Skor Diperoleh', 'Skor Maksimal', 'Nilai Akhir']);
+
+    // Header Kolom CSV (Termasuk Kolom Skor Tiap Soal)
+    $csvHeader = ['No', 'NIS', 'Username', 'Nama Lengkap Siswa', 'Kelas', 'Waktu Pengerjaan', 'Status Ujian'];
+    foreach ($daftarSoal as $idx => $s) {
+        $sm = $soalMeta[$s['id_soal']];
+        $bobotDisplay = (float)$sm['bobot'] == (int)$sm['bobot'] ? (int)$sm['bobot'] : number_format($sm['bobot'], 1);
+        $csvHeader[] = 'Soal ' . ($idx + 1) . ' (' . $sm['meta']['short_label'] . ' - Max ' . $bobotDisplay . ')';
+    }
+    $csvHeader[] = 'Jumlah Benar';
+    $csvHeader[] = 'Total Butir Soal';
+    $csvHeader[] = 'Skor Diperoleh';
+    $csvHeader[] = 'Skor Maksimal';
+    $csvHeader[] = 'Nilai Akhir';
+
+    fputcsv($output, $csvHeader);
 
     foreach ($rekapList as $idx => $r) {
         $waktuPengerjaan = '-';
@@ -202,21 +258,53 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
             }
         }
 
-        fputcsv($output, [
+        $hasStarted = (!empty($r['id_ujian_siswa']) && ($r['status_ujian'] ?? '') !== 'belum');
+
+        $rowItem = [
             $idx + 1,
             $r['nis'] ?? '-',
             $r['username'],
             $r['nama_lengkap'],
             $r['nama_kelas'],
             $waktuPengerjaan,
-            strtoupper($r['status_ujian'] ?? 'BELUM'),
-            $r['jumlah_benar'],
-            $totalPG,
-            $r['nilai_pg'],
-            $totalEssai,
-            $r['nilai_essai'] !== null ? $r['nilai_essai'] : '-',
-            $r['nilai_akhir']
-        ]);
+            strtoupper($r['status_ujian'] ?? 'BELUM')
+        ];
+
+        // Masukkan Skor Tiap Butir Soal Siswa
+        foreach ($daftarSoal as $s) {
+            $sId = $s['id_soal'];
+            $isUraian = ($soalMeta[$sId]['norm_jenis'] === 'uraian');
+
+            if (!$hasStarted) {
+                $rowItem[] = '-';
+            } else {
+                $jwb = $jawabanMap[$r['id_ujian_siswa']][$sId] ?? null;
+                if ($jwb === null && ($r['status_ujian'] ?? '') === 'sedang') {
+                    $rowItem[] = '-';
+                } else {
+                    $skorVal = $jwb['nilai_soal'] ?? null;
+                    if ($skorVal === null && $isUraian && !empty($jwb['jawaban_terpilih'])) {
+                        $rowItem[] = 'Belum Dinilai';
+                    } else {
+                        if ($skorVal === null && $jwb !== null && !$isUraian) {
+                            $eval = cbt_evaluasi_soal($s, $jwb['jawaban_terpilih'] ?? null, null);
+                            $numSkor = (float)$eval['skor'];
+                        } else {
+                            $numSkor = (float)($skorVal ?? 0.0);
+                        }
+                        $rowItem[] = ($numSkor == (int)$numSkor) ? (int)$numSkor : number_format($numSkor, 1);
+                    }
+                }
+            }
+        }
+
+        $rowItem[] = $hasStarted ? $r['jumlah_benar'] : '-';
+        $rowItem[] = count($daftarSoal);
+        $rowItem[] = $hasStarted ? (float)$r['total_skor'] : '-';
+        $rowItem[] = (float)$totalBobotMaksimal;
+        $rowItem[] = $hasStarted ? (float)$r['nilai_akhir'] : '-';
+
+        fputcsv($output, $rowItem);
     }
 
     fclose($output);
@@ -239,6 +327,18 @@ include __DIR__ . '/../layouts/header.php';
     .table th, .table td { border: 1px solid #333 !important; padding: 5px 8px !important; color: #000 !important; }
     .badge { border: none !important; padding: 0 !important; background: transparent !important; color: #000 !important; font-weight: bold; }
     @page { margin: 15mm 12mm; }
+
+    /* Reset cards-grid-3 ke tampilan tabel standar saat dicetak */
+    .cards-grid-3 { overflow: visible !important; }
+    .cards-grid-3 table { display: table !important; width: 100% !important; }
+    .cards-grid-3 thead { display: table-header-group !important; }
+    .cards-grid-3 tbody { display: table-row-group !important; }
+    .cards-grid-3 tbody tr { display: table-row !important; border: 1px solid #333 !important; }
+    .cards-grid-3 td { display: table-cell !important; border: 1px solid #333 !important; }
+    .cards-grid-3 td.mobile-detail-cell { display: table-cell !important; }
+    .cards-grid-3 td.mobile-no-cell { display: table-cell !important; }
+    .cards-grid-3 td::before { display: none !important; }
+    .cards-grid-3 .cbt-mobile-extend-btn { display: none !important; }
 }
 </style>
 
@@ -256,7 +356,6 @@ include __DIR__ . '/../layouts/header.php';
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">
                 <a href="<?= base_url('guru?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
-                <button type="button" class="btn btn-primary" onclick="window.print()">Cetak Laporan</button>
             </div>
         <?php endif; ?>
     </div>
@@ -326,8 +425,25 @@ include __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
 
-            <!-- Tabel Nilai Siswa (Auto-Card on Mobile) -->
-            <div class="table-responsive table-mobile-cards">
+            <!-- Kontrol Expand / Collapse Semua Kartu Siswa -->
+            <div class="flex-between mb-3 no-print" style="align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div class="text-sm text-muted">
+                    Daftar Siswa: <strong><?= count($rekapList) ?></strong> siswa
+                </div>
+                <div class="flex" style="gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(true)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Buka detail semua kartu">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                        Buka Semua
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(false)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Tutup detail semua kartu">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"></path></svg>
+                        Tutup Semua
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabel Nilai Siswa (Cards Grid: 3 Siswa Per Baris di Desktop, Auto-Responsive di Mobile) -->
+            <div class="table-responsive table-mobile-cards cards-grid-3">
                 <table class="table" style="table-layout: auto;">
                     <thead>
                         <tr>
@@ -337,7 +453,10 @@ include __DIR__ . '/../layouts/header.php';
                             <th style="width: 120px;">Waktu</th>
                             <th style="text-align: center; width: 130px;">Status</th>
                             <th style="text-align: center; width: 85px;">Benar</th>
-                            <th style="text-align: center; width: 95px;">Skor Butir</th>
+                            <th style="text-align: center; width: 95px;">Nilai PG</th>
+                            <?php if ($totalEssai > 0): ?>
+                                <th style="text-align: center; width: 95px;">Nilai Essai</th>
+                            <?php endif; ?>
                             <th style="text-align: center; width: 95px;">Nilai Akhir</th>
                             <th style="text-align: center; width: 125px;" class="no-print">Aksi</th>
                         </tr>
@@ -413,7 +532,7 @@ include __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td data-label="Aksi" class="no-print" style="text-align: center; white-space: nowrap;">
                                         <?php if (!empty($r['id_ujian_siswa'])): ?>
-                                            <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: center;">
+                                            <div class="flex" style="gap: 0.35rem; align-items: center; justify-content: center;">
                                                 <a href="<?= base_url('guru?page=detail_jawaban&id_ujian_siswa=' . (int)$r['id_ujian_siswa'] . '&id_sesi=' . (int)$selectedSesiId) ?>" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Lihat Lembar Jawaban & Penilaian">
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                     <span>Detail & Nilai</span>
