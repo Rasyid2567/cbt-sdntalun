@@ -227,9 +227,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 flash_set('danger', "Kode mapel '{$kode_mapel}' sudah digunakan oleh mata pelajaran lain.");
             } else {
-                $upd = $db->prepare("UPDATE mapel SET nama_mapel = :n, kode_mapel = :k, urutan = :u WHERE id_mapel = :id");
-                $upd->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':u' => $urutan, ':id' => $id_mapel]);
+                $db->beginTransaction();
+
+                // Ambil daftar semua ID mapel yang terurut saat ini
+                $all = $db->query("SELECT id_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll(PDO::FETCH_COLUMN);
+
+                // Jika urutan diubah ke angka spesifik, reposisi dalam array
+                if ($urutan > 0 && in_array($id_mapel, $all)) {
+                    $filtered = array_values(array_diff($all, [$id_mapel]));
+                    $targetIndex = max(0, min($urutan - 1, count($filtered)));
+                    array_splice($filtered, $targetIndex, 0, [$id_mapel]);
+                    $newOrderList = $filtered;
+                } else {
+                    $newOrderList = $all;
+                }
+
+                // Update data nama dan kode mapel
+                $updInfo = $db->prepare("UPDATE mapel SET nama_mapel = :n, kode_mapel = :k WHERE id_mapel = :id");
+                $updInfo->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':id' => $id_mapel]);
+
+                // Update urutan secara sekuensial (1, 2, 3...) untuk seluruh mapel agar tidak terjadi duplikasi urutan
+                $updUrutan = $db->prepare("UPDATE mapel SET urutan = :u WHERE id_mapel = :id");
+                $pos = 1;
+                $finalUrutan = 1;
+                foreach ($newOrderList as $idM) {
+                    $updUrutan->execute([':u' => $pos, ':id' => (int)$idM]);
+                    if ((int)$idM === $id_mapel) {
+                        $finalUrutan = $pos;
+                    }
+                    $pos++;
+                }
+
+                $db->commit();
+
                 if ($isAjax) {
+                    $updatedList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel, COALESCE(urutan, 0) AS urutan FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll(PDO::FETCH_ASSOC);
                     header('Content-Type: application/json');
                     echo json_encode([
                         'status' => 'success',
@@ -238,8 +270,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'id_mapel' => $id_mapel,
                             'nama_mapel' => $nama_mapel,
                             'kode_mapel' => $kode_mapel,
-                            'urutan' => $urutan
-                        ]
+                            'urutan' => $finalUrutan
+                        ],
+                        'mapel' => $updatedList
                     ]);
                     exit;
                 }
@@ -800,6 +833,14 @@ function openEditMapelModalFromRow(btn) {
     if (!row) return;
     try {
         const data = JSON.parse(row.getAttribute("data-mapel"));
+        // Pastikan urutan selalu membaca posisi nomor baris terkini di tabel
+        const numCol = row.querySelector(".col-mapel-num");
+        if (numCol) {
+            const currentNum = parseInt(numCol.textContent.trim(), 10);
+            if (!isNaN(currentNum)) {
+                data.urutan = currentNum;
+            }
+        }
         openEditMapelModal(data);
     } catch (e) {
         console.error("Gagal parse data mapel", e);
@@ -855,6 +896,13 @@ function refreshTableOrderAndButtons() {
         const btnDown = row.querySelector(".btn-geser-down");
         if (btnUp) btnUp.style.visibility = (idx === 0) ? "hidden" : "visible";
         if (btnDown) btnDown.style.visibility = (idx === rows.length - 1) ? "hidden" : "visible";
+
+        // Selalu sinkronkan urutan ke data-mapel di setiap baris tabel
+        try {
+            const mapelData = JSON.parse(row.getAttribute("data-mapel") || "{}");
+            mapelData.urutan = idx + 1;
+            row.setAttribute("data-mapel", JSON.stringify(mapelData));
+        } catch (e) {}
     });
 }
 
@@ -890,6 +938,19 @@ async function handleGeserMapel(idMapel, arah) {
         });
         const json = await res.json();
         if (json.status === "success") {
+            if (json.mapel) {
+                const tbody = document.getElementById("mapel-table-body");
+                if (tbody) {
+                    json.mapel.forEach(m => {
+                        const r = document.getElementById("row-mapel-" + m.id_mapel);
+                        if (r) {
+                            r.setAttribute("data-mapel", JSON.stringify(m));
+                            tbody.appendChild(r);
+                        }
+                    });
+                    refreshTableOrderAndButtons();
+                }
+            }
             if (window.cbtToast) window.cbtToast(json.message, "success", 2500);
             syncModalListFromTable();
         } else {
@@ -1025,19 +1086,36 @@ document.addEventListener("DOMContentLoaded", () => {
                 const json = await res.json();
                 if (json.status === "success") {
                     const d = json.data;
-                    const row = document.getElementById("row-mapel-" + d.id_mapel);
-                    if (row) {
-                        row.querySelector(".col-mapel-kode").textContent = d.kode_mapel;
-                        row.querySelector(".col-mapel-nama").textContent = d.nama_mapel;
-                        row.setAttribute("data-mapel", JSON.stringify(d));
-                        row.style.background = "#f0fdf4";
-                        setTimeout(() => { row.style.background = ""; }, 500);
+                    const tbody = document.getElementById("mapel-table-body");
+
+                    // Susun ulang posisi baris tabel jika server mengirimkan urutan terbaru
+                    if (tbody && json.mapel) {
+                        json.mapel.forEach(m => {
+                            const r = document.getElementById("row-mapel-" + m.id_mapel);
+                            if (r) {
+                                r.querySelector(".col-mapel-kode").textContent = m.kode_mapel;
+                                r.querySelector(".col-mapel-nama").textContent = m.nama_mapel;
+                                r.setAttribute("data-mapel", JSON.stringify(m));
+                                tbody.appendChild(r);
+                            }
+                        });
+                        refreshTableOrderAndButtons();
                     }
+
+                    const movedRow = document.getElementById("row-mapel-" + d.id_mapel);
+                    if (movedRow) {
+                        movedRow.style.background = "#f0fdf4";
+                        setTimeout(() => { movedRow.style.background = ""; }, 800);
+                    }
+
+                    // Sinkronkan juga teks di modal urutan
                     const modalItem = document.querySelector('.sortable-mapel-item[data-id="' + d.id_mapel + '"]');
                     if (modalItem) {
                         modalItem.querySelector(".badge-role").textContent = d.kode_mapel;
                         modalItem.querySelector("strong").textContent = d.nama_mapel;
                     }
+                    syncModalListFromTable();
+
                     closeModal("modal-edit-mapel");
                     if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
                 } else {
