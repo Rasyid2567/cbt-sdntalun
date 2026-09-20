@@ -510,15 +510,9 @@ include __DIR__ . '/../layouts/header.php';
     <!-- TAB 2: MAPEL -->
     <?php if ($activeTab === 'mapel'): ?>
         <div class="card">
-            <div class="flex-between mb-3" style="flex-wrap: wrap; gap: 0.5rem;">
+            <div class="flex-between mb-3">
                 <h2 class="card-title">Mata Pelajaran</h2>
-                <div class="flex" style="gap: 0.5rem;">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="openModal('modal-ubah-urutan-mapel')">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg>
-                        Ubah Urutan
-                    </button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-tambah-mapel')">+ Tambah Mapel</button>
-                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-tambah-mapel')">+ Tambah Mapel</button>
             </div>
             <div class="table-responsive">
                 <table class="table">
@@ -855,35 +849,6 @@ function openEditMapelModal(data) {
     openModal("modal-edit-mapel");
 }
 
-function moveMapelItem(btn, direction) {
-    const item = btn.closest(".sortable-mapel-item");
-    const list = document.getElementById("sortable-mapel-list");
-    if (!item || !list) return;
-
-    if (direction === -1) {
-        const prev = item.previousElementSibling;
-        if (prev) {
-            list.insertBefore(item, prev);
-            updateSortNumbers();
-        }
-    } else if (direction === 1) {
-        const next = item.nextElementSibling;
-        if (next) {
-            list.insertBefore(next, item);
-            updateSortNumbers();
-        }
-    }
-}
-
-function updateSortNumbers() {
-    const list = document.getElementById("sortable-mapel-list");
-    if (!list) return;
-    const items = list.querySelectorAll(".sortable-mapel-item");
-    items.forEach((it, idx) => {
-        const numEl = it.querySelector(".sort-num");
-        if (numEl) numEl.textContent = idx + 1;
-    });
-}
 
 function refreshTableOrderAndButtons() {
     const tbody = document.getElementById("mapel-table-body");
@@ -952,8 +917,7 @@ async function handleGeserMapel(idMapel, arah) {
                 }
             }
             if (window.cbtToast) window.cbtToast(json.message, "success", 2500);
-            syncModalListFromTable();
-        } else {
+                    } else {
             if (window.cbtToast) window.cbtToast(json.message || "Gagal mengubah urutan", "danger");
         }
     } catch (err) {
@@ -994,9 +958,7 @@ async function handleHapusMapel(idMapel, namaMapel) {
                 setTimeout(() => {
                     row.remove();
                     refreshTableOrderAndButtons();
-                    const modalItem = document.querySelector('.sortable-mapel-item[data-id="' + idMapel + '"]');
-                    if (modalItem) modalItem.remove();
-                    updateSortNumbers();
+
                 }, 300);
             }
             if (window.cbtToast) window.cbtToast(json.message, "danger", 3000);
@@ -1008,66 +970,9 @@ async function handleHapusMapel(idMapel, namaMapel) {
     }
 }
 
-function syncModalListFromTable() {
-    const tbody = document.getElementById("mapel-table-body");
-    const modalList = document.getElementById("sortable-mapel-list");
-    if (!tbody || !modalList) return;
-    const rows = tbody.querySelectorAll("tr[id^='row-mapel-']:not(#row-empty-mapel)");
-    rows.forEach(row => {
-        const id = row.getAttribute("data-id");
-        const item = modalList.querySelector('.sortable-mapel-item[data-id="' + id + '"]');
-        if (item) modalList.appendChild(item);
-    });
-    updateSortNumbers();
-}
-
 // Event Listeners untuk Form Modal
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Modal Ubah Urutan - AJAX Submit
-    const formUrutan = document.getElementById("form-ubah-urutan-mapel");
-    if (formUrutan) {
-        formUrutan.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const btnSubmit = formUrutan.querySelector('button[type="submit"]');
-            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = "Menyimpan..."; }
-
-            const formData = new FormData(formUrutan);
-            formData.append("ajax", "1");
-
-            try {
-                const targetUrl = formUrutan.getAttribute("action") || "<?= base_url('operator?page=guru_crud') ?>";
-            const res = await fetch(targetUrl, {
-                    method: "POST",
-                    headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
-                    body: formData
-                });
-                const json = await res.json();
-                if (json.status === "success") {
-                    const tbody = document.getElementById("mapel-table-body");
-                    if (tbody && json.mapel) {
-                        json.mapel.forEach(m => {
-                            const row = document.getElementById("row-mapel-" + m.id_mapel);
-                            if (row) {
-                                row.setAttribute("data-mapel", JSON.stringify(m));
-                                tbody.appendChild(row);
-                            }
-                        });
-                        refreshTableOrderAndButtons();
-                    }
-                    closeModal("modal-ubah-urutan-mapel");
-                    if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
-                } else {
-                    if (window.cbtToast) window.cbtToast(json.message || "Gagal menyimpan urutan", "danger");
-                }
-            } catch (err) {
-                console.error("Error simpan urutan:", err);
-            } finally {
-                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = "Simpan Urutan"; }
-            }
-        });
-    }
-
-    // 2. Modal Edit Mapel - AJAX Submit
+    // 1. Modal Edit Mapel - AJAX Submit
     const formEditMapel = document.querySelector("#modal-edit-mapel form");
     if (formEditMapel) {
         formEditMapel.addEventListener("submit", async (e) => {
@@ -1110,14 +1015,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         setTimeout(() => { movedRow.style.background = ""; }, 800);
                     }
 
-                    // Sinkronkan juga teks di modal urutan
-                    const modalItem = document.querySelector('.sortable-mapel-item[data-id="' + d.id_mapel + '"]');
-                    if (modalItem) {
-                        modalItem.querySelector(".badge-role").textContent = d.kode_mapel;
-                        modalItem.querySelector("strong").textContent = d.nama_mapel;
-                    }
-                    syncModalListFromTable();
 
+                    
                     closeModal("modal-edit-mapel");
                     if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
                 } else {
@@ -1131,7 +1030,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // 3. Modal Tambah Mapel - AJAX Submit
+    // 2. Modal Tambah Mapel - AJAX Submit
     const formTambahMapel = document.querySelector("#modal-tambah-mapel form");
     if (formTambahMapel) {
         formTambahMapel.addEventListener("submit", async (e) => {
@@ -1180,29 +1079,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         refreshTableOrderAndButtons();
                     }
 
-                    // Add to modal sortable list
-                    const modalList = document.getElementById("sortable-mapel-list");
-                    if (modalList) {
-                        const div = document.createElement("div");
-                        div.className = "sortable-mapel-item flex-between";
-                        div.draggable = true;
-                        div.setAttribute("data-id", d.id_mapel);
-                        div.style.cssText = "background: var(--bg-card, #fff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 0.6rem 0.85rem; cursor: grab; transition: all 0.2s ease; user-select: none;";
-                        div.innerHTML = `
-                            <input type="hidden" name="urutan_mapel[]" value="${d.id_mapel}">
-                            <div class="flex align-center" style="gap: 0.75rem;">
-                                <span class="sort-num" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #eff6ff; color: #2563eb; font-weight: 700; font-size: 0.82rem;"></span>
-                                <span class="badge badge-role" style="font-size: 0.78rem;">${d.kode_mapel}</span>
-                                <strong style="font-size: 0.9rem;">${d.nama_mapel}</strong>
-                            </div>
-                            <div class="flex" style="gap: 0.35rem;">
-                                <button type="button" class="btn btn-outline btn-sm btn-move-up" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke atas" onclick="moveMapelItem(this, -1)">▲</button>
-                                <button type="button" class="btn btn-outline btn-sm btn-move-down" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke bawah" onclick="moveMapelItem(this, 1)">▼</button>
-                            </div>
-                        `;
-                        modalList.appendChild(div);
-                        updateSortNumbers();
-                    }
+                    
 
                     formTambahMapel.reset();
                     closeModal("modal-tambah-mapel");
@@ -1218,38 +1095,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Drag and Drop initialization for modal
-    const list = document.getElementById("sortable-mapel-list");
-    if (list) {
-        let draggedItem = null;
-        list.addEventListener("dragstart", (e) => {
-            draggedItem = e.target.closest(".sortable-mapel-item");
-            if (draggedItem) {
-                e.dataTransfer.effectAllowed = "move";
-                draggedItem.style.opacity = "0.5";
-            }
-        });
-
-        list.addEventListener("dragend", (e) => {
-            if (draggedItem) {
-                draggedItem.style.opacity = "1";
-                draggedItem = null;
-                updateSortNumbers();
-            }
-        });
-
-        list.addEventListener("dragover", (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-            const target = e.target.closest(".sortable-mapel-item");
-            if (target && target !== draggedItem) {
-                const rect = target.getBoundingClientRect();
-                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
-                list.insertBefore(draggedItem, next ? target.nextSibling : target);
-            }
-        });
-    }
-});
+    });
 </script>
 <?php
 include __DIR__ . '/../layouts/footer.php';
