@@ -1035,7 +1035,8 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.append("ajax", "1");
 
             try {
-                const res = await fetch(formUrutan.action, {
+                const targetUrl = formUrutan.getAttribute("action") || "<?= base_url('operator?page=guru_crud') ?>";
+            const res = await fetch(targetUrl, {
                     method: "POST",
                     headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
                     body: formData
@@ -1078,7 +1079,8 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.append("ajax", "1");
 
             try {
-                const res = await fetch(formEditMapel.action, {
+                const targetUrl = formEditMapel.getAttribute("action") || "<?= base_url('operator?page=guru_crud') ?>";
+            const res = await fetch(targetUrl, {
                     method: "POST",
                     headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
                     body: formData
@@ -1141,7 +1143,8 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.append("ajax", "1");
 
             try {
-                const res = await fetch(formTambahMapel.action, {
+                const targetUrl = formTambahMapel.getAttribute("action") || "<?= base_url('operator?page=guru_crud') ?>";
+            const res = await fetch(targetUrl, {
                     method: "POST",
                     headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
                     body: formData
@@ -1159,7 +1162,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         tr.setAttribute("data-id", d.id_mapel);
                         tr.setAttribute("data-mapel", JSON.stringify(d));
                         tr.style.transition = "background 0.3s ease";
-                        const escapedNama = d.nama_mapel.replace(/'/g, "\'");
+                        const escapedNama = d.nama_mapel.replace(/'/g, "\\'");
                         tr.innerHTML = `
                             <td class="col-mapel-num"></td>
                             <td><span class="badge badge-role col-mapel-kode">${d.kode_mapel}</span></td>
