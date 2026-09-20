@@ -344,7 +344,6 @@ include __DIR__ . '/../layouts/header.php';
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">
                 <a href="<?= base_url('guru?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
-                <button type="button" class="btn btn-primary" onclick="window.print()">Cetak Laporan</button>
             </div>
         <?php endif; ?>
     </div>
