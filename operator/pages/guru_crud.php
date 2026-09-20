@@ -10,7 +10,16 @@ $db = get_db();
 
 // Tangani Operasi Form POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+           || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+           || (isset($_POST['ajax']) && $_POST['ajax'] === '1');
+
     if (!verify_csrf()) {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Validasi token keamanan gagal. Silakan muat ulang halaman.']);
+            exit;
+        }
         flash_set('danger', 'Validasi token keamanan gagal.');
         redirect(base_url('operator?page=guru_crud'));
     }
@@ -130,16 +139,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kode_mapel = trim($_POST['kode_mapel'] ?? '');
 
         if ($nama_mapel === '' || $kode_mapel === '') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Nama dan kode mata pelajaran wajib diisi.']);
+                exit;
+            }
             flash_set('danger', 'Nama dan kode mata pelajaran wajib diisi.');
         } else {
             $cek = $db->prepare("SELECT id_mapel FROM mapel WHERE kode_mapel = :k");
             $cek->execute([':k' => $kode_mapel]);
             if ($cek->fetch()) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['status' => 'error', 'message' => "Kode mapel '{$kode_mapel}' sudah ada."]);
+                    exit;
+                }
                 flash_set('danger', "Kode mapel '{$kode_mapel}' sudah ada.");
             } else {
                 $maxUrutan = (int)$db->query("SELECT COALESCE(MAX(urutan), 0) FROM mapel")->fetchColumn();
                 $ins = $db->prepare("INSERT INTO mapel (nama_mapel, kode_mapel, urutan) VALUES (:n, :k, :u)");
                 $ins->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':u' => $maxUrutan + 1]);
+                $newId = (int)$db->lastInsertId('mapel_id_mapel_seq');
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'status' => 'success',
+                        'message' => 'Mata pelajaran berhasil ditambahkan.',
+                        'data' => [
+                            'id_mapel' => $newId,
+                            'nama_mapel' => $nama_mapel,
+                            'kode_mapel' => $kode_mapel,
+                            'urutan' => $maxUrutan + 1
+                        ]
+                    ]);
+                    exit;
+                }
                 flash_set('success', 'Mata pelajaran berhasil ditambahkan.');
             }
         }
@@ -152,7 +186,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $del = $db->prepare("DELETE FROM mapel WHERE id_mapel = :id");
             $del->execute([':id' => $id]);
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'success', 'message' => 'Mata pelajaran berhasil dihapus.', 'id_mapel' => $id]);
+                exit;
+            }
             flash_set('danger', 'Mata pelajaran berhasil dihapus.');
+        } else {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'ID mapel tidak valid.']);
+                exit;
+            }
         }
         redirect(base_url('operator?page=guru_crud&tab=mapel'));
     }
@@ -165,15 +210,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $urutan     = isset($_POST['urutan']) && $_POST['urutan'] !== '' ? (int)$_POST['urutan'] : 0;
 
         if ($id_mapel <= 0 || $nama_mapel === '' || $kode_mapel === '') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Nama dan kode mata pelajaran wajib diisi.']);
+                exit;
+            }
             flash_set('danger', 'Nama dan kode mata pelajaran wajib diisi.');
         } else {
             $cek = $db->prepare("SELECT id_mapel FROM mapel WHERE kode_mapel = :k AND id_mapel != :id");
             $cek->execute([':k' => $kode_mapel, ':id' => $id_mapel]);
             if ($cek->fetch()) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['status' => 'error', 'message' => "Kode mapel '{$kode_mapel}' sudah digunakan oleh mata pelajaran lain."]);
+                    exit;
+                }
                 flash_set('danger', "Kode mapel '{$kode_mapel}' sudah digunakan oleh mata pelajaran lain.");
             } else {
                 $upd = $db->prepare("UPDATE mapel SET nama_mapel = :n, kode_mapel = :k, urutan = :u WHERE id_mapel = :id");
                 $upd->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':u' => $urutan, ':id' => $id_mapel]);
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'status' => 'success',
+                        'message' => 'Mata pelajaran berhasil diperbarui.',
+                        'data' => [
+                            'id_mapel' => $id_mapel,
+                            'nama_mapel' => $nama_mapel,
+                            'kode_mapel' => $kode_mapel,
+                            'urutan' => $urutan
+                        ]
+                    ]);
+                    exit;
+                }
                 flash_set('success', 'Mata pelajaran berhasil diperbarui.');
             }
         }
@@ -192,7 +261,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pos++;
             }
             $db->commit();
+            if ($isAjax) {
+                $updatedList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel, COALESCE(urutan, 0) AS urutan FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll(PDO::FETCH_ASSOC);
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'success', 'message' => 'Urutan mata pelajaran berhasil disimpan.', 'mapel' => $updatedList]);
+                exit;
+            }
             flash_set('success', 'Urutan mata pelajaran berhasil disimpan.');
+        } else {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Daftar urutan kosong.']);
+                exit;
+            }
         }
         redirect(base_url('operator?page=guru_crud&tab=mapel'));
     }
@@ -220,6 +301,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $upd->execute([':u' => $pos + 1, ':id' => (int)$idM]);
                 }
                 $db->commit();
+                if ($isAjax) {
+                    $updatedList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel, COALESCE(urutan, 0) AS urutan FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll(PDO::FETCH_ASSOC);
+                    header('Content-Type: application/json');
+                    echo json_encode(['status' => 'success', 'message' => 'Urutan mata pelajaran berhasil diubah.', 'mapel' => $updatedList]);
+                    exit;
+                }
                 flash_set('success', 'Urutan mata pelajaran berhasil diubah.');
             }
         }
@@ -410,52 +497,21 @@ include __DIR__ . '/../layouts/header.php';
                             <th style="width: 230px; text-align: center;">Aksi</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="mapel-table-body">
                         <?php if (empty($mapelList)): ?>
-                            <tr><td colspan="4" class="text-center text-muted" style="padding: 2rem;">Belum ada mata pelajaran.</td></tr>
+                            <tr id="row-empty-mapel"><td colspan="4" class="text-center text-muted" style="padding: 2rem;">Belum ada mata pelajaran.</td></tr>
                         <?php else: ?>
                             <?php foreach ($mapelList as $idx => $m): ?>
-                                <tr>
-                                    <td><?= $idx + 1 ?></td>
-                                    <td><span class="badge badge-role"><?= sanitize($m['kode_mapel']) ?></span></td>
-                                    <td><strong><?= sanitize($m['nama_mapel']) ?></strong></td>
+                                <tr id="row-mapel-<?= $m['id_mapel'] ?>" data-id="<?= $m['id_mapel'] ?>" data-mapel='<?= htmlspecialchars(json_encode($m), ENT_QUOTES, "UTF-8") ?>' style="transition: background 0.3s ease;">
+                                    <td class="col-mapel-num"><?= $idx + 1 ?></td>
+                                    <td><span class="badge badge-role col-mapel-kode"><?= sanitize($m['kode_mapel']) ?></span></td>
+                                    <td><strong class="col-mapel-nama"><?= sanitize($m['nama_mapel']) ?></strong></td>
                                     <td style="text-align: center;">
-                                        <div class="flex" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
-                                            <!-- Tombol Geser Cepat Naik / Turun -->
-                                            <?php if ($idx > 0): ?>
-                                                <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;">
-                                                    <?= csrf_field() ?>
-                                                    <input type="hidden" name="action" value="geser_urutan_mapel">
-                                                    <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
-                                                    <input type="hidden" name="arah" value="up">
-                                                    <button type="submit" class="btn btn-sm btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke atas">▲</button>
-                                                </form>
-                                            <?php else: ?>
-                                                <span style="display:inline-block; width: 23px;"></span>
-                                            <?php endif; ?>
-
-                                            <?php if ($idx < count($mapelList) - 1): ?>
-                                                <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;">
-                                                    <?= csrf_field() ?>
-                                                    <input type="hidden" name="action" value="geser_urutan_mapel">
-                                                    <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
-                                                    <input type="hidden" name="arah" value="down">
-                                                    <button type="submit" class="btn btn-sm btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke bawah">▼</button>
-                                                </form>
-                                            <?php else: ?>
-                                                <span style="display:inline-block; width: 23px;"></span>
-                                            <?php endif; ?>
-
-                                            <!-- Tombol Edit Mapel -->
-                                            <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick='openEditMapelModal(<?= json_encode($m) ?>)'>Edit</button>
-
-                                            <!-- Tombol Hapus Mapel -->
-                                            <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Hapus mata pelajaran <?= sanitize($m['nama_mapel']) ?>? Peringatan: Menghapus mapel akan menghapus semua paket soal dan sesi terkait!" data-confirm-title="Hapus Mata Pelajaran" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
-                                                <?= csrf_field() ?>
-                                                <input type="hidden" name="action" value="hapus_mapel">
-                                                <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Hapus</button>
-                                            </form>
+                                        <div class="flex col-mapel-actions" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                            <button type="button" class="btn btn-sm btn-outline btn-geser-mapel btn-geser-up" style="padding: 0.2rem 0.45rem; font-size: 0.72rem; <?= $idx === 0 ? 'visibility:hidden;' : '' ?>" title="Pindahkan ke atas" onclick="handleGeserMapel(<?= $m['id_mapel'] ?>, 'up')">▲</button>
+                                            <button type="button" class="btn btn-sm btn-outline btn-geser-mapel btn-geser-down" style="padding: 0.2rem 0.45rem; font-size: 0.72rem; <?= $idx === count($mapelList) - 1 ? 'visibility:hidden;' : '' ?>" title="Pindahkan ke bawah" onclick="handleGeserMapel(<?= $m['id_mapel'] ?>, 'down')">▼</button>
+                                            <button type="button" class="btn btn-sm btn-outline btn-edit-mapel" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick="openEditMapelModalFromRow(this)">Edit</button>
+                                            <button type="button" class="btn btn-sm btn-danger btn-hapus-mapel" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick="handleHapusMapel(<?= $m['id_mapel'] ?>, '<?= htmlspecialchars(addslashes($m['nama_mapel']), ENT_QUOTES, "UTF-8") ?>')">Hapus</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -725,7 +781,8 @@ include __DIR__ . '/../layouts/header.php';
 </div>
 
 <?php
-$extraJs = '
+?>
+
 <script>
 function openEditGuruModal(data) {
     document.getElementById("edit-guru-id").value = data.id_user;
@@ -736,6 +793,17 @@ function openEditGuruModal(data) {
     document.getElementById("edit-guru-kelas").value = data.id_kelas || "";
     document.getElementById("edit-guru-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit-guru");
+}
+
+function openEditMapelModalFromRow(btn) {
+    const row = btn.closest("tr");
+    if (!row) return;
+    try {
+        const data = JSON.parse(row.getAttribute("data-mapel"));
+        openEditMapelModal(data);
+    } catch (e) {
+        console.error("Gagal parse data mapel", e);
+    }
 }
 
 function openEditMapelModal(data) {
@@ -776,12 +844,303 @@ function updateSortNumbers() {
     });
 }
 
-(function initMapelDragAndDrop() {
-    document.addEventListener("DOMContentLoaded", () => {
-        const list = document.getElementById("sortable-mapel-list");
-        if (!list) return;
-        let draggedItem = null;
+function refreshTableOrderAndButtons() {
+    const tbody = document.getElementById("mapel-table-body");
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll("tr[id^='row-mapel-']:not(#row-empty-mapel)"));
+    rows.forEach((row, idx) => {
+        const numCol = row.querySelector(".col-mapel-num");
+        if (numCol) numCol.textContent = idx + 1;
+        const btnUp = row.querySelector(".btn-geser-up");
+        const btnDown = row.querySelector(".btn-geser-down");
+        if (btnUp) btnUp.style.visibility = (idx === 0) ? "hidden" : "visible";
+        if (btnDown) btnDown.style.visibility = (idx === rows.length - 1) ? "hidden" : "visible";
+    });
+}
 
+// Handler Geser Naik/Turun secara Instan via AJAX
+async function handleGeserMapel(idMapel, arah) {
+    const row = document.getElementById("row-mapel-" + idMapel);
+    const tbody = document.getElementById("mapel-table-body");
+    if (!row || !tbody) return;
+
+    // Optimistic UI update in table immediately
+    if (arah === "up" && row.previousElementSibling && row.previousElementSibling.id.startsWith("row-mapel-")) {
+        tbody.insertBefore(row, row.previousElementSibling);
+    } else if (arah === "down" && row.nextElementSibling && row.nextElementSibling.id.startsWith("row-mapel-")) {
+        tbody.insertBefore(row.nextElementSibling, row);
+    }
+    refreshTableOrderAndButtons();
+    row.style.background = "#eff6ff";
+    setTimeout(() => { row.style.background = ""; }, 400);
+
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || "";
+    const formData = new FormData();
+    formData.append("action", "geser_urutan_mapel");
+    formData.append("id_mapel", idMapel);
+    formData.append("arah", arah);
+    formData.append("csrf_token", csrfToken);
+    formData.append("ajax", "1");
+
+    try {
+        const res = await fetch("<?= base_url('operator?page=guru_crud') ?>", {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+            body: formData
+        });
+        const json = await res.json();
+        if (json.status === "success") {
+            if (window.cbtToast) window.cbtToast(json.message, "success", 2500);
+            syncModalListFromTable();
+        } else {
+            if (window.cbtToast) window.cbtToast(json.message || "Gagal mengubah urutan", "danger");
+        }
+    } catch (err) {
+        console.error("Error geser mapel:", err);
+    }
+}
+
+// Handler Hapus Mapel via AJAX
+async function handleHapusMapel(idMapel, namaMapel) {
+    const ok = await window.cbtConfirm({
+        title: "Hapus Mata Pelajaran",
+        message: "Hapus mata pelajaran " + namaMapel + "? Peringatan: Menghapus mapel akan menghapus semua paket soal dan sesi terkait!",
+        type: "danger",
+        confirmText: "Ya, Hapus"
+    });
+    if (!ok) return;
+
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || "";
+    const formData = new FormData();
+    formData.append("action", "hapus_mapel");
+    formData.append("id_mapel", idMapel);
+    formData.append("csrf_token", csrfToken);
+    formData.append("ajax", "1");
+
+    try {
+        const res = await fetch("<?= base_url('operator?page=guru_crud') ?>", {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+            body: formData
+        });
+        const json = await res.json();
+        if (json.status === "success") {
+            const row = document.getElementById("row-mapel-" + idMapel);
+            if (row) {
+                row.style.transition = "all 0.3s ease";
+                row.style.opacity = "0";
+                row.style.transform = "translateX(20px)";
+                setTimeout(() => {
+                    row.remove();
+                    refreshTableOrderAndButtons();
+                    const modalItem = document.querySelector('.sortable-mapel-item[data-id="' + idMapel + '"]');
+                    if (modalItem) modalItem.remove();
+                    updateSortNumbers();
+                }, 300);
+            }
+            if (window.cbtToast) window.cbtToast(json.message, "danger", 3000);
+        } else {
+            if (window.cbtToast) window.cbtToast(json.message || "Gagal menghapus mapel", "danger");
+        }
+    } catch (err) {
+        console.error("Error hapus mapel:", err);
+    }
+}
+
+function syncModalListFromTable() {
+    const tbody = document.getElementById("mapel-table-body");
+    const modalList = document.getElementById("sortable-mapel-list");
+    if (!tbody || !modalList) return;
+    const rows = tbody.querySelectorAll("tr[id^='row-mapel-']:not(#row-empty-mapel)");
+    rows.forEach(row => {
+        const id = row.getAttribute("data-id");
+        const item = modalList.querySelector('.sortable-mapel-item[data-id="' + id + '"]');
+        if (item) modalList.appendChild(item);
+    });
+    updateSortNumbers();
+}
+
+// Event Listeners untuk Form Modal
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. Modal Ubah Urutan - AJAX Submit
+    const formUrutan = document.getElementById("form-ubah-urutan-mapel");
+    if (formUrutan) {
+        formUrutan.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btnSubmit = formUrutan.querySelector('button[type="submit"]');
+            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = "Menyimpan..."; }
+
+            const formData = new FormData(formUrutan);
+            formData.append("ajax", "1");
+
+            try {
+                const res = await fetch(formUrutan.action, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                    body: formData
+                });
+                const json = await res.json();
+                if (json.status === "success") {
+                    const tbody = document.getElementById("mapel-table-body");
+                    if (tbody && json.mapel) {
+                        json.mapel.forEach(m => {
+                            const row = document.getElementById("row-mapel-" + m.id_mapel);
+                            if (row) {
+                                row.setAttribute("data-mapel", JSON.stringify(m));
+                                tbody.appendChild(row);
+                            }
+                        });
+                        refreshTableOrderAndButtons();
+                    }
+                    closeModal("modal-ubah-urutan-mapel");
+                    if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
+                } else {
+                    if (window.cbtToast) window.cbtToast(json.message || "Gagal menyimpan urutan", "danger");
+                }
+            } catch (err) {
+                console.error("Error simpan urutan:", err);
+            } finally {
+                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = "Simpan Urutan"; }
+            }
+        });
+    }
+
+    // 2. Modal Edit Mapel - AJAX Submit
+    const formEditMapel = document.querySelector("#modal-edit-mapel form");
+    if (formEditMapel) {
+        formEditMapel.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btnSubmit = formEditMapel.querySelector('button[type="submit"]');
+            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = "Menyimpan..."; }
+
+            const formData = new FormData(formEditMapel);
+            formData.append("ajax", "1");
+
+            try {
+                const res = await fetch(formEditMapel.action, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                    body: formData
+                });
+                const json = await res.json();
+                if (json.status === "success") {
+                    const d = json.data;
+                    const row = document.getElementById("row-mapel-" + d.id_mapel);
+                    if (row) {
+                        row.querySelector(".col-mapel-kode").textContent = d.kode_mapel;
+                        row.querySelector(".col-mapel-nama").textContent = d.nama_mapel;
+                        row.setAttribute("data-mapel", JSON.stringify(d));
+                        row.style.background = "#f0fdf4";
+                        setTimeout(() => { row.style.background = ""; }, 500);
+                    }
+                    const modalItem = document.querySelector('.sortable-mapel-item[data-id="' + d.id_mapel + '"]');
+                    if (modalItem) {
+                        modalItem.querySelector(".badge-role").textContent = d.kode_mapel;
+                        modalItem.querySelector("strong").textContent = d.nama_mapel;
+                    }
+                    closeModal("modal-edit-mapel");
+                    if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
+                } else {
+                    if (window.cbtToast) window.cbtToast(json.message || "Gagal memperbarui mapel", "danger");
+                }
+            } catch (err) {
+                console.error("Error edit mapel:", err);
+            } finally {
+                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = "Simpan Perubahan"; }
+            }
+        });
+    }
+
+    // 3. Modal Tambah Mapel - AJAX Submit
+    const formTambahMapel = document.querySelector("#modal-tambah-mapel form");
+    if (formTambahMapel) {
+        formTambahMapel.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btnSubmit = formTambahMapel.querySelector('button[type="submit"]');
+            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = "Menyimpan..."; }
+
+            const formData = new FormData(formTambahMapel);
+            formData.append("ajax", "1");
+
+            try {
+                const res = await fetch(formTambahMapel.action, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                    body: formData
+                });
+                const json = await res.json();
+                if (json.status === "success") {
+                    const d = json.data;
+                    const tbody = document.getElementById("mapel-table-body");
+                    const emptyRow = document.getElementById("row-empty-mapel");
+                    if (emptyRow) emptyRow.remove();
+
+                    if (tbody) {
+                        const tr = document.createElement("tr");
+                        tr.id = "row-mapel-" + d.id_mapel;
+                        tr.setAttribute("data-id", d.id_mapel);
+                        tr.setAttribute("data-mapel", JSON.stringify(d));
+                        tr.style.transition = "background 0.3s ease";
+                        const escapedNama = d.nama_mapel.replace(/'/g, "\'");
+                        tr.innerHTML = `
+                            <td class="col-mapel-num"></td>
+                            <td><span class="badge badge-role col-mapel-kode">${d.kode_mapel}</span></td>
+                            <td><strong class="col-mapel-nama">${d.nama_mapel}</strong></td>
+                            <td style="text-align: center;">
+                                <div class="flex col-mapel-actions" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                    <button type="button" class="btn btn-sm btn-outline btn-geser-mapel btn-geser-up" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke atas" onclick="handleGeserMapel(${d.id_mapel}, 'up')">▲</button>
+                                    <button type="button" class="btn btn-sm btn-outline btn-geser-mapel btn-geser-down" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke bawah" onclick="handleGeserMapel(${d.id_mapel}, 'down')">▼</button>
+                                    <button type="button" class="btn btn-sm btn-outline btn-edit-mapel" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick="openEditMapelModalFromRow(this)">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-danger btn-hapus-mapel" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick="handleHapusMapel(${d.id_mapel}, '${escapedNama}')">Hapus</button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                        refreshTableOrderAndButtons();
+                    }
+
+                    // Add to modal sortable list
+                    const modalList = document.getElementById("sortable-mapel-list");
+                    if (modalList) {
+                        const div = document.createElement("div");
+                        div.className = "sortable-mapel-item flex-between";
+                        div.draggable = true;
+                        div.setAttribute("data-id", d.id_mapel);
+                        div.style.cssText = "background: var(--bg-card, #fff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 0.6rem 0.85rem; cursor: grab; transition: all 0.2s ease; user-select: none;";
+                        div.innerHTML = `
+                            <input type="hidden" name="urutan_mapel[]" value="${d.id_mapel}">
+                            <div class="flex align-center" style="gap: 0.75rem;">
+                                <span class="sort-num" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #eff6ff; color: #2563eb; font-weight: 700; font-size: 0.82rem;"></span>
+                                <span class="badge badge-role" style="font-size: 0.78rem;">${d.kode_mapel}</span>
+                                <strong style="font-size: 0.9rem;">${d.nama_mapel}</strong>
+                            </div>
+                            <div class="flex" style="gap: 0.35rem;">
+                                <button type="button" class="btn btn-outline btn-sm btn-move-up" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke atas" onclick="moveMapelItem(this, -1)">▲</button>
+                                <button type="button" class="btn btn-outline btn-sm btn-move-down" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke bawah" onclick="moveMapelItem(this, 1)">▼</button>
+                            </div>
+                        `;
+                        modalList.appendChild(div);
+                        updateSortNumbers();
+                    }
+
+                    formTambahMapel.reset();
+                    closeModal("modal-tambah-mapel");
+                    if (window.cbtToast) window.cbtToast(json.message, "success", 3000);
+                } else {
+                    if (window.cbtToast) window.cbtToast(json.message || "Gagal menambah mapel", "danger");
+                }
+            } catch (err) {
+                console.error("Error tambah mapel:", err);
+            } finally {
+                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = "Simpan Mapel"; }
+            }
+        });
+    }
+
+    // Drag and Drop initialization for modal
+    const list = document.getElementById("sortable-mapel-list");
+    if (list) {
+        let draggedItem = null;
         list.addEventListener("dragstart", (e) => {
             draggedItem = e.target.closest(".sortable-mapel-item");
             if (draggedItem) {
@@ -808,9 +1167,8 @@ function updateSortNumbers() {
                 list.insertBefore(draggedItem, next ? target.nextSibling : target);
             }
         });
-    });
-})();
+    }
+});
 </script>
-';
-
+<?php
 include __DIR__ . '/../layouts/footer.php';
