@@ -34,7 +34,8 @@ CREATE TABLE kelas (
 CREATE TABLE mapel (
     id_mapel SERIAL PRIMARY KEY,
     nama_mapel VARCHAR(100) NOT NULL,
-    kode_mapel VARCHAR(20) UNIQUE NOT NULL
+    kode_mapel VARCHAR(20) UNIQUE NOT NULL,
+    urutan INT DEFAULT 0
 );
 
 -- 5. Tabel Users

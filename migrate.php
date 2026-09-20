@@ -39,6 +39,8 @@ try {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS orang_tua VARCHAR(100) NULL;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS no_hp_ortu VARCHAR(30) NULL;
 
+        ALTER TABLE mapel ADD COLUMN IF NOT EXISTS urutan INT DEFAULT 0;
+
         -- 2. Tambah kolom id_paket di bank_soal dan sesi_ujian
         ALTER TABLE bank_soal ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE CASCADE;
         ALTER TABLE sesi_ujian ADD COLUMN IF NOT EXISTS id_paket INT REFERENCES paket_soal(id_paket) ON DELETE SET NULL;

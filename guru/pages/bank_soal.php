@@ -307,7 +307,7 @@ $sqlMapel = "
     LEFT JOIN paket_soal p ON (m.id_mapel = p.id_mapel" . ($currentUser['role'] === 'guru' ? " AND p.id_guru = :g" : "") . ")
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
     GROUP BY m.id_mapel, m.nama_mapel, m.kode_mapel
-    ORDER BY m.nama_mapel ASC
+    ORDER BY COALESCE(m.urutan, 0) ASC, m.nama_mapel ASC
 ";
 $stmtMapel = $db->prepare($sqlMapel);
 $stmtMapel->execute($currentUser['role'] === 'guru' ? [':g' => $idGuru] : []);

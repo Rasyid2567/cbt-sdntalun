@@ -137,8 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetch()) {
                 flash_set('danger', "Kode mapel '{$kode_mapel}' sudah ada.");
             } else {
-                $ins = $db->prepare("INSERT INTO mapel (nama_mapel, kode_mapel) VALUES (:n, :k)");
-                $ins->execute([':n' => $nama_mapel, ':k' => $kode_mapel]);
+                $maxUrutan = (int)$db->query("SELECT COALESCE(MAX(urutan), 0) FROM mapel")->fetchColumn();
+                $ins = $db->prepare("INSERT INTO mapel (nama_mapel, kode_mapel, urutan) VALUES (:n, :k, :u)");
+                $ins->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':u' => $maxUrutan + 1]);
                 flash_set('success', 'Mata pelajaran berhasil ditambahkan.');
             }
         }
@@ -152,6 +153,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del = $db->prepare("DELETE FROM mapel WHERE id_mapel = :id");
             $del->execute([':id' => $id]);
             flash_set('danger', 'Mata pelajaran berhasil dihapus.');
+        }
+        redirect(base_url('operator?page=guru_crud&tab=mapel'));
+    }
+
+    // MAPEL: EDIT
+    if ($action === 'edit_mapel') {
+        $id_mapel   = (int)($_POST['id_mapel'] ?? 0);
+        $nama_mapel = trim($_POST['nama_mapel'] ?? '');
+        $kode_mapel = trim($_POST['kode_mapel'] ?? '');
+        $urutan     = isset($_POST['urutan']) && $_POST['urutan'] !== '' ? (int)$_POST['urutan'] : 0;
+
+        if ($id_mapel <= 0 || $nama_mapel === '' || $kode_mapel === '') {
+            flash_set('danger', 'Nama dan kode mata pelajaran wajib diisi.');
+        } else {
+            $cek = $db->prepare("SELECT id_mapel FROM mapel WHERE kode_mapel = :k AND id_mapel != :id");
+            $cek->execute([':k' => $kode_mapel, ':id' => $id_mapel]);
+            if ($cek->fetch()) {
+                flash_set('danger', "Kode mapel '{$kode_mapel}' sudah digunakan oleh mata pelajaran lain.");
+            } else {
+                $upd = $db->prepare("UPDATE mapel SET nama_mapel = :n, kode_mapel = :k, urutan = :u WHERE id_mapel = :id");
+                $upd->execute([':n' => $nama_mapel, ':k' => $kode_mapel, ':u' => $urutan, ':id' => $id_mapel]);
+                flash_set('success', 'Mata pelajaran berhasil diperbarui.');
+            }
+        }
+        redirect(base_url('operator?page=guru_crud&tab=mapel'));
+    }
+
+    // MAPEL: SIMPAN URUTAN (DARI MODAL UBAH URUTAN)
+    if ($action === 'simpan_urutan_mapel') {
+        $urutanList = $_POST['urutan_mapel'] ?? [];
+        if (!empty($urutanList) && is_array($urutanList)) {
+            $db->beginTransaction();
+            $upd = $db->prepare("UPDATE mapel SET urutan = :u WHERE id_mapel = :id");
+            $pos = 1;
+            foreach ($urutanList as $idM) {
+                $upd->execute([':u' => $pos, ':id' => (int)$idM]);
+                $pos++;
+            }
+            $db->commit();
+            flash_set('success', 'Urutan mata pelajaran berhasil disimpan.');
+        }
+        redirect(base_url('operator?page=guru_crud&tab=mapel'));
+    }
+
+    // MAPEL: GESER URUTAN (CEPAT NAIK / TURUN)
+    if ($action === 'geser_urutan_mapel') {
+        $id_mapel = (int)($_POST['id_mapel'] ?? 0);
+        $arah     = $_POST['arah'] ?? 'up';
+        if ($id_mapel > 0) {
+            $all = $db->query("SELECT id_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll(PDO::FETCH_COLUMN);
+            $idx = array_search($id_mapel, $all);
+            if ($idx !== false) {
+                if ($arah === 'up' && $idx > 0) {
+                    $temp = $all[$idx];
+                    $all[$idx] = $all[$idx - 1];
+                    $all[$idx - 1] = $temp;
+                } elseif ($arah === 'down' && $idx < count($all) - 1) {
+                    $temp = $all[$idx];
+                    $all[$idx] = $all[$idx + 1];
+                    $all[$idx + 1] = $temp;
+                }
+                $db->beginTransaction();
+                $upd = $db->prepare("UPDATE mapel SET urutan = :u WHERE id_mapel = :id");
+                foreach ($all as $pos => $idM) {
+                    $upd->execute([':u' => $pos + 1, ':id' => (int)$idM]);
+                }
+                $db->commit();
+                flash_set('success', 'Urutan mata pelajaran berhasil diubah.');
+            }
         }
         redirect(base_url('operator?page=guru_crud&tab=mapel'));
     }
@@ -200,7 +270,7 @@ try {
         ORDER BY k.nama_kelas NULLS LAST, u.nama_lengkap ASC
     ")->fetchAll();
 }
-$mapelList  = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY nama_mapel ASC")->fetchAll();
+$mapelList  = $db->query("SELECT id_mapel, nama_mapel, kode_mapel, COALESCE(urutan, 0) AS urutan FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll();
 $kelasList  = $db->query("SELECT id_kelas, nama_kelas FROM kelas ORDER BY nama_kelas ASC")->fetchAll();
 
 $page = 'guru_crud';
@@ -320,18 +390,24 @@ include __DIR__ . '/../layouts/header.php';
     <!-- TAB 2: MAPEL -->
     <?php if ($activeTab === 'mapel'): ?>
         <div class="card">
-            <div class="flex-between mb-3">
+            <div class="flex-between mb-3" style="flex-wrap: wrap; gap: 0.5rem;">
                 <h2 class="card-title">Mata Pelajaran</h2>
-                <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-tambah-mapel')">+ Tambah Mapel</button>
+                <div class="flex" style="gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="openModal('modal-ubah-urutan-mapel')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg>
+                        Ubah Urutan
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-tambah-mapel')">+ Tambah Mapel</button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">No</th>
+                            <th style="width: 60px;">No</th>
                             <th>Kode Mapel</th>
                             <th>Nama Mata Pelajaran</th>
-                            <th style="width: 120px; text-align: center;">Aksi</th>
+                            <th style="width: 230px; text-align: center;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -344,12 +420,43 @@ include __DIR__ . '/../layouts/header.php';
                                     <td><span class="badge badge-role"><?= sanitize($m['kode_mapel']) ?></span></td>
                                     <td><strong><?= sanitize($m['nama_mapel']) ?></strong></td>
                                     <td style="text-align: center;">
-                                        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline;" data-confirm="Hapus mata pelajaran <?= sanitize($m['nama_mapel']) ?>?" data-confirm-title="Hapus Mata Pelajaran" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="action" value="hapus_mapel">
-                                            <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
-                                        </form>
+                                        <div class="flex" style="gap: 0.35rem; justify-content: center; align-items: center; flex-wrap: nowrap;">
+                                            <!-- Tombol Geser Cepat Naik / Turun -->
+                                            <?php if ($idx > 0): ?>
+                                                <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="action" value="geser_urutan_mapel">
+                                                    <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
+                                                    <input type="hidden" name="arah" value="up">
+                                                    <button type="submit" class="btn btn-sm btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke atas">▲</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span style="display:inline-block; width: 23px;"></span>
+                                            <?php endif; ?>
+
+                                            <?php if ($idx < count($mapelList) - 1): ?>
+                                                <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="action" value="geser_urutan_mapel">
+                                                    <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
+                                                    <input type="hidden" name="arah" value="down">
+                                                    <button type="submit" class="btn btn-sm btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.72rem;" title="Pindahkan ke bawah">▼</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span style="display:inline-block; width: 23px;"></span>
+                                            <?php endif; ?>
+
+                                            <!-- Tombol Edit Mapel -->
+                                            <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick='openEditMapelModal(<?= json_encode($m) ?>)'>Edit</button>
+
+                                            <!-- Tombol Hapus Mapel -->
+                                            <form action="<?= base_url('operator?page=guru_crud&tab=mapel') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Hapus mata pelajaran <?= sanitize($m['nama_mapel']) ?>? Peringatan: Menghapus mapel akan menghapus semua paket soal dan sesi terkait!" data-confirm-title="Hapus Mata Pelajaran" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="action" value="hapus_mapel">
+                                                <input type="hidden" name="id_mapel" value="<?= $m['id_mapel'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Hapus</button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -531,6 +638,73 @@ include __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
+<!-- Modal Edit Mapel -->
+<div id="modal-edit-mapel" class="modal-overlay">
+    <div class="modal-box">
+        <h2 class="card-title mb-3">Edit Mata Pelajaran</h2>
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="edit_mapel">
+            <input type="hidden" name="id_mapel" id="edit-mapel-id" value="">
+            <div class="form-group">
+                <label>Kode Mapel</label>
+                <input type="text" name="kode_mapel" id="edit-mapel-kode" class="form-control" required placeholder="Contoh: IPAS">
+            </div>
+            <div class="form-group">
+                <label>Nama Mata Pelajaran</label>
+                <input type="text" name="nama_mapel" id="edit-mapel-nama" class="form-control" required placeholder="Contoh: Ilmu Pengetahuan Alam dan Sosial">
+            </div>
+            <div class="form-group">
+                <label>Nomor Urutan Tampilan</label>
+                <input type="number" name="urutan" id="edit-mapel-urutan" class="form-control" min="1" placeholder="Contoh: 1">
+                <small class="text-muted text-xs">Mata pelajaran dengan angka urutan lebih kecil akan tampil di atas.</small>
+            </div>
+            <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-mapel')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Ubah Urutan Mapel -->
+<div id="modal-ubah-urutan-mapel" class="modal-overlay">
+    <div class="modal-box" style="max-width: 560px;">
+        <div class="flex-between mb-2">
+            <h2 class="card-title" style="margin: 0;">Ubah Urutan Mata Pelajaran</h2>
+            <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('modal-ubah-urutan-mapel')">✕</button>
+        </div>
+        <p class="text-muted text-sm mb-3">Gunakan tombol <strong>▲ Naik</strong> dan <strong>▼ Turun</strong> atau geser (drag) baris untuk mengatur urutan mata pelajaran.</p>
+        
+        <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" id="form-ubah-urutan-mapel">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="simpan_urutan_mapel">
+            
+            <div id="sortable-mapel-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 52vh; overflow-y: auto; padding-right: 4px; margin-bottom: 1.25rem;">
+                <?php foreach ($mapelList as $idx => $m): ?>
+                    <div class="sortable-mapel-item flex-between" draggable="true" data-id="<?= $m['id_mapel'] ?>" style="background: var(--bg-card, #fff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 0.6rem 0.85rem; cursor: grab; transition: all 0.2s ease; user-select: none;">
+                        <input type="hidden" name="urutan_mapel[]" value="<?= $m['id_mapel'] ?>">
+                        <div class="flex align-center" style="gap: 0.75rem;">
+                            <span class="sort-num" style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #eff6ff; color: #2563eb; font-weight: 700; font-size: 0.82rem;"><?= $idx + 1 ?></span>
+                            <span class="badge badge-role" style="font-size: 0.78rem;"><?= sanitize($m['kode_mapel']) ?></span>
+                            <strong style="font-size: 0.9rem;"><?= sanitize($m['nama_mapel']) ?></strong>
+                        </div>
+                        <div class="flex" style="gap: 0.35rem;">
+                            <button type="button" class="btn btn-outline btn-sm btn-move-up" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke atas" onclick="moveMapelItem(this, -1)">▲</button>
+                            <button type="button" class="btn btn-outline btn-sm btn-move-down" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Geser ke bawah" onclick="moveMapelItem(this, 1)">▼</button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <div class="flex gap-2" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-ubah-urutan-mapel')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan Urutan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal Tambah Kelas -->
 <div id="modal-tambah-kelas" class="modal-overlay">
     <div class="modal-box">
@@ -563,6 +737,79 @@ function openEditGuruModal(data) {
     document.getElementById("edit-guru-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit-guru");
 }
+
+function openEditMapelModal(data) {
+    document.getElementById("edit-mapel-id").value = data.id_mapel;
+    document.getElementById("edit-mapel-kode").value = data.kode_mapel;
+    document.getElementById("edit-mapel-nama").value = data.nama_mapel;
+    document.getElementById("edit-mapel-urutan").value = data.urutan || 1;
+    openModal("modal-edit-mapel");
+}
+
+function moveMapelItem(btn, direction) {
+    const item = btn.closest(".sortable-mapel-item");
+    const list = document.getElementById("sortable-mapel-list");
+    if (!item || !list) return;
+
+    if (direction === -1) {
+        const prev = item.previousElementSibling;
+        if (prev) {
+            list.insertBefore(item, prev);
+            updateSortNumbers();
+        }
+    } else if (direction === 1) {
+        const next = item.nextElementSibling;
+        if (next) {
+            list.insertBefore(next, item);
+            updateSortNumbers();
+        }
+    }
+}
+
+function updateSortNumbers() {
+    const list = document.getElementById("sortable-mapel-list");
+    if (!list) return;
+    const items = list.querySelectorAll(".sortable-mapel-item");
+    items.forEach((it, idx) => {
+        const numEl = it.querySelector(".sort-num");
+        if (numEl) numEl.textContent = idx + 1;
+    });
+}
+
+(function initMapelDragAndDrop() {
+    document.addEventListener("DOMContentLoaded", () => {
+        const list = document.getElementById("sortable-mapel-list");
+        if (!list) return;
+        let draggedItem = null;
+
+        list.addEventListener("dragstart", (e) => {
+            draggedItem = e.target.closest(".sortable-mapel-item");
+            if (draggedItem) {
+                e.dataTransfer.effectAllowed = "move";
+                draggedItem.style.opacity = "0.5";
+            }
+        });
+
+        list.addEventListener("dragend", (e) => {
+            if (draggedItem) {
+                draggedItem.style.opacity = "1";
+                draggedItem = null;
+                updateSortNumbers();
+            }
+        });
+
+        list.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            const target = e.target.closest(".sortable-mapel-item");
+            if (target && target !== draggedItem) {
+                const rect = target.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                list.insertBefore(draggedItem, next ? target.nextSibling : target);
+            }
+        });
+    });
+})();
 </script>
 ';
 

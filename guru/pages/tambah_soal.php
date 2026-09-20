@@ -406,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Ambil Daftar Mapel
-$stmtMapel = $db->query("SELECT * FROM mapel ORDER BY nama_mapel ASC");
+$stmtMapel = $db->query("SELECT * FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
 $mapelList = $stmtMapel->fetchAll();
 
 // Ambil Daftar Judul untuk auto-suggest

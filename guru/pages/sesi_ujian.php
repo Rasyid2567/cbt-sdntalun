@@ -187,7 +187,7 @@ $stmtPaket->execute([':g' => $idGuru]);
 $paketList = $stmtPaket->fetchAll();
 
 // Ambil Daftar Mapel untuk Pilihan di Modal Tambah Sesi
-$stmtMapelList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY nama_mapel ASC");
+$stmtMapelList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
 $mapelList = $stmtMapelList->fetchAll();
 
 $paketCountPerMapel = [];

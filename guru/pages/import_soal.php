@@ -589,7 +589,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Data Mapel & Judul yang pernah ada
-$mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY nama_mapel ASC")->fetchAll();
+$mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll();
 $sqlJudul = "SELECT DISTINCT nama_paket FROM paket_soal";
 $pJudul = [];
 if ($currentUser['role'] === 'guru') {
