@@ -327,78 +327,6 @@ include __DIR__ . '/../layouts/header.php';
     .table th, .table td { border: 1px solid #333 !important; padding: 5px 8px !important; color: #000 !important; }
     .badge { border: none !important; padding: 0 !important; background: transparent !important; color: #000 !important; font-weight: bold; }
     @page { margin: 15mm 12mm; }
-
-    /* Reset cards-grid-3 ke tampilan tabel standar saat dicetak */
-    .cards-grid-3 { overflow: visible !important; }
-    .cards-grid-3 table { display: table !important; width: 100% !important; }
-    .cards-grid-3 thead { display: table-header-group !important; }
-    .cards-grid-3 tbody { display: table-row-group !important; }
-    .cards-grid-3 tbody tr { display: table-row !important; border: 1px solid #333 !important; }
-    .cards-grid-3 td { display: table-cell !important; border: 1px solid #333 !important; }
-    .cards-grid-3 td.mobile-detail-cell { display: table-cell !important; }
-    .cards-grid-3 td.mobile-no-cell { display: table-cell !important; }
-    .cards-grid-3 td::before { display: none !important; }
-    .cards-grid-3 .cbt-mobile-extend-btn { display: none !important; }
-    .card-status-collapsed { display: none !important; }
-}
-
-/* Status badge di header kartu saat collapsed (di sebelah kiri tombol dropdown) */
-.card-status-collapsed {
-    display: inline-flex !important;
-    align-items: center !important;
-    flex-shrink: 0 !important;
-    margin-left: auto !important;
-}
-
-.card-status-collapsed .badge {
-    font-size: 0.72rem !important;
-    padding: 0.2rem 0.55rem !important;
-    line-height: 1.2 !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.3px !important;
-}
-
-/* Saat kartu dibuka (expanded), status di header disembunyikan karena kembali ke bawah (detail list) */
-.cards-grid-3 tr.expanded .card-status-collapsed,
-.table-mobile-cards tr.expanded .card-status-collapsed {
-    display: none !important;
-}
-
-.cards-grid-3 .card-student-name,
-.table-mobile-cards .card-student-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--gray-900);
-}
-
-.cards-grid-3 tr.expanded .card-student-name,
-.table-mobile-cards tr.expanded .card-student-name {
-    white-space: normal;
-    word-break: break-word;
-}
-
-/* Samakan tinggi dan struktur tiap baris kartu agar kartu belum selesai & selesai berukuran persis sama */
-.cards-grid-3 td.mobile-primary-cell {
-    min-height: 36px !important;
-}
-.cards-grid-3 td.mobile-detail-cell {
-    min-height: 35px !important;
-    box-sizing: border-box !important;
-}
-.cards-grid-3 td[data-label="Aksi"] {
-    min-height: 48px !important;
-    margin-top: auto !important;
-    box-sizing: border-box !important;
-}
-.cards-grid-3 td[data-label="Aksi"] .btn[disabled] {
-    opacity: 0.45 !important;
-    cursor: not-allowed !important;
-    background: #f1f5f9 !important;
-    color: #94a3b8 !important;
-    border-color: #cbd5e1 !important;
 }
 </style>
 
@@ -416,6 +344,7 @@ include __DIR__ . '/../layouts/header.php';
         <?php if ($sesiDetail): ?>
             <div class="card-header-actions">
                 <a href="<?= base_url('guru?page=rekap_nilai&action=export_csv&id_sesi=' . $sesiDetail['id_sesi']) ?>" class="btn btn-secondary">Ekspor CSV</a>
+                <button type="button" class="btn btn-primary" onclick="window.print()">Cetak Laporan</button>
             </div>
         <?php endif; ?>
     </div>
@@ -485,25 +414,8 @@ include __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
 
-            <!-- Kontrol Expand / Collapse Semua Kartu Siswa -->
-            <div class="flex-between mb-3 no-print" style="align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-                <div class="text-sm text-muted">
-                    Daftar Siswa: <strong><?= count($rekapList) ?></strong> siswa
-                </div>
-                <div class="flex" style="gap: 0.5rem;">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(true)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Buka detail semua kartu">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
-                        Buka Semua
-                    </button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(false)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Tutup detail semua kartu">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"></path></svg>
-                        Tutup Semua
-                    </button>
-                </div>
-            </div>
-
-            <!-- Tabel Nilai Siswa (Cards Grid: 3 Siswa Per Baris di Desktop, Auto-Responsive di Mobile) -->
-            <div class="table-responsive table-mobile-cards cards-grid-3">
+            <!-- Tabel Nilai Siswa (Auto-Card on Mobile) -->
+            <div class="table-responsive table-mobile-cards">
                 <table class="table" style="table-layout: auto;">
                     <thead>
                         <tr>
@@ -535,16 +447,7 @@ include __DIR__ . '/../layouts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Nama Siswa">
-                                        <strong class="card-student-name"><?= sanitize($r['nama_lengkap']) ?></strong>
-                                        <span class="card-status-collapsed">
-                                            <?php if ($r['status_ujian'] === 'selesai'): ?>
-                                                <span class="badge badge-online">SELESAI</span>
-                                            <?php elseif ($r['status_ujian'] === 'sedang'): ?>
-                                                <span class="badge badge-aktif">SEDANG</span>
-                                            <?php else: ?>
-                                                <span class="badge badge-offline">BELUM</span>
-                                            <?php endif; ?>
-                                        </span>
+                                        <strong style="color: var(--gray-900);"><?= sanitize($r['nama_lengkap']) ?></strong>
                                     </td>
                                     <td data-label="Waktu">
                                         <?php if ($r['waktu_mulai']): ?>
@@ -574,9 +477,9 @@ include __DIR__ . '/../layouts/header.php';
                                         <?php if ($r['status_ujian'] === 'selesai'): ?>
                                             <span class="badge badge-online">SELESAI</span>
                                         <?php elseif ($r['status_ujian'] === 'sedang'): ?>
-                                            <span class="badge badge-aktif">SEDANG</span>
+                                            <span class="badge badge-aktif">SEDANG MENGERJAKAN</span>
                                         <?php else: ?>
-                                            <span class="badge badge-offline">BELUM</span>
+                                            <span class="badge badge-offline">BELUM MENGERJAKAN</span>
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Benar" style="text-align: center; font-weight: 600;">
@@ -612,16 +515,7 @@ include __DIR__ . '/../layouts/header.php';
                                                 </a>
                                             </div>
                                         <?php else: ?>
-                                            <div class="flex" style="gap: 0.35rem; align-items: center; justify-content: center; width: 100%;">
-                                                <button type="button" class="btn btn-sm btn-secondary" disabled style="opacity: 0.45; cursor: not-allowed; padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Siswa belum mengerjakan ujian">
-                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                                    <span>Detail & Nilai</span>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-secondary" disabled style="opacity: 0.45; cursor: not-allowed; padding: 0.3rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;" title="Siswa belum mengerjakan ujian">
-                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                                                    <span>Ekspor PDF</span>
-                                                </button>
-                                            </div>
+                                            <span class="text-muted text-xs font-bold">-</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
