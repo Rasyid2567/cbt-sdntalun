@@ -844,7 +844,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
         <td><?= htmlspecialchars((string)($detailUjian["nama_kelas"] ?: "-"), ENT_QUOTES, "UTF-8") ?></td>
         <td style="font-weight: bold;">Tanggal Ujian</td>
         <td>:</td>
-        <td><?= $tglUjianLaporan ?></td>
+        <td><?= !empty($detailUjian["waktu_mulai"]) ? date("d/m/Y H:i", strtotime($detailUjian["waktu_mulai"])) : "-" ?></td>
       </tr>
       <tr>
         <td style="font-weight: bold;">No. HP</td>
