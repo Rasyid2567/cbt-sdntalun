@@ -468,7 +468,7 @@ include __DIR__ . '/../layouts/header.php';
                                         <?php if (!empty($g['nama_kelas'])): ?>
                                             <span class="badge badge-aktif">Guru <?= sanitize($g['nama_kelas']) ?></span>
                                         <?php elseif (!empty($g['nama_mapel'])): ?>
-                                            <span class="badge" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-weight: 600;">Guru <?= sanitize($g['nama_mapel']) ?><?= !empty($g['kode_mapel']) ? ' (' . sanitize($g['kode_mapel']) . ')' : '' ?></span>
+                                            <span class="badge" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-weight: 600;">Guru <?= sanitize($g['nama_mapel']) ?></span>
                                         <?php else: ?>
                                             <span class="badge badge-offline">Guru Mapel Umum</span>
                                         <?php endif; ?>
@@ -611,47 +611,44 @@ include __DIR__ . '/../layouts/header.php';
                 <input type="text" name="username" class="form-control" required placeholder="Contoh: guru_kelas1">
             </div>
             <div class="form-group">
-                <label>Nama Lengkap (beserta Gelar)</label>
+                <label>Nama Lengkap</label>
                 <input type="text" name="nama_lengkap" class="form-control" required placeholder="Contoh: Siti Nurhaliza, S.Pd.SD">
             </div>
             <div class="form-group">
-                <label>NIP Guru (Nomor Induk Pegawai - Opsional)</label>
+                <label>NIP Guru (Opsional)</label>
                 <input type="text" name="nip" class="form-control" placeholder="Contoh: 198501012010011005">
             </div>
             <div class="form-group">
                 <label>No. HP / WhatsApp Guru (Opsional)</label>
-                <input type="tel" inputmode="numeric" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890 (Hanya Angka)">
-                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
+                <input type="tel" inputmode="numeric" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890">
             </div>
             <div class="form-group">
                 <label>Kata Sandi</label>
                 <input type="password" name="password" class="form-control" required placeholder="Kata sandi akun guru...">
             </div>
             <div class="form-group">
-                <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
+                <label>Penugasan Kelas</label>
                 <select name="id_kelas" class="form-control">
-                    <option value="">Bukan Guru Kelas (Guru Mapel / Semua Kelas)</option>
+                    <option value="">Bukan Guru Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <small class="text-muted text-xs">Pilih kelas jika guru ini adalah wali kelas. Kosongkan jika guru mata pelajaran (contoh: PAI/PJOK).</small>
             </div>
             <div class="form-group">
-                <label>Mata Pelajaran yang Diampu (Khusus Guru Mapel)</label>
+                <label>Mata Pelajaran yang Diampu</label>
                 <select name="id_mapel" class="form-control">
                     <option value="">-- Semua Mata Pelajaran / Guru Kelas --</option>
                     <?php foreach ($mapelList as $m): ?>
-                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?><?= !empty($m['kode_mapel']) ? ' (' . sanitize($m['kode_mapel']) . ')' : '' ?></option>
+                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <small class="text-muted text-xs">Pilih mapel jika guru ini mengampu mapel spesifik (contoh: PAI, PJOK).</small>
             </div>
             <div class="form-group">
                 <label>Status Akun</label>
                 <select name="status_akun" class="form-control">
-                    <option value="aktif" selected>Aktif (Dapat Login)</option>
-                    <option value="nonaktif">Nonaktif (Diblokir dari Login)</option>
+                    <option value="aktif" selected>Aktif</option>
+                    <option value="nonaktif">Nonaktif</option>
                 </select>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
@@ -680,41 +677,40 @@ include __DIR__ . '/../layouts/header.php';
                 <input type="text" id="edit-guru-nama" name="nama_lengkap" class="form-control" required>
             </div>
             <div class="form-group">
-                <label>NIP Guru (Nomor Induk Pegawai - Opsional)</label>
+                <label>NIP Guru (Opsional)</label>
                 <input type="text" id="edit-guru-nip" name="nip" class="form-control" placeholder="Contoh: 198501012010011005">
             </div>
             <div class="form-group">
                 <label>No. HP / WhatsApp Guru (Opsional)</label>
-                <input type="tel" inputmode="numeric" id="edit-guru-no_hp" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890 (Hanya Angka)">
-                <small class="text-muted text-xs">Hanya angka (contoh: 081234567890)</small>
+                <input type="tel" inputmode="numeric" id="edit-guru-no_hp" name="no_hp" class="form-control input-phone" maxlength="16" placeholder="Contoh: 081234567890">
             </div>
             <div class="form-group">
-                <label>Ganti Kata Sandi (Kosongkan jika tidak diubah)</label>
+                <label>Ganti Kata Sandi (Opsional)</label>
                 <input type="password" name="password" class="form-control" placeholder="Kata sandi baru...">
             </div>
             <div class="form-group">
-                <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
+                <label>Penugasan Kelas</label>
                 <select id="edit-guru-kelas" name="id_kelas" class="form-control">
-                    <option value="">Bukan Guru Kelas (Guru Mapel / Semua Kelas)</option>
+                    <option value="">Bukan Guru Kelas</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group">
-                <label>Mata Pelajaran yang Diampu (Khusus Guru Mapel)</label>
+                <label>Mata Pelajaran yang Diampu</label>
                 <select id="edit-guru-mapel" name="id_mapel" class="form-control">
                     <option value="">-- Semua Mata Pelajaran / Guru Kelas --</option>
                     <?php foreach ($mapelList as $m): ?>
-                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?><?= !empty($m['kode_mapel']) ? ' (' . sanitize($m['kode_mapel']) . ')' : '' ?></option>
+                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group">
                 <label>Status Akun</label>
                 <select id="edit-guru-status_akun" name="status_akun" class="form-control">
-                    <option value="aktif">Aktif (Dapat Login)</option>
-                    <option value="nonaktif">Nonaktif (Diblokir dari Login)</option>
+                    <option value="aktif">Aktif</option>
+                    <option value="nonaktif">Nonaktif</option>
                 </select>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
@@ -767,7 +763,6 @@ include __DIR__ . '/../layouts/header.php';
             <div class="form-group">
                 <label>Nomor Urutan Tampilan</label>
                 <input type="number" name="urutan" id="edit-mapel-urutan" class="form-control" min="1" placeholder="Contoh: 1">
-                <small class="text-muted text-xs">Mata pelajaran dengan angka urutan lebih kecil akan tampil di atas.</small>
             </div>
             <div class="flex gap-2 mt-4" style="justify-content: flex-end;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-mapel')">Batal</button>
