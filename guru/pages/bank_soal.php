@@ -299,6 +299,18 @@ $filterMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : (!empty($cur
 $search      = trim($_GET['search'] ?? '');
 
 // Ambil Statistik Paket per Mapel untuk Guru/Operator ini
+$whereMapelClause = "";
+$paramMapelQuery = [];
+if ($currentUser['role'] === 'guru') {
+    $paramMapelQuery[':g'] = $idGuru;
+    if (!empty($currentUser['id_mapel'])) {
+        $whereMapelClause = " WHERE m.id_mapel = :my_mapel ";
+        $paramMapelQuery[':my_mapel'] = (int)$currentUser['id_mapel'];
+    } else {
+        $whereMapelClause = " WHERE (m.id_mapel NOT IN (SELECT id_mapel FROM users WHERE role = 'guru' AND id_mapel IS NOT NULL AND status_akun = 'aktif' AND id_user != :g) OR p.id_paket IS NOT NULL) ";
+    }
+}
+
 $sqlMapel = "
     SELECT m.id_mapel, m.nama_mapel, m.kode_mapel,
            COUNT(DISTINCT p.id_paket) AS total_paket,
@@ -306,11 +318,12 @@ $sqlMapel = "
     FROM mapel m
     LEFT JOIN paket_soal p ON (m.id_mapel = p.id_mapel" . ($currentUser['role'] === 'guru' ? " AND p.id_guru = :g" : "") . ")
     LEFT JOIN bank_soal b ON p.id_paket = b.id_paket
+    {$whereMapelClause}
     GROUP BY m.id_mapel, m.nama_mapel, m.kode_mapel
     ORDER BY COALESCE(m.urutan, 0) ASC, m.nama_mapel ASC
 ";
 $stmtMapel = $db->prepare($sqlMapel);
-$stmtMapel->execute($currentUser['role'] === 'guru' ? [':g' => $idGuru] : []);
+$stmtMapel->execute($paramMapelQuery);
 $mapelList = $stmtMapel->fetchAll();
 
 $totalSemuaPaket = 0;

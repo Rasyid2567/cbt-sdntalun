@@ -44,8 +44,14 @@ $sqlSesiAll = "
 ";
 $paramsSesi = [];
 if ($currentUser['role'] === 'guru') {
-    $sqlSesiAll .= " WHERE s.id_guru = :g";
-    $paramsSesi[':g'] = $idGuru;
+    if (!empty($currentUser['id_kelas'])) {
+        $sqlSesiAll .= " WHERE (s.id_guru = :g OR s.id_kelas = :k)";
+        $paramsSesi[':g'] = $idGuru;
+        $paramsSesi[':k'] = (int)$currentUser['id_kelas'];
+    } else {
+        $sqlSesiAll .= " WHERE s.id_guru = :g";
+        $paramsSesi[':g'] = $idGuru;
+    }
 }
 $sqlSesiAll .= " ORDER BY s.created_at DESC";
 $stmtSesiAll = $db->prepare($sqlSesiAll);
@@ -80,7 +86,12 @@ if ($selectedSesiId > 0) {
     ";
     $paramsDet = [':id' => $selectedSesiId];
     if ($currentUser['role'] === 'guru') {
-        $sqlDet .= " AND s.id_guru = :g";
+        if (!empty($currentUser['id_kelas'])) {
+            $sqlDet .= " AND (s.id_guru = :g OR s.id_kelas = :k)";
+            $paramsDet[':k'] = (int)$currentUser['id_kelas'];
+        } else {
+            $sqlDet .= " AND s.id_guru = :g";
+        }
         $paramsDet[':g'] = $idGuru;
     }
     $stmtDet = $db->prepare($sqlDet);

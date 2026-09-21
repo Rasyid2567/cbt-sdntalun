@@ -74,9 +74,13 @@ if (!$detailUjian) {
     redirect(base_url('guru?page=rekap_nilai' . ($backSesiId > 0 ? '&id_sesi=' . $backSesiId : '')));
 }
 
-if ($currentUser['role'] === 'guru' && (int)$detailUjian['id_guru'] !== (int)$currentUser['id_user']) {
-    flash_set('danger', 'Anda tidak memiliki akses ke data ini.');
-    redirect(base_url('guru?page=rekap_nilai'));
+if ($currentUser['role'] === 'guru') {
+    $isOwner = ((int)$detailUjian['id_guru'] === (int)$currentUser['id_user']);
+    $isWaliKelas = (!empty($currentUser['id_kelas']) && (int)$detailUjian['id_kelas'] === (int)$currentUser['id_kelas']);
+    if (!$isOwner && !$isWaliKelas) {
+        flash_set('danger', 'Anda tidak memiliki akses ke data ini.');
+        redirect(base_url('guru?page=rekap_nilai'));
+    }
 }
 
 // 2. Ambil Urutan Butir Soal Ujian

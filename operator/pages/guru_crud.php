@@ -106,9 +106,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'hapus_guru') {
         $id = (int)($_POST['id_user'] ?? 0);
         if ($id > 0) {
-            $del = $db->prepare("DELETE FROM users WHERE id_user = :id AND role = 'guru'");
-            $del->execute([':id' => $id]);
-            flash_set('danger', 'Data guru berhasil dihapus.');
+            $stGuru = $db->prepare("SELECT id_user, nama_lengkap, id_kelas, id_mapel FROM users WHERE id_user = :id AND role = 'guru'");
+            $stGuru->execute([':id' => $id]);
+            $targetGuru = $stGuru->fetch();
+
+            if ($targetGuru) {
+                // Ambil pemetaan guru kelas aktif: [id_kelas => id_user]
+                $stmtGK = $db->query("
+                    SELECT id_kelas, id_user, nama_lengkap 
+                    FROM users 
+                    WHERE role = 'guru' AND id_kelas IS NOT NULL AND status_akun = 'aktif'
+                    ORDER BY id_user ASC
+                ");
+                $guruKelasMap = [];
+                while ($gk = $stmtGK->fetch()) {
+                    if (!isset($guruKelasMap[(int)$gk['id_kelas']])) {
+                        $guruKelasMap[(int)$gk['id_kelas']] = (int)$gk['id_user'];
+                    }
+                }
+
+                $fallbackGuruId = reset($guruKelasMap) ?: null;
+
+                // 1. Alihkan sesi_ujian guru ini ke guru kelas masing-masing
+                $stmtSesiGuru = $db->prepare("SELECT id_sesi, id_kelas, id_paket FROM sesi_ujian WHERE id_guru = :id");
+                $stmtSesiGuru->execute([':id' => $id]);
+                $sesiList = $stmtSesiGuru->fetchAll();
+
+                $paketTeralihkan = [];
+                foreach ($sesiList as $sg) {
+                    $targetKelasId = (int)$sg['id_kelas'];
+                    $penerimaId = $guruKelasMap[$targetKelasId] ?? $fallbackGuruId;
+                    if ($penerimaId && $penerimaId !== $id) {
+                        $updSesi = $db->prepare("UPDATE sesi_ujian SET id_guru = :penerima WHERE id_sesi = :sesi");
+                        $updSesi->execute([':penerima' => $penerimaId, ':sesi' => $sg['id_sesi']]);
+                        if (!empty($sg['id_paket'])) {
+                            $paketTeralihkan[(int)$sg['id_paket']] = $penerimaId;
+                        }
+                    }
+                }
+
+                // 2. Alihkan paket_soal guru ini ke guru kelas terkait
+                $stmtPaketGuru = $db->prepare("SELECT id_paket, nama_paket FROM paket_soal WHERE id_guru = :id");
+                $stmtPaketGuru->execute([':id' => $id]);
+                $paketList = $stmtPaketGuru->fetchAll();
+
+                foreach ($paketList as $pg) {
+                    $pid = (int)$pg['id_paket'];
+                    if (isset($paketTeralihkan[$pid])) {
+                        $penerimaPaketId = $paketTeralihkan[$pid];
+                    } else {
+                        $detectedKelasId = null;
+                        for ($k = 1; $k <= 6; $k++) {
+                            if (stripos($pg['nama_paket'], "Kelas $k") !== false || stripos($pg['nama_paket'], "Kls $k") !== false) {
+                                $stmtFindK = $db->prepare("SELECT id_kelas FROM kelas WHERE nama_kelas ILIKE :pat LIMIT 1");
+                                $stmtFindK->execute([':pat' => "%$k%"]);
+                                $detectedKelasId = $stmtFindK->fetchColumn();
+                                break;
+                            }
+                        }
+                        $penerimaPaketId = ($detectedKelasId && isset($guruKelasMap[(int)$detectedKelasId])) 
+                            ? $guruKelasMap[(int)$detectedKelasId] 
+                            : $fallbackGuruId;
+                    }
+
+                    if ($penerimaPaketId && $penerimaPaketId !== $id) {
+                        $updPaket = $db->prepare("UPDATE paket_soal SET id_guru = :penerima WHERE id_paket = :paket");
+                        $updPaket->execute([':penerima' => $penerimaPaketId, ':paket' => $pid]);
+                    }
+                }
+
+                // 3. Hapus user tanpa kehilangan data sesi / paket / nilai siswa
+                $del = $db->prepare("DELETE FROM users WHERE id_user = :id AND role = 'guru'");
+                $del->execute([':id' => $id]);
+                flash_set('success', 'Akun guru ' . sanitize($targetGuru['nama_lengkap']) . ' berhasil dihapus. Seluruh data ujian & paket soal telah dikembalikan ke guru kelas masing-masing.');
+            }
         }
         redirect(base_url('operator?page=guru_crud&tab=guru'));
     }
@@ -497,7 +568,7 @@ include __DIR__ . '/../layouts/header.php';
 
                                             <button type="button" class="btn btn-sm btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;" onclick='openEditGuruModal(<?= json_encode($g) ?>)'>Edit</button>
 
-                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?> beserta seluruh soal & sesinya?" data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
+                                            <form action="<?= base_url('operator?page=guru_crud') ?>" method="POST" style="display:inline-flex; margin:0;" data-confirm="Hapus akun guru <?= sanitize($g['nama_lengkap']) ?>? Data sesi & paket soal guru mapel akan otomatis dialihkan kembali ke guru kelas masing-masing." data-confirm-title="Hapus Akun Guru" data-confirm-type="danger" data-confirm-btn="Ya, Hapus">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="action" value="hapus_guru">
                                                 <input type="hidden" name="id_user" value="<?= $g['id_user'] ?>">

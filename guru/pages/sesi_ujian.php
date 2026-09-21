@@ -43,6 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Silakan pilih kelas peserta ujian terlebih dahulu.');
             redirect(base_url('guru?page=sesi_ujian'));
         }
+
+        // Validasi akses mapel
+        if (!empty($currentUser['id_mapel']) && (int)$currentUser['id_mapel'] !== $idMapel) {
+            flash_set('danger', 'Anda hanya dapat merilis sesi ujian untuk mata pelajaran yang Anda ampu.');
+            redirect(base_url('guru?page=sesi_ujian'));
+        }
+        if (empty($currentUser['id_mapel'])) {
+            $cekMapelLain = $db->prepare("SELECT id_user FROM users WHERE role = 'guru' AND id_mapel = :m AND status_akun = 'aktif' AND id_user != :g LIMIT 1");
+            $cekMapelLain->execute([':m' => $idMapel, ':g' => $idGuru]);
+            if ($cekMapelLain->fetch()) {
+                flash_set('danger', 'Mata pelajaran ini dikelola khusus oleh Guru Mata Pelajaran.');
+                redirect(base_url('guru?page=sesi_ujian'));
+            }
+        }
         $acakSoal    = !empty($_POST['acak_soal']) ? 'true' : 'false';
         $acakOpsi    = 'false';
         
@@ -196,7 +210,23 @@ $stmtPaket->execute([':g' => $idGuru]);
 $paketList = $stmtPaket->fetchAll();
 
 // Ambil Daftar Mapel untuk Pilihan di Modal Tambah Sesi
-$stmtMapelList = $db->query("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
+if (!empty($currentUser['id_mapel'])) {
+    // Guru Mapel: hanya mapel yang diampunya
+    $stmtMapelList = $db->prepare("SELECT id_mapel, nama_mapel, kode_mapel FROM mapel WHERE id_mapel = :m ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
+    $stmtMapelList->execute([':m' => (int)$currentUser['id_mapel']]);
+} else {
+    // Guru Kelas: sembunyikan mapel yang sedang memiliki Guru Mapel aktif
+    $stmtMapelList = $db->prepare("
+        SELECT m.id_mapel, m.nama_mapel, m.kode_mapel 
+        FROM mapel m 
+        WHERE m.id_mapel NOT IN (
+            SELECT id_mapel FROM users 
+            WHERE role = 'guru' AND id_mapel IS NOT NULL AND status_akun = 'aktif' AND id_user != :g
+        )
+        ORDER BY COALESCE(m.urutan, 0) ASC, m.nama_mapel ASC
+    ");
+    $stmtMapelList->execute([':g' => $idGuru]);
+}
 $mapelList = $stmtMapelList->fetchAll();
 
 $paketCountPerMapel = [];

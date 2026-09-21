@@ -146,6 +146,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('guru?page=import_soal'));
     }
 
+    if (!empty($currentUser['id_mapel']) && (int)$currentUser['id_mapel'] !== $idMapel) {
+        flash_set('danger', 'Anda hanya dapat mengimpor soal untuk mata pelajaran yang Anda ampu.');
+        redirect(base_url('guru?page=import_soal'));
+    }
+    if (empty($currentUser['id_mapel'])) {
+        $cekMapelLain = $db->prepare("SELECT id_user FROM users WHERE role = 'guru' AND id_mapel = :m AND status_akun = 'aktif' AND id_user != :g LIMIT 1");
+        $cekMapelLain->execute([':m' => $idMapel, ':g' => $idGuru]);
+        if ($cekMapelLain->fetch()) {
+            flash_set('danger', 'Mata pelajaran ini dikelola khusus oleh Guru Mata Pelajaran.');
+            redirect(base_url('guru?page=import_soal'));
+        }
+    }
+
     if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         flash_set('danger', 'Gagal mengunggah file CSV. Pastikan berkas terpilih.');
         redirect(base_url('guru?page=import_soal'));
@@ -589,7 +602,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Data Mapel & Judul yang pernah ada
-$mapelList = $db->query("SELECT id_mapel, nama_mapel FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll();
+if (!empty($currentUser['id_mapel'])) {
+    $stmtMapel = $db->prepare("SELECT id_mapel, nama_mapel FROM mapel WHERE id_mapel = :m ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
+    $stmtMapel->execute([':m' => (int)$currentUser['id_mapel']]);
+} else {
+    $stmtMapel = $db->prepare("
+        SELECT m.id_mapel, m.nama_mapel FROM mapel m 
+        WHERE m.id_mapel NOT IN (
+            SELECT id_mapel FROM users 
+            WHERE role = 'guru' AND id_mapel IS NOT NULL AND status_akun = 'aktif' AND id_user != :g
+        )
+        ORDER BY COALESCE(m.urutan, 0) ASC, m.nama_mapel ASC
+    ");
+    $stmtMapel->execute([':g' => $idGuru]);
+}
+$mapelList = $stmtMapel->fetchAll();
 $sqlJudul = "SELECT DISTINCT nama_paket FROM paket_soal";
 $pJudul = [];
 if ($currentUser['role'] === 'guru') {

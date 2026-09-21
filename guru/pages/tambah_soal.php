@@ -110,6 +110,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
     }
 
+    if (!empty($currentUser['id_mapel']) && (int)$currentUser['id_mapel'] !== $idMapel) {
+        flash_set('danger', 'Anda hanya dapat membuat paket soal untuk mata pelajaran yang Anda ampu.');
+        redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : '')));
+    }
+    if (empty($currentUser['id_mapel'])) {
+        $cekMapelLain = $db->prepare("SELECT id_user FROM users WHERE role = 'guru' AND id_mapel = :m AND status_akun = 'aktif' AND id_user != :g LIMIT 1");
+        $cekMapelLain->execute([':m' => $idMapel, ':g' => $idGuru]);
+        if ($cekMapelLain->fetch()) {
+            flash_set('danger', 'Mata pelajaran ini dikelola khusus oleh Guru Mata Pelajaran.');
+            redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : '')));
+        }
+    }
+
     if (empty($soalItems) || !is_array($soalItems)) {
         flash_set('danger', 'Minimal harus ada 1 butir pertanyaan.');
         redirect(base_url('guru?page=tambah_soal' . ($initPaketId ? '&id_paket=' . $initPaketId : ($initMapel ? '&id_mapel=' . $initMapel : ''))));
@@ -406,7 +419,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Ambil Daftar Mapel
-$stmtMapel = $db->query("SELECT * FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
+if (!empty($currentUser['id_mapel'])) {
+    $stmtMapel = $db->prepare("SELECT * FROM mapel WHERE id_mapel = :m ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC");
+    $stmtMapel->execute([':m' => (int)$currentUser['id_mapel']]);
+} else {
+    $stmtMapel = $db->prepare("
+        SELECT m.* FROM mapel m 
+        WHERE m.id_mapel NOT IN (
+            SELECT id_mapel FROM users 
+            WHERE role = 'guru' AND id_mapel IS NOT NULL AND status_akun = 'aktif' AND id_user != :g
+        )
+        ORDER BY COALESCE(m.urutan, 0) ASC, m.nama_mapel ASC
+    ");
+    $stmtMapel->execute([':g' => $idGuru]);
+}
 $mapelList = $stmtMapel->fetchAll();
 
 // Ambil Daftar Judul untuk auto-suggest
