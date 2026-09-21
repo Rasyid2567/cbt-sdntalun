@@ -629,36 +629,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     background: #1d4ed8;
   }
 
-  .btn-download-action {
-    background: #059669;
-    color: #ffffff;
-    border: none;
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    transition: background 0.15s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    white-space: nowrap;
-  }
-  .btn-download-action:hover {
-    background: #047857;
-  }
-  .btn-download-action:disabled {
-    opacity: 0.75;
-    cursor: not-allowed;
-  }
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  .spin-icon {
-    animation: spin 1s linear infinite;
-  }
+
 
   /* Viewport Kanvas Dokumen */
   .preview-container {
@@ -804,8 +775,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       flex: 0 0 auto;
       gap: 0.3rem;
     }
-    .btn-print-action,
-    .btn-download-action {
+    .btn-print-action {
       padding: 0.32rem 0.55rem;
       font-size: 0.74rem;
     }
@@ -940,13 +910,9 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </div>
 
   <div class="bar-right">
-    <button type="button" class="btn-print-action" onclick="window.print()" title="Cetak Dokumen (Buka Dialog Cetak)">
+    <button type="button" class="btn-print-action" onclick="window.print()" title="Cetak Dokumen atau Simpan sebagai PDF">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-      <span>Cetak</span>
-    </button>
-    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()" title="Unduh Berkas PDF Langsung">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      <span>Unduh PDF</span>
+      <span>Cetak / Simpan PDF</span>
     </button>
   </div>
 </div>
@@ -1138,7 +1104,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   <?php endforeach; ?>
 </div>
 
-<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
+
 <script>
 let currentZoom = 1.0;
 
@@ -1193,113 +1159,6 @@ function setZoomPreset(mode) {
 
 window.addEventListener("DOMContentLoaded", () => {
     applyZoom(1.0);
-});
-
-function downloadPdfDirectly() {
-    const btn = document.getElementById("btn-download-pdf");
-    const origHtml = btn ? btn.innerHTML : "";
-    if (typeof html2pdf === "undefined") {
-        window.print();
-        return;
-    }
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg><span>Mengunduh...</span>`;
-    }
-
-    const pages = document.querySelectorAll(".paper-page");
-    if (!pages || pages.length === 0) {
-        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-        window.print();
-        return;
-    }
-
-    // 1. Buat kontainer bersih di balik layar tepat selebar A4 (794px)
-    // agar html2canvas merender dari x=0 tanpa terpotong oleh layout flex monitor lebar
-    const exportDiv = document.createElement("div");
-    exportDiv.id = "pdf-export-temp-wrapper";
-    exportDiv.style.position = "absolute";
-    exportDiv.style.top = "0";
-    exportDiv.style.left = "0";
-    exportDiv.style.zIndex = "-9999";
-    exportDiv.style.width = "794px";
-    exportDiv.style.background = "#ffffff";
-    exportDiv.style.margin = "0";
-    exportDiv.style.padding = "0";
-    exportDiv.style.boxSizing = "border-box";
-
-    pages.forEach((page, index) => {
-        const pageClone = page.cloneNode(true);
-        pageClone.style.width = "794px";
-        pageClone.style.minHeight = "1122px";
-        pageClone.style.height = "auto";
-        pageClone.style.margin = "0";
-        pageClone.style.boxShadow = "none";
-        pageClone.style.borderRadius = "0";
-        pageClone.style.transform = "none";
-        pageClone.style.zoom = "1.0";
-        pageClone.style.boxSizing = "border-box";
-        pageClone.style.background = "#ffffff";
-        exportDiv.appendChild(pageClone);
-
-        if (index < pages.length - 1) {
-            const pb = document.createElement("div");
-            pb.className = "html2pdf__page-break";
-            pb.style.height = "0";
-            pb.style.margin = "0";
-            pb.style.padding = "0";
-            pb.style.pageBreakAfter = "always";
-            pb.style.breakAfter = "page";
-            exportDiv.appendChild(pb);
-        }
-    });
-
-    document.body.appendChild(exportDiv);
-
-    const filename = "<?= $filenameBase ?>.pdf";
-    const opt = {
-        margin:       [0, 0, 0, 0],
-        filename:     filename,
-        image:        { type: "jpeg", quality: 0.98 },
-        html2canvas:  { 
-            scale: 2, 
-            useCORS: true, 
-            logging: false,
-            width: 794,
-            windowWidth: 794,
-            scrollX: 0,
-            scrollY: 0
-        },
-        jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak:    { mode: ["css", "legacy"] }
-    };
-
-    html2pdf().set(opt).from(exportDiv).save().then(function() {
-        if (exportDiv.parentNode) {
-            document.body.removeChild(exportDiv);
-        }
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml;
-        }
-    }).catch(function(err) {
-        console.error("Gagal membuat PDF langsung:", err);
-        if (exportDiv.parentNode) {
-            document.body.removeChild(exportDiv);
-        }
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml;
-        }
-        window.print();
-    });
-}
-
-window.addEventListener("load", function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("download") === "1") {
-        setTimeout(downloadPdfDirectly, 300);
-    }
 });
 </script>
 </body>
