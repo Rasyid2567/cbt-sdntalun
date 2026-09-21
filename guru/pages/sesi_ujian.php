@@ -36,8 +36,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'tambah_sesi') {
         $idPaket     = (int)($_POST['id_paket'] ?? 0);
         $idMapel     = (int)($_POST['id_mapel'] ?? 0);
-        $idKelas     = !empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : (int)($_POST['id_kelas'] ?? 0);
+        $idKelas     = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : (!empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : 0);
         $durasiMenit = (int)($_POST['durasi_menit'] ?? 60);
+
+        if ($idKelas <= 0) {
+            flash_set('danger', 'Silakan pilih kelas peserta ujian terlebih dahulu.');
+            redirect(base_url('guru?page=sesi_ujian'));
+        }
         $acakSoal    = !empty($_POST['acak_soal']) ? 'true' : 'false';
         $acakOpsi    = 'false';
         
@@ -166,11 +171,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Data Kelas Guru
-$idKelasGuru = !empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : 6;
-$stmtKelas = $db->prepare("SELECT nama_kelas FROM kelas WHERE id_kelas = :k");
-$stmtKelas->execute([':k' => $idKelasGuru]);
-$namaKelasGuru = $stmtKelas->fetchColumn() ?: 'Kelas 6';
+// Data Kelas Guru & Seluruh Kelas
+$idKelasGuru = !empty($currentUser['id_kelas']) ? (int)$currentUser['id_kelas'] : 0;
+$namaKelasGuru = '';
+if ($idKelasGuru > 0) {
+    $stmtKelas = $db->prepare("SELECT nama_kelas FROM kelas WHERE id_kelas = :k");
+    $stmtKelas->execute([':k' => $idKelasGuru]);
+    $namaKelasGuru = $stmtKelas->fetchColumn() ?: '';
+}
+$kelasList = $db->query("SELECT id_kelas, nama_kelas FROM kelas ORDER BY nama_kelas ASC")->fetchAll();
 
 // Ambil Paket Soal Guru
 $stmtPaket = $db->prepare("
@@ -369,9 +378,30 @@ include __DIR__ . '/../layouts/header.php';
         <form action="<?= base_url('guru?page=sesi_ujian') ?>" method="POST">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="tambah_sesi">
-            <input type="hidden" name="id_kelas" value="<?= $idKelasGuru ?>">
             <input type="hidden" name="id_mapel" id="hidden_id_mapel" value="">
             <input type="hidden" name="id_paket" id="hidden_id_paket" value="">
+
+            <div class="form-group mb-3">
+                <label for="select_kelas_ujian" style="font-weight: 700;">Pilih Kelas Peserta Ujian <span class="text-danger">*</span></label>
+                <select id="select_kelas_ujian" name="id_kelas" class="form-control" required onchange="onPilihKelas(this)">
+                    <?php if (!empty($currentUser['id_kelas'])): ?>
+                        <option value="<?= (int)$currentUser['id_kelas'] ?>" selected><?= sanitize($namaKelasGuru) ?> (Kelas Anda)</option>
+                        <optgroup label="Pilih Kelas Lain">
+                            <?php foreach ($kelasList as $k): ?>
+                                <?php if ((int)$k['id_kelas'] !== (int)$currentUser['id_kelas']): ?>
+                                    <option value="<?= $k['id_kelas'] ?>"><?= sanitize($k['nama_kelas']) ?></option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php else: ?>
+                        <option value="">-- Pilih Kelas Peserta Ujian --</option>
+                        <?php foreach ($kelasList as $k): ?>
+                            <option value="<?= $k['id_kelas'] ?>"><?= sanitize($k['nama_kelas']) ?></option>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </select>
+                <small class="text-muted text-xs">Pilih kelas siswa yang dapat mengakses dan mengerjakan sesi ujian ini.</small>
+            </div>
 
             <div class="form-group mb-3">
                 <label for="select_mapel_ujian" style="font-weight: 700;">Pilih Mata Pelajaran <span class="text-danger">*</span></label>
@@ -415,7 +445,7 @@ include __DIR__ . '/../layouts/header.php';
                     </div>
                     <div>
                         <span class="text-muted" style="display:block; font-size: 0.72rem; text-transform: uppercase; font-weight: 700;">Kelas Peserta:</span>
-                        <strong style="color: #059669; font-size: 0.95rem;"><?= sanitize($namaKelasGuru) ?></strong>
+                        <strong id="preview_kelas" style="color: #059669; font-size: 0.95rem;"><?= sanitize($namaKelasGuru ?: 'Pilih Kelas') ?></strong>
                     </div>
                 </div>
             </div>
@@ -519,16 +549,34 @@ function openModalEditToken(idSesi, currentToken, namaUjian) {
 
 const daftarPaketGuru = <?= json_encode($paketList, JSON_UNESCAPED_UNICODE) ?>;
 
+const guruDefaultMapel = <?= json_encode((int)($currentUser['id_mapel'] ?? 0)) ?>;
+
 function openModalTambahSesi() {
     const selMapel = document.getElementById('select_mapel_ujian');
     if (selMapel) {
-        selMapel.value = '';
+        if (guruDefaultMapel > 0) {
+            selMapel.value = String(guruDefaultMapel);
+        } else {
+            selMapel.value = '';
+        }
         if (typeof window.refreshCustomSelect === 'function') {
             window.refreshCustomSelect(selMapel);
         }
         onPilihMapel(selMapel);
     }
+    const selKelas = document.getElementById('select_kelas_ujian');
+    if (selKelas) {
+        onPilihKelas(selKelas);
+    }
     openModal('modal-tambah-sesi');
+}
+
+function onPilihKelas(sel) {
+    const prevKelas = document.getElementById('preview_kelas');
+    if (prevKelas && sel && sel.selectedIndex >= 0) {
+        const text = sel.options[sel.selectedIndex]?.text || '';
+        prevKelas.textContent = text.replace(' (Kelas Anda)', '').trim() || '-';
+    }
 }
 
 function onPilihMapel(sel) {

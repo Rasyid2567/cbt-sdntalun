@@ -21,7 +21,7 @@ $isGuru = ($currentUser['role'] === 'guru');
 
 // Tangani parameter inisialisasi
 $initPaketId  = !empty($_GET['id_paket']) ? (int)$_GET['id_paket'] : 0;
-$initMapel    = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : 0;
+$initMapel    = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : ((int)($currentUser['id_mapel'] ?? 0));
 $initJudul    = trim($_GET['judul_soal'] ?? '');
 $editSingleId = !empty($_GET['edit']) ? (int)$_GET['edit'] : 0;
 

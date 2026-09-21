@@ -48,6 +48,7 @@ CREATE TABLE users (
     nama_lengkap VARCHAR(100) NOT NULL,
     role user_role NOT NULL,
     id_kelas INT REFERENCES kelas(id_kelas) ON DELETE SET NULL,
+    id_mapel INT REFERENCES mapel(id_mapel) ON DELETE SET NULL,
     status_login login_status DEFAULT 'offline',
     status_akun VARCHAR(20) DEFAULT 'aktif', -- 'aktif' atau 'nonaktif'
     no_hp VARCHAR(30) NULL,      -- Nomor HP / WhatsApp

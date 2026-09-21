@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $no_hp    = clean_phone($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $id_mapel = !empty($_POST['id_mapel']) ? (int)$_POST['id_mapel'] : null;
 
         if ($username === '' || $nama === '' || $password === '') {
             flash_set('danger', 'Semua kolom guru wajib diisi.');
@@ -47,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $status_akun = in_array($_POST['status_akun'] ?? 'aktif', ['aktif', 'nonaktif'], true) ? $_POST['status_akun'] : 'aktif';
                 $hash = password_hash($password, PASSWORD_BCRYPT);
-                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, no_hp, role, id_kelas, status_login, status_akun) VALUES (:u, :p, :n, :nip, :hp, 'guru', :k, 'offline', :sa)");
+                $ins = $db->prepare("INSERT INTO users (username, password, nama_lengkap, nip, no_hp, role, id_kelas, id_mapel, status_login, status_akun) VALUES (:u, :p, :n, :nip, :hp, 'guru', :k, :m, 'offline', :sa)");
                 $ins->execute([
                     ':u'   => $username,
                     ':p'   => $hash,
@@ -55,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':nip' => ($nip !== '' ? $nip : null),
                     ':hp'  => ($no_hp !== '' ? $no_hp : null),
                     ':k'   => $id_kelas,
+                    ':m'   => $id_mapel,
                     ':sa'  => $status_akun
                 ]);
                 flash_set('success', 'Guru berhasil ditambahkan.');
@@ -72,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $no_hp    = clean_phone($_POST['no_hp'] ?? '');
         $password = trim($_POST['password'] ?? '');
         $id_kelas = !empty($_POST['id_kelas']) ? (int)$_POST['id_kelas'] : null;
+        $id_mapel = !empty($_POST['id_mapel']) ? (int)$_POST['id_mapel'] : null;
 
         if ($id_user <= 0 || $username === '' || $nama === '') {
             flash_set('danger', 'Data guru tidak valid.');
@@ -87,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $extraSql = ($status_akun === 'nonaktif') ? ", status_login = 'offline'" : "";
                 if ($password !== '') {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, password = :p, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, id_mapel = :m, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':p' => $hash, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':m' => $id_mapel, ':sa' => $status_akun, ':id' => $id_user]);
                 } else {
-                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
-                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':sa' => $status_akun, ':id' => $id_user]);
+                    $upd = $db->prepare("UPDATE users SET username = :u, nama_lengkap = :n, nip = :nip, no_hp = :hp, id_kelas = :k, id_mapel = :m, status_akun = :sa{$extraSql} WHERE id_user = :id AND role = 'guru'");
+                    $upd->execute([':u' => $username, ':n' => $nama, ':nip' => ($nip !== '' ? $nip : null), ':hp' => ($no_hp !== '' ? $no_hp : null), ':k' => $id_kelas, ':m' => $id_mapel, ':sa' => $status_akun, ':id' => $id_user]);
                 }
                 flash_set('success', 'Data guru berhasil diperbarui.');
             }
@@ -375,19 +378,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $activeTab  = $_GET['tab'] ?? 'guru';
 try {
     $guruList = $db->query("
-        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.no_hp, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
+        SELECT u.id_user, u.username, u.nama_lengkap, u.nip, u.no_hp, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, u.id_mapel, k.nama_kelas, m.nama_mapel, m.kode_mapel 
         FROM users u 
         LEFT JOIN kelas k ON u.id_kelas = k.id_kelas 
+        LEFT JOIN mapel m ON u.id_mapel = m.id_mapel 
         WHERE u.role = 'guru' 
-        ORDER BY k.nama_kelas NULLS LAST, u.nama_lengkap ASC
+        ORDER BY k.nama_kelas NULLS LAST, m.nama_mapel NULLS LAST, u.nama_lengkap ASC
     ")->fetchAll();
 } catch (Throwable $e) {
     $guruList = $db->query("
-        SELECT u.id_user, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, k.nama_kelas 
+        SELECT u.id_user, u.username, u.nama_lengkap, u.status_login, COALESCE(u.status_akun, 'aktif') AS status_akun, u.id_kelas, u.id_mapel, k.nama_kelas, m.nama_mapel, m.kode_mapel 
         FROM users u 
         LEFT JOIN kelas k ON u.id_kelas = k.id_kelas 
+        LEFT JOIN mapel m ON u.id_mapel = m.id_mapel 
         WHERE u.role = 'guru' 
-        ORDER BY k.nama_kelas NULLS LAST, u.nama_lengkap ASC
+        ORDER BY k.nama_kelas NULLS LAST, m.nama_mapel NULLS LAST, u.nama_lengkap ASC
     ")->fetchAll();
 }
 $mapelList  = $db->query("SELECT id_mapel, nama_mapel, kode_mapel, COALESCE(urutan, 0) AS urutan FROM mapel ORDER BY COALESCE(urutan, 0) ASC, nama_mapel ASC")->fetchAll();
@@ -432,7 +437,7 @@ include __DIR__ . '/../layouts/header.php';
                             <th style="width: 50px;">No</th>
                             <th>Username</th>
                             <th>Nama Lengkap Guru</th>
-                            <th>Guru Kelas / Tingkat</th>
+                            <th>Guru Kelas / Penugasan</th>
                             <th>Status Akun</th>
                             <th>Status Login</th>
                             <th style="width: 250px; text-align: center;">Aksi</th>
@@ -459,9 +464,11 @@ include __DIR__ . '/../layouts/header.php';
                                             </div>
                                         <?php endif; ?>
                                     </td>
-                                    <td data-label="Tingkat Kelas">
+                                    <td data-label="Penugasan">
                                         <?php if (!empty($g['nama_kelas'])): ?>
                                             <span class="badge badge-aktif">Guru <?= sanitize($g['nama_kelas']) ?></span>
+                                        <?php elseif (!empty($g['nama_mapel'])): ?>
+                                            <span class="badge" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-weight: 600;">Guru <?= sanitize($g['nama_mapel']) ?><?= !empty($g['kode_mapel']) ? ' (' . sanitize($g['kode_mapel']) . ')' : '' ?></span>
                                         <?php else: ?>
                                             <span class="badge badge-offline">Guru Mapel Umum</span>
                                         <?php endif; ?>
@@ -623,11 +630,22 @@ include __DIR__ . '/../layouts/header.php';
             <div class="form-group">
                 <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
                 <select name="id_kelas" class="form-control">
-                    <option value="">Guru Mata Pelajaran Umum (Semua Kelas)</option>
+                    <option value="">Bukan Guru Kelas (Guru Mapel / Semua Kelas)</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <small class="text-muted text-xs">Pilih kelas jika guru ini adalah wali kelas. Kosongkan jika guru mata pelajaran (contoh: PAI/PJOK).</small>
+            </div>
+            <div class="form-group">
+                <label>Mata Pelajaran yang Diampu (Khusus Guru Mapel)</label>
+                <select name="id_mapel" class="form-control">
+                    <option value="">-- Semua Mata Pelajaran / Guru Kelas --</option>
+                    <?php foreach ($mapelList as $m): ?>
+                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?><?= !empty($m['kode_mapel']) ? ' (' . sanitize($m['kode_mapel']) . ')' : '' ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted text-xs">Pilih mapel jika guru ini mengampu mapel spesifik (contoh: PAI, PJOK).</small>
             </div>
             <div class="form-group">
                 <label>Status Akun</label>
@@ -677,9 +695,18 @@ include __DIR__ . '/../layouts/header.php';
             <div class="form-group">
                 <label>Penugasan Kelas (Guru Kelas / Wali Kelas)</label>
                 <select id="edit-guru-kelas" name="id_kelas" class="form-control">
-                    <option value="">Guru Mata Pelajaran Umum (Semua Kelas)</option>
+                    <option value="">Bukan Guru Kelas (Guru Mapel / Semua Kelas)</option>
                     <?php foreach ($kelasList as $k): ?>
                         <option value="<?= $k['id_kelas'] ?>">Guru <?= sanitize($k['nama_kelas']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Mata Pelajaran yang Diampu (Khusus Guru Mapel)</label>
+                <select id="edit-guru-mapel" name="id_mapel" class="form-control">
+                    <option value="">-- Semua Mata Pelajaran / Guru Kelas --</option>
+                    <?php foreach ($mapelList as $m): ?>
+                        <option value="<?= $m['id_mapel'] ?>"><?= sanitize($m['nama_mapel']) ?><?= !empty($m['kode_mapel']) ? ' (' . sanitize($m['kode_mapel']) . ')' : '' ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -818,6 +845,7 @@ function openEditGuruModal(data) {
     document.getElementById("edit-guru-nip").value = data.nip || "";
     document.getElementById("edit-guru-no_hp").value = data.no_hp || "";
     document.getElementById("edit-guru-kelas").value = data.id_kelas || "";
+    document.getElementById("edit-guru-mapel").value = data.id_mapel || "";
     document.getElementById("edit-guru-status_akun").value = data.status_akun || "aktif";
     openModal("modal-edit-guru");
 }

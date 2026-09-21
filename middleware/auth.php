@@ -23,7 +23,7 @@ function auth_check(array $allowed_roles = []): array {
 
     $db = get_db();
     try {
-        $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login, status_akun, no_hp, orang_tua, no_hp_ortu FROM users WHERE id_user = :id");
+        $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, id_mapel, status_login, status_akun, no_hp, orang_tua, no_hp_ortu FROM users WHERE id_user = :id");
         $stmt->execute([':id' => $_SESSION['user_id']]);
         $user = $stmt->fetch();
     } catch (Throwable $e) {
@@ -34,8 +34,9 @@ function auth_check(array $allowed_roles = []): array {
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS no_hp VARCHAR(30) NULL;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS orang_tua VARCHAR(100) NULL;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS no_hp_ortu VARCHAR(30) NULL;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS id_mapel INT REFERENCES mapel(id_mapel) ON DELETE SET NULL;
             ");
-            $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, status_login, status_akun, no_hp, orang_tua, no_hp_ortu FROM users WHERE id_user = :id");
+            $stmt = $db->prepare("SELECT id_user, nis, nip, username, nama_lengkap, role, id_kelas, id_mapel, status_login, status_akun, no_hp, orang_tua, no_hp_ortu FROM users WHERE id_user = :id");
             $stmt->execute([':id' => $_SESSION['user_id']]);
             $user = $stmt->fetch();
         } catch (Throwable $e2) {
@@ -111,6 +112,7 @@ function get_auth_user(): ?array {
         'nama_lengkap' => $_SESSION['nama_lengkap'] ?? '',
         'role'         => $_SESSION['role'] ?? '',
         'id_kelas'     => $_SESSION['id_kelas'] ?? null,
+        'id_mapel'     => $_SESSION['id_mapel'] ?? null,
         'no_hp'        => $_SESSION['no_hp'] ?? null,
         'orang_tua'    => $_SESSION['orang_tua'] ?? null,
         'no_hp_ortu'   => $_SESSION['no_hp_ortu'] ?? null,

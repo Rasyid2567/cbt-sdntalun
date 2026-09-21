@@ -674,7 +674,7 @@ include __DIR__ . '/../layouts/header.php';
                 <select name="id_mapel" id="id_mapel" class="form-control" required style="width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #cbd5e1; border-radius: 6px;">
                     <option value="">-- Pilih Mata Pelajaran --</option>
                     <?php foreach ($mapelList as $m): ?>
-                        <option value="<?= $m['id_mapel'] ?>" <?= (isset($_GET['id_mapel']) && $_GET['id_mapel'] == $m['id_mapel']) ? 'selected' : '' ?>>
+                        <option value="<?= $m['id_mapel'] ?>" <?= ((isset($_GET['id_mapel']) && $_GET['id_mapel'] == $m['id_mapel']) || (!isset($_GET['id_mapel']) && !empty($currentUser['id_mapel']) && $currentUser['id_mapel'] == $m['id_mapel'])) ? 'selected' : '' ?>>
                             <?= sanitize($m['nama_mapel']) ?>
                         </option>
                     <?php endforeach; ?>

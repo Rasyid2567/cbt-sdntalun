@@ -295,7 +295,7 @@ if (!function_exists('format_mapel_name')) {
 }
 
 // Filter Mapel & Pencarian
-$filterMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : null;
+$filterMapel = !empty($_GET['id_mapel']) ? (int)$_GET['id_mapel'] : (!empty($currentUser['id_mapel']) && !isset($_GET['id_mapel']) ? (int)$currentUser['id_mapel'] : null);
 $search      = trim($_GET['search'] ?? '');
 
 // Ambil Statistik Paket per Mapel untuk Guru/Operator ini
