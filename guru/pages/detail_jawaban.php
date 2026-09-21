@@ -629,7 +629,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     background: #1d4ed8;
   }
 
-  .btn-download-action {
+  .btn-share-action {
     background: #059669;
     color: #ffffff;
     border: none;
@@ -640,13 +640,24 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.35rem;
     transition: background 0.15s;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     white-space: nowrap;
   }
-  .btn-download-action:hover {
+  .btn-share-action:hover {
     background: #047857;
+  }
+  .btn-share-action:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .spin-icon {
+    animation: spin 1s linear infinite;
   }
 
   /* Viewport Kanvas Dokumen */
@@ -793,11 +804,8 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       flex: 0 0 auto;
       gap: 0.3rem;
     }
-    .hint-save-pdf {
-      display: none !important;
-    }
     .btn-print-action,
-    .btn-download-action {
+    .btn-share-action {
       padding: 0.32rem 0.55rem;
       font-size: 0.74rem;
     }
@@ -932,16 +940,13 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </div>
 
   <div class="bar-right">
-    <span class="hint-save-pdf" style="font-size: 0.74rem; color: #94a3b8; display: inline-flex; align-items: center; margin-right: 0.35rem;">
-      Pilih <em>"Save as PDF"</em> pada jendela cetak
-    </span>
     <button type="button" class="btn-print-action" onclick="window.print()" title="Cetak Dokumen">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
       <span>Cetak</span>
     </button>
-    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()" title="Unduh Berkas PDF (Simpan sebagai PDF)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      <span>Unduh PDF</span>
+    <button type="button" class="btn-share-action" id="btn-share-doc" onclick="shareDocument()" title="Bagikan Laporan Hasil Ujian">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+      <span>Share</span>
     </button>
   </div>
 </div>
@@ -1133,7 +1138,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   <?php endforeach; ?>
 </div>
 
-<!-- Menggunakan mesin cetak native browser (window.print) untuk ekspor PDF vektor sempurna -->
+<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
 <script>
 let currentZoom = 1.0;
 
@@ -1190,18 +1195,173 @@ window.addEventListener("DOMContentLoaded", () => {
     applyZoom(1.0);
 });
 
-function downloadPdfDirectly() {
-    // Membuka jendela cetak native browser. Browser Chromium/Firefox akan mengompilasi
-    // dokumen ke PDF beresolusi vektor utuh (3 halaman presisi) saat memilih "Save as PDF".
-    window.print();
+function generatePdfBlob(filename) {
+    return new Promise((resolve, reject) => {
+        const pages = document.querySelectorAll(".paper-page");
+        if (!pages || pages.length === 0) {
+            return reject(new Error("Halaman dokumen tidak ditemukan"));
+        }
+
+        const exportDiv = document.createElement("div");
+        exportDiv.id = "pdf-export-temp-wrapper";
+        exportDiv.style.position = "absolute";
+        exportDiv.style.top = "0";
+        exportDiv.style.left = "0";
+        exportDiv.style.zIndex = "-1000";
+        exportDiv.style.opacity = "0";
+        exportDiv.style.pointerEvents = "none";
+        exportDiv.style.width = "794px";
+        exportDiv.style.background = "#ffffff";
+        exportDiv.style.margin = "0";
+        exportDiv.style.padding = "0";
+        exportDiv.style.boxSizing = "border-box";
+
+        pages.forEach((page, index) => {
+            const pageClone = page.cloneNode(true);
+            pageClone.style.width = "794px";
+            pageClone.style.minHeight = "1123px";
+            pageClone.style.margin = "0";
+            pageClone.style.boxShadow = "none";
+            pageClone.style.borderRadius = "0";
+            pageClone.style.transform = "none";
+            pageClone.style.zoom = "1.0";
+            pageClone.style.boxSizing = "border-box";
+            pageClone.style.background = "#ffffff";
+            exportDiv.appendChild(pageClone);
+
+            if (index < pages.length - 1) {
+                const pb = document.createElement("div");
+                pb.className = "html2pdf__page-break";
+                pb.style.height = "0";
+                pb.style.margin = "0";
+                pb.style.padding = "0";
+                pb.style.pageBreakAfter = "always";
+                pb.style.breakAfter = "page";
+                exportDiv.appendChild(pb);
+            }
+        });
+
+        document.body.appendChild(exportDiv);
+
+        const opt = {
+            margin:       [0, 0, 0, 0],
+            filename:     filename,
+            image:        { type: "jpeg", quality: 0.98 },
+            html2canvas:  { 
+                scale: 2, 
+                useCORS: true, 
+                logging: false,
+                width: 794,
+                windowWidth: 794,
+                scrollX: 0,
+                scrollY: 0
+            },
+            jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
+            pagebreak:    { mode: ["css", "legacy"] }
+        };
+
+        html2pdf().set(opt).from(exportDiv).outputPdf("blob").then(function(blob) {
+            if (exportDiv.parentNode) {
+                document.body.removeChild(exportDiv);
+            }
+            resolve(blob);
+        }).catch(function(err) {
+            if (exportDiv.parentNode) {
+                document.body.removeChild(exportDiv);
+            }
+            reject(err);
+        });
+    });
 }
 
-window.addEventListener("load", function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("download") === "1") {
-        setTimeout(downloadPdfDirectly, 300);
+async function shareDocument() {
+    const btn = document.getElementById("btn-share-doc");
+    const originalContent = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg><span>Menyiapkan...</span>`;
     }
-});
+
+    try {
+        const studentName = <?= json_encode($detailUjian["nama_siswa"]) ?>;
+        const mapel       = <?= json_encode((string)($detailUjian["nama_mapel"] ?: "-")) ?>;
+        const kelas       = <?= json_encode((string)($detailUjian["nama_kelas"] ?: "-")) ?>;
+        const ujian       = <?= json_encode($detailUjian["nama_ujian"]) ?>;
+        const nilaiAkhir  = <?= json_encode(number_format((float)$nilaiAkhir, 2, ".", "")) ?>;
+        const totalSkor   = <?= json_encode($totalSkor . " / " . $totalMax) ?>;
+        const filename    = <?= json_encode($filenameBase . ".pdf") ?>;
+        const phoneRaw    = <?= json_encode((string)($detailUjian["no_hp_ortu"] ?: $detailUjian["no_hp_siswa"] ?: "")) ?>;
+
+        let cleanPhone = phoneRaw.replace(/[^0-9]/g, "");
+        if (cleanPhone.startsWith("0")) {
+            cleanPhone = "62" + cleanPhone.slice(1);
+        }
+
+        const shareText = `*LEMBAR HASIL & JAWABAN UJIAN (CBT SDN 1 TALUN)*\n\n` +
+            `👤 *Nama:* ${studentName}\n` +
+            `🏫 *Kelas:* ${kelas}\n` +
+            `📚 *Mata Pelajaran:* ${mapel}\n` +
+            `📝 *Ujian:* ${ujian}\n` +
+            `🎯 *Total Skor:* ${totalSkor}\n` +
+            `🏆 *Nilai Akhir:* ${nilaiAkhir}\n\n` +
+            `🔗 *Tautan Lembar Hasil Ujian:*\n${window.location.href}`;
+
+        // 1. Buat PDF Blob
+        let pdfFile = null;
+        let pdfBlob = null;
+        if (typeof html2pdf !== "undefined") {
+            try {
+                pdfBlob = await generatePdfBlob(filename);
+                if (pdfBlob) {
+                    pdfFile = new File([pdfBlob], filename, { type: "application/pdf" });
+                }
+            } catch (pdfErr) {
+                console.warn("Gagal membuat PDF file:", pdfErr);
+            }
+        }
+
+        // 2. Jika peramban mendukung Web Share API dengan berkas file (misal HP Android / iOS)
+        if (pdfFile && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+            await navigator.share({
+                title: "Lembar Hasil Ujian - " + studentName,
+                text: shareText,
+                files: [pdfFile]
+            });
+            return;
+        }
+
+        // 3. Fallback untuk Desktop / Browser yang tidak mendukung share file langsung:
+        // Unduh berkas PDF agar pengguna memegang filenya
+        if (pdfBlob) {
+            const dlUrl = URL.createObjectURL(pdfBlob);
+            const a = document.createElement("a");
+            a.href = dlUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(dlUrl), 5000);
+        }
+
+        // Buka WhatsApp dengan pesan ringkasan nilai
+        const waUrl = cleanPhone
+            ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(shareText)}`
+            : `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+
+        window.open(waUrl, "_blank");
+
+    } catch (err) {
+        if (err.name !== "AbortError") {
+            console.error(err);
+            alert("Gagal membagikan dokumen: " + (err.message || err));
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+        }
+    }
+}
 </script>
 </body>
 </html>
