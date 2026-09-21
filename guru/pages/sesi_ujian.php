@@ -289,8 +289,8 @@ include __DIR__ . '/../layouts/header.php';
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Nama Ujian</th>
                             <th>Mapel & Kelas</th>
+                            <th>Nama Ujian</th>
                             <th style="text-align: center;">Token Ujian</th>
                             <th style="white-space: nowrap;">Sisa Waktu</th>
                             <th>Acak</th>
@@ -302,15 +302,15 @@ include __DIR__ . '/../layouts/header.php';
                     <tbody>
                         <?php foreach ($sesiList as $s): ?>
                             <tr>
+                                <td data-label="Mapel & Kelas">
+                                    <strong><?= sanitize($s['nama_mapel']) ?></strong>
+                                    <div class="text-xs text-muted">Kelas: <?= sanitize($s['nama_kelas']) ?></div>
+                                </td>
                                 <td data-label="Nama Ujian">
-                                    <strong><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></strong>
+                                    <div><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></div>
                                     <?php if (!empty($s['total_soal'])): ?>
                                         <div class="text-xs text-muted"><?= (int)$s['total_soal'] ?> Butir Soal</div>
                                     <?php endif; ?>
-                                </td>
-                                <td data-label="Mapel & Kelas">
-                                    <div><?= sanitize($s['nama_mapel']) ?></div>
-                                    <span class="text-xs text-muted">Kelas: <?= sanitize($s['nama_kelas']) ?></span>
                                 </td>
                                 <td data-label="Token" style="text-align: center;">
                                     <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: #e0e7ff; padding: 0.35rem 0.65rem; border-radius: 6px;">
