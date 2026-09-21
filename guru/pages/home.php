@@ -209,8 +209,8 @@ include __DIR__ . '/../layouts/header.php';
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Nama Ujian</th>
                             <th>Mata Pelajaran</th>
+                            <th>Nama Ujian</th>
                             <th>Kelas</th>
                             <th>Token</th>
                             <th style="white-space: nowrap;">Sisa Waktu</th>
@@ -222,8 +222,8 @@ include __DIR__ . '/../layouts/header.php';
                     <tbody>
                         <?php foreach ($recentSessions as $s): ?>
                             <tr>
-                                <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></strong></td>
                                 <td data-label="Mapel"><?= sanitize($s['nama_mapel']) ?></td>
+                                <td data-label="Nama Ujian"><strong><?= sanitize($s['nama_paket'] ?: $s['nama_ujian']) ?></strong></td>
                                 <td data-label="Kelas"><?= sanitize($s['nama_kelas']) ?></td>
                                 <td data-label="Token" style="text-align: center;">
                                     <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: #e0e7ff; padding: 0.35rem 0.65rem; border-radius: 6px;">

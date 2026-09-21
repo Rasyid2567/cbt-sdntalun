@@ -962,17 +962,17 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
           <td style="width: 16%; font-weight: bold;">Nama Siswa</td>
           <td style="width: 2%;">:</td>
           <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_siswa"], ENT_QUOTES, "UTF-8") ?></td>
-          <td style="width: 16%; font-weight: bold;">Nama Ujian</td>
+          <td style="width: 16%; font-weight: bold;">Mata Pelajaran</td>
           <td style="width: 2%;">:</td>
-          <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars($detailUjian["nama_ujian"], ENT_QUOTES, "UTF-8") ?></td>
+          <td style="width: 32%; font-weight: bold;"><?= htmlspecialchars((string)($detailUjian["nama_mapel"] ?: "-"), ENT_QUOTES, "UTF-8") ?></td>
         </tr>
         <tr>
           <td style="font-weight: bold;">NIS / Akun</td>
           <td>:</td>
           <td><?= htmlspecialchars((string)($detailUjian["nis"] ?: $detailUjian["username"]), ENT_QUOTES, "UTF-8") ?></td>
-          <td style="font-weight: bold;">Mata Pelajaran</td>
+          <td style="font-weight: bold;">Nama Ujian</td>
           <td>:</td>
-          <td><?= htmlspecialchars((string)($detailUjian["nama_mapel"] ?: "-"), ENT_QUOTES, "UTF-8") ?></td>
+          <td><?= htmlspecialchars($detailUjian["nama_ujian"], ENT_QUOTES, "UTF-8") ?></td>
         </tr>
         <tr>
           <td style="font-weight: bold;">Kelas</td>
@@ -1516,12 +1516,12 @@ include __DIR__ . '/../layouts/header.php';
         </div>
         <div>
             <div class="info-row">
-                <span class="info-label">Ujian</span>
-                <span class="info-val"><?= sanitize($detailUjian['nama_ujian']) ?></span>
-            </div>
-            <div class="info-row">
                 <span class="info-label">Mata Pelajaran</span>
                 <span class="info-val"><?= sanitize($detailUjian['nama_mapel']) ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Ujian</span>
+                <span class="info-val"><?= sanitize($detailUjian['nama_ujian']) ?></span>
             </div>
             <div class="info-row">
                 <span class="info-label">Durasi</span>
