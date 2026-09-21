@@ -793,6 +793,9 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
       flex: 0 0 auto;
       gap: 0.3rem;
     }
+    .hint-save-pdf {
+      display: none !important;
+    }
     .btn-print-action,
     .btn-download-action {
       padding: 0.32rem 0.55rem;
@@ -929,11 +932,14 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   </div>
 
   <div class="bar-right">
+    <span class="hint-save-pdf" style="font-size: 0.74rem; color: #94a3b8; display: inline-flex; align-items: center; margin-right: 0.35rem;">
+      Pilih <em>"Save as PDF"</em> pada jendela cetak
+    </span>
     <button type="button" class="btn-print-action" onclick="window.print()" title="Cetak Dokumen">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
       <span>Cetak</span>
     </button>
-    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()" title="Unduh Berkas PDF">
+    <button type="button" class="btn-download-action" id="btn-download-pdf" onclick="downloadPdfDirectly()" title="Unduh Berkas PDF (Simpan sebagai PDF)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       <span>Unduh PDF</span>
     </button>
@@ -1127,7 +1133,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['export_pdf', 'export_d
   <?php endforeach; ?>
 </div>
 
-<script src="<?= base_url("assets/js/html2pdf.bundle.min.js") ?>"></script>
+<!-- Menggunakan mesin cetak native browser (window.print) untuk ekspor PDF vektor sempurna -->
 <script>
 let currentZoom = 1.0;
 
@@ -1185,55 +1191,9 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 function downloadPdfDirectly() {
-    const btn = document.getElementById("btn-download-pdf");
-    if (typeof html2pdf === "undefined") {
-        window.print();
-        return;
-    }
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = "<span>⏳ Memproses PDF...</span>";
-    }
-    const container = document.getElementById("printable-area");
-    const prevZoom = container ? container.style.zoom : "1.0";
-    const prevTransform = container ? container.style.transform : "none";
-    if (container) {
-        container.style.zoom = "1.0";
-        container.style.transform = "none";
-        container.classList.add("rendering-pdf");
-    }
-
-    const opt = {
-        margin:       [0, 0, 0, 0],
-        filename:     "<?= $filenameBase ?>.pdf",
-        image:        { type: "jpeg", quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 1024 },
-        jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak:    { mode: ["css", "legacy"] }
-    };
-    html2pdf().set(opt).from(container).save().then(function() {
-        if (container) {
-            container.classList.remove("rendering-pdf");
-            container.style.zoom = prevZoom;
-            container.style.transform = prevTransform;
-        }
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Unduh PDF</span>';
-        }
-    }).catch(function(err) {
-        if (container) {
-            container.classList.remove("rendering-pdf");
-            container.style.zoom = prevZoom;
-            container.style.transform = prevTransform;
-        }
-        console.error(err);
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = "<span>Unduh PDF</span>";
-        }
-        window.print();
-    });
+    // Membuka jendela cetak native browser. Browser Chromium/Firefox akan mengompilasi
+    // dokumen ke PDF beresolusi vektor utuh (3 halaman presisi) saat memilih "Save as PDF".
+    window.print();
 }
 
 window.addEventListener("load", function() {
