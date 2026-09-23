@@ -401,28 +401,9 @@ include __DIR__ . '/../layouts/header.php';
         </form>
     </div>
 
-    <!-- Data Table Siswa (Cards Grid Mode: 3 Per Baris di Desktop, Auto-Responsive) -->
+    <!-- Data Table Siswa (Auto-Card on Mobile) -->
     <div class="card" style="padding: 1.25rem 1.5rem;">
-        <div class="flex-between mb-3" style="align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-            <div class="text-sm text-muted">
-                Menampilkan <strong><?= count($siswaList) ?></strong> siswa
-                <?php if (!empty($search) || !empty($filterKelas)): ?>
-                    <span class="badge" style="background:#f1f5f9; color:#475569; margin-left: 0.4rem; font-size: 0.75rem;">Filtered</span>
-                <?php endif; ?>
-            </div>
-            <div class="flex" style="gap: 0.5rem;">
-                <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(true)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Buka detail semua kartu">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
-                    Buka Semua
-                </button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllCards(false)" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600;" title="Tutup detail semua kartu">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; margin-right: 2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"></path></svg>
-                    Tutup Semua
-                </button>
-            </div>
-        </div>
-
-        <div class="table-responsive table-mobile-cards cards-grid-3">
+        <div class="table-responsive table-mobile-cards">
             <table class="table" style="font-size: 0.88rem;">
                 <thead>
                     <tr>

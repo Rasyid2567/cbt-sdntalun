@@ -378,17 +378,6 @@ window.cbtToast = function(message, type = 'success', duration = 4000) {
 
 // Responsive Mobile Table Expand / Collapse Controller
 
-window.toggleAllCards = function(expand = true, root = document) {
-    const rows = root.querySelectorAll('.cards-grid-3 tbody tr, .table-mobile-cards tbody tr');
-    rows.forEach(tr => {
-        if (expand) {
-            tr.classList.add('expanded');
-        } else {
-            tr.classList.remove('expanded');
-        }
-    });
-};
-
 window.initMobileTableExtend = function(root = document) {
     const tables = root.querySelectorAll('.table-mobile-cards table');
     tables.forEach(table => {
@@ -437,8 +426,7 @@ window.initMobileTableExtend = function(root = document) {
             if (primaryCell) {
                 primaryCell.appendChild(extendBtn);
                 primaryCell.addEventListener('click', (e) => {
-                    const isCardMode = window.innerWidth <= 768 || table.closest('.cards-grid-3, .table-cards-grid');
-                    if (isCardMode) {
+                    if (window.innerWidth <= 768) {
                         if (e.target.closest('a, button, input, select, form')) return;
                         row.classList.toggle('expanded');
                     }
