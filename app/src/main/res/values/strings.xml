@@ -25,7 +25,7 @@
     
     <!-- About Dialog -->
     <string name="about_title">CBT SDN 1 Talun</string>
-    <string name="about_message">Aplikasi Resmi Ujian Berbasis Komputer (CBT)\nSD Negeri 1 Talun\n\nVersi: 2.0.0\nPortal: https://cbt.sdnsatutalun.sch.id/</string>
+    <string name="about_message">Aplikasi Resmi Ujian Berbasis Komputer (CBT)\nSD Negeri 1 Talun\n\nVersi: 2.0.1\nPortal: https://cbt.sdnsatutalun.sch.id/</string>
     
     <!-- Messages -->
     <string name="msg_cache_cleared">Cache aplikasi berhasil dibersihkan</string>

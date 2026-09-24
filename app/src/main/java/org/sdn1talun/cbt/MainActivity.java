@@ -68,7 +68,7 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TARGET_URL = "https://cbt.sdnsatutalun.sch.id/";
-    private static final String APP_TAG = "CBT-SDN1Talun-App/2.0";
+    private static final String APP_TAG = "CBT-SDN1Talun-App/2.0.1";
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;

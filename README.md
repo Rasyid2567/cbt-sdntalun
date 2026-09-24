@@ -66,7 +66,7 @@ File APK hasil kompilasi akan berada di:
 ## 📋 Spesifikasi Teknis
 
 - **Package Name**: `org.sdn1talun.cbt`
-- **Versi**: 2.0.0 (Version Code: 2)
+- **Versi**: 2.0.1 (Version Code: 3)
 - **Target SDK**: Android 15 (API 35)
 - **Min SDK**: Android 7.0 Nougat (API 24)
 - **Bahasa**: Java + Material Design 3
