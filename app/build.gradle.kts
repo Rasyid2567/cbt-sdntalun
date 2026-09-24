@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "org.sdn1talun.cbt"
-        minSdk = 24
+        minSdk = 21
         targetSdk = 35
         versionCode = 3
         versionName = "2.0.1"
